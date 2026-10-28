@@ -11,7 +11,7 @@ test.describe("POST /api/2.0/settings/notification - Owner sets notification set
       const { data, status } = await apiSdk
         .forRole("owner")
         .notifications.setNotificationSettings({
-          notificationSettingsRequestsDto: { type, isEnabled: true },
+          notificationSettingsRequestDto: { type, isEnabled: true },
         });
 
       expect(status).toBe(200);
@@ -32,7 +32,7 @@ test.describe("POST /api/2.0/settings/notification - DocSpaceAdmin sets notifica
       const { data, status } = await apiSdk
         .forRole("docSpaceAdmin")
         .notifications.setNotificationSettings({
-          notificationSettingsRequestsDto: { type, isEnabled: true },
+          notificationSettingsRequestDto: { type, isEnabled: true },
         });
 
       expect(status).toBe(200);
@@ -53,7 +53,7 @@ test.describe("POST /api/2.0/settings/notification - RoomAdmin sets notification
       const { data, status } = await apiSdk
         .forRole("roomAdmin")
         .notifications.setNotificationSettings({
-          notificationSettingsRequestsDto: { type, isEnabled: true },
+          notificationSettingsRequestDto: { type, isEnabled: true },
         });
 
       expect(status).toBe(200);
@@ -74,7 +74,7 @@ test.describe("POST /api/2.0/settings/notification - User sets notification sett
       const { data, status } = await apiSdk
         .forRole("user")
         .notifications.setNotificationSettings({
-          notificationSettingsRequestsDto: { type, isEnabled: true },
+          notificationSettingsRequestDto: { type, isEnabled: true },
         });
 
       expect(status).toBe(200);
@@ -95,7 +95,7 @@ test.describe("POST /api/2.0/settings/notification - Guest sets notification set
       const { data, status } = await apiSdk
         .forRole("guest")
         .notifications.setNotificationSettings({
-          notificationSettingsRequestsDto: { type, isEnabled: true },
+          notificationSettingsRequestDto: { type, isEnabled: true },
         });
 
       expect(status).toBe(200);
@@ -502,7 +502,7 @@ test.describe("GET /api/2.0/settings/notification/{type} - Owner gets notificati
       const ownerApi = apiSdk.forRole("owner");
 
       await ownerApi.notifications.setNotificationSettings({
-        notificationSettingsRequestsDto: { type, isEnabled: true },
+        notificationSettingsRequestDto: { type, isEnabled: true },
       });
 
       const { data, status } =
@@ -526,7 +526,7 @@ test.describe("GET /api/2.0/settings/notification/{type} - DocSpaceAdmin gets no
       const docSpaceAdminApi = apiSdk.forRole("docSpaceAdmin");
 
       await docSpaceAdminApi.notifications.setNotificationSettings({
-        notificationSettingsRequestsDto: { type, isEnabled: true },
+        notificationSettingsRequestDto: { type, isEnabled: true },
       });
 
       const { data, status } =
@@ -551,7 +551,7 @@ test.describe("GET /api/2.0/settings/notification/{type} - RoomAdmin gets notifi
       );
 
       await roomAdminApi.notifications.setNotificationSettings({
-        notificationSettingsRequestsDto: { type, isEnabled: true },
+        notificationSettingsRequestDto: { type, isEnabled: true },
       });
 
       const { data, status } =
@@ -576,7 +576,7 @@ test.describe("GET /api/2.0/settings/notification/{type} - User gets notificatio
       );
 
       await userApi.notifications.setNotificationSettings({
-        notificationSettingsRequestsDto: { type, isEnabled: true },
+        notificationSettingsRequestDto: { type, isEnabled: true },
       });
 
       const { data, status } =
@@ -601,7 +601,7 @@ test.describe("GET /api/2.0/settings/notification/{type} - Guest gets notificati
       );
 
       await guestApi.notifications.setNotificationSettings({
-        notificationSettingsRequestsDto: { type, isEnabled: true },
+        notificationSettingsRequestDto: { type, isEnabled: true },
       });
 
       const { data, status } =

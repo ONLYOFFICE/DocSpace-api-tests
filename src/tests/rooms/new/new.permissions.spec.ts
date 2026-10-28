@@ -404,11 +404,11 @@ test.describe("GET /api/2.0/files/rooms/news - access control", () => {
 
       await ownerApi.files.createFile({
         folderId: visibleId,
-        createFileJsonElement: { title: visibleFile },
+        createFileRequest: { title: visibleFile },
       });
       await ownerApi.files.createFile({
         folderId: hiddenId,
-        createFileJsonElement: { title: hiddenFile },
+        createFileRequest: { title: hiddenFile },
       });
 
       const { data, status } = await api.rooms.getRoomsNewItems();
@@ -433,7 +433,7 @@ test.describe("GET /api/2.0/files/rooms/news - access control", () => {
     });
     await ownerApi.files.createFile({
       folderId: room.response!.id!,
-      createFileJsonElement: { title: "Autotest RoomsNews Outsider.docx" },
+      createFileRequest: { title: "Autotest RoomsNews Outsider.docx" },
     });
 
     const { api } = await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
@@ -477,7 +477,7 @@ test.describe("GET /api/2.0/files/rooms/news - access control", () => {
     for (const title of fileTitles) {
       await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title },
+        createFileRequest: { title },
       });
     }
 

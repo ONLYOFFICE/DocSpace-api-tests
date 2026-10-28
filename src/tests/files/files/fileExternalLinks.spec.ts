@@ -41,7 +41,7 @@ async function roomFile(
   const roomId = roomData.response!.id!;
   const { data } = await ownerApi.files.createFile({
     folderId: roomId,
-    createFileJsonElement: { title: "Autotest Linked.docx" },
+    createFileRequest: { title: "Autotest Linked.docx" },
   });
   return { ownerApi, roomId, fileId: data.response!.id! };
 }

@@ -96,12 +96,12 @@ test.describe("SaaS-gated storage endpoints - Anonymous access control", () => {
     expect(resetStorageToDefault.status).toBe(401);
 
     const updateCdnStorage = await anon.storage.updateCdnStorage({
-      storageRequestsDto: { module: "s3", props: [] },
+      storageRequestDto: { module: "s3", props: [] },
     });
     expect(updateCdnStorage.status).toBe(401);
 
     const updateStorage = await anon.storage.updateStorage({
-      storageRequestsDto: { module: "s3", props: [] },
+      storageRequestDto: { module: "s3", props: [] },
     });
     expect(updateStorage.status).toBe(401);
   });

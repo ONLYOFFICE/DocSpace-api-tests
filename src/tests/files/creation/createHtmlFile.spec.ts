@@ -44,7 +44,7 @@ test.describe("POST /files/:folderId/html - Create an HTML file", () => {
 
       const { data, status } = await ownerApi.files.createHtmlFile({
         folderId: roomId,
-        createTextOrHtmlFile: { title: "Notes", content: markup },
+        createTextOrHtmlFileRequest: { title: "Notes", content: markup },
       });
 
       expect(status).toBe(200);
@@ -69,7 +69,10 @@ test.describe("POST /files/:folderId/html - Create an HTML file", () => {
 
     const { data } = await apiSdk.forRole("owner").files.createHtmlFile({
       folderId: roomId,
-      createTextOrHtmlFile: { title: "Report.html", content: "<p>r</p>" },
+      createTextOrHtmlFileRequest: {
+        title: "Report.html",
+        content: "<p>r</p>",
+      },
     });
 
     expect(asFile(data.response).title).toBe("Report.html");
@@ -86,13 +89,13 @@ test.describe("POST /files/:folderId/html - Create an HTML file", () => {
     );
     const { data: folder } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder" },
+      createFolderRequest: { title: "Autotest Subfolder" },
     });
     const subfolderId = folder.response!.id!;
 
     const { data, status } = await ownerApi.files.createHtmlFile({
       folderId: subfolderId,
-      createTextOrHtmlFile: { title: "Nested", content: "<p>n</p>" },
+      createTextOrHtmlFileRequest: { title: "Nested", content: "<p>n</p>" },
     });
 
     expect(status).toBe(200);
@@ -113,7 +116,7 @@ test.describe("POST /files/:folderId/html - Create an HTML file", () => {
     const create = (content: string) =>
       ownerApi.files.createHtmlFile({
         folderId: roomId,
-        createTextOrHtmlFile: { title: "Notes", content },
+        createTextOrHtmlFileRequest: { title: "Notes", content },
       });
 
     const first = await create("<p>one</p>");
@@ -146,13 +149,13 @@ test.describe("POST /files/:folderId/html - Create an HTML file", () => {
     );
     const { data: first } = await ownerApi.files.createHtmlFile({
       folderId: roomId,
-      createTextOrHtmlFile: { title: "Notes", content: "<p>one</p>" },
+      createTextOrHtmlFileRequest: { title: "Notes", content: "<p>one</p>" },
     });
     const fileId = asFile(first.response).id;
 
     const { data: second, status } = await ownerApi.files.createHtmlFile({
       folderId: roomId,
-      createTextOrHtmlFile: {
+      createTextOrHtmlFileRequest: {
         title: "Notes",
         content: "<p>two</p>",
         createNewIfExist: true,
@@ -184,7 +187,10 @@ test.describe("POST /files/:folderId/html - Create an HTML file", () => {
     );
     const { data: first } = await ownerApi.files.createHtmlFile({
       folderId: roomId,
-      createTextOrHtmlFile: { title: "Locked", content: "<p>original</p>" },
+      createTextOrHtmlFileRequest: {
+        title: "Locked",
+        content: "<p>original</p>",
+      },
     });
     const fileId = asFile(first.response).id;
     const { api: memberApi, data: memberData } =
@@ -200,13 +206,13 @@ test.describe("POST /files/:folderId/html - Create an HTML file", () => {
     });
     const { status: lockStatus } = await memberApi.files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: true },
+      lockFileRequest: { lockFile: true },
     });
     expect(lockStatus).toBe(200);
 
     const { data, status } = await ownerApi.files.createHtmlFile({
       folderId: roomId,
-      createTextOrHtmlFile: {
+      createTextOrHtmlFileRequest: {
         title: "Locked",
         content: "<p>replacement</p>",
         createNewIfExist: true,
@@ -233,7 +239,7 @@ test.describe("POST /files/:folderId/html - Create an HTML file", () => {
 
     const { status } = await ownerApi.files.createHtmlFile({
       folderId: roomId,
-      createTextOrHtmlFile: { title: "NoContent" },
+      createTextOrHtmlFileRequest: { title: "NoContent" },
     });
 
     expect(status).toBe(400);
@@ -255,7 +261,7 @@ test.describe("POST /files/:folderId/html - Create an HTML file", () => {
 
       const { status } = await apiSdk.forRole("owner").files.createHtmlFile({
         folderId: roomId,
-        createTextOrHtmlFile: { title, content: "<p/>" },
+        createTextOrHtmlFileRequest: { title, content: "<p/>" },
       });
 
       expect(status).toBe(400);
@@ -273,7 +279,7 @@ test.describe("POST /files/:folderId/html - Create an HTML file", () => {
 
     const { status } = await apiSdk.forRole("owner").files.createHtmlFile({
       folderId: roomId,
-      createTextOrHtmlFile: { title: "t".repeat(300), content: "<p/>" },
+      createTextOrHtmlFileRequest: { title: "t".repeat(300), content: "<p/>" },
     });
 
     expect(status).toBe(400);
@@ -292,7 +298,7 @@ test.describe("POST /files/:folderId/html - Create an HTML file", () => {
       .forRole("owner")
       .files.createHtmlFile({
         folderId: roomId,
-        createTextOrHtmlFile: { title: 'a<b>c"d/e', content: "<p/>" },
+        createTextOrHtmlFileRequest: { title: 'a<b>c"d/e', content: "<p/>" },
       });
 
     expect(status).toBe(200);
@@ -311,7 +317,7 @@ test.describe("POST /files/:folderId/html - Create an HTML file", () => {
 
     const { data } = await apiSdk.forRole("owner").files.createHtmlFile({
       folderId: roomId,
-      createTextOrHtmlFile: { title: "Verbatim", content: markup },
+      createTextOrHtmlFileRequest: { title: "Verbatim", content: markup },
     });
 
     const download = await downloadFile(
@@ -327,7 +333,7 @@ test.describe("POST /files/:folderId/html - Create an HTML file", () => {
   }) => {
     const { status } = await apiSdk.forRole("owner").files.createHtmlFile({
       folderId: 999999999,
-      createTextOrHtmlFile: { title: "X", content: "<p/>" },
+      createTextOrHtmlFileRequest: { title: "X", content: "<p/>" },
     });
 
     expect(status).toBe(404);
@@ -344,12 +350,12 @@ test.describe("POST /files/:folderId/html - Create an HTML file", () => {
     );
     const { data: file } = await ownerApi.files.createHtmlFile({
       folderId: roomId,
-      createTextOrHtmlFile: { title: "File", content: "<p/>" },
+      createTextOrHtmlFileRequest: { title: "File", content: "<p/>" },
     });
 
     const { status } = await ownerApi.files.createHtmlFile({
       folderId: asFile(file.response).id,
-      createTextOrHtmlFile: { title: "X", content: "<p/>" },
+      createTextOrHtmlFileRequest: { title: "X", content: "<p/>" },
     });
 
     expect(status).toBe(404);
@@ -368,7 +374,7 @@ test.describe("POST /files/:folderId/html - Create an HTML file", () => {
 
     const { status } = await ownerApi.files.createHtmlFile({
       folderId: roomId,
-      createTextOrHtmlFile: { title: "X", content: "<p/>" },
+      createTextOrHtmlFileRequest: { title: "X", content: "<p/>" },
     });
 
     expect(status).toBe(403);
@@ -391,7 +397,7 @@ test.describe("POST /files/:folderId/html - Create an HTML file", () => {
 
       const { status } = await apiSdk.forRole("owner").files.createHtmlFile({
         folderId: roomId,
-        createTextOrHtmlFile: { title: "X", content: "<p/>" },
+        createTextOrHtmlFileRequest: { title: "X", content: "<p/>" },
       });
 
       expect(status).not.toBe(500);
@@ -409,7 +415,7 @@ test.describe("POST /files/:folderId/html - Create an HTML file", () => {
 
       const { status } = await apiSdk.forRole("owner").files.createTextFile({
         folderId: roomId,
-        createTextOrHtmlFile: { title: "X", content: "x" },
+        createTextOrHtmlFileRequest: { title: "X", content: "x" },
       });
 
       expect(status).not.toBe(500);
@@ -427,7 +433,7 @@ test.describe("POST /files/:folderId/html - Create an HTML file", () => {
 
       const { status } = await apiSdk.forRole("owner").files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title: "X.docx" },
+        createFileRequest: { title: "X.docx" },
       });
 
       expect(status).not.toBe(500);
@@ -444,7 +450,7 @@ test.describe("POST /files/@my/html - Create an HTML file in My Documents", () =
     const ownerApi = apiSdk.forRole("owner");
     const write = (content: string) =>
       ownerApi.files.createHtmlFileInMyDocuments({
-        createTextOrHtmlFile: {
+        createTextOrHtmlFileRequest: {
           title: "Autotest History",
           content,
           createNewIfExist: true,
@@ -479,7 +485,7 @@ test.describe("POST /files/@my/html - Create an HTML file in My Documents", () =
     );
 
     const { data } = await ownerApi.files.createHtmlFileInMyDocuments({
-      createTextOrHtmlFile: { title: "Mine", content: "<p>m</p>" },
+      createTextOrHtmlFileRequest: { title: "Mine", content: "<p>m</p>" },
     });
 
     const { data: myFolder } = await ownerApi.folders.getMyFolder();

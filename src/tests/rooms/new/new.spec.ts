@@ -126,7 +126,7 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Contract", () => {
 
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest News Shape File.docx" },
+      createFileRequest: { title: "Autotest News Shape File.docx" },
     });
 
     const { data, status } = await userApi.rooms.getNewRoomItems({
@@ -246,7 +246,7 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
 
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest News Other File.docx" },
+      createFileRequest: { title: "Autotest News Other File.docx" },
     });
 
     const { data, status } = await userApi.rooms.getNewRoomItems({
@@ -285,7 +285,7 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
 
     await userApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest News My Own File.docx" },
+      createFileRequest: { title: "Autotest News My Own File.docx" },
     });
 
     const { data, status } = await userApi.rooms.getNewRoomItems({
@@ -325,7 +325,7 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
     // owner creates the file BEFORE user visits
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest News Pre-Visit File.docx" },
+      createFileRequest: { title: "Autotest News Pre-Visit File.docx" },
     });
 
     await userApi.rooms.getRoomInfo({ id: roomId });
@@ -368,7 +368,7 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
 
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest News Re-Visit File.docx" },
+      createFileRequest: { title: "Autotest News Re-Visit File.docx" },
     });
 
     // user re-visits — should mark all new items as read
@@ -396,7 +396,7 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest News File Before Update.docx",
       },
     });
@@ -418,7 +418,7 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
 
     await ownerApi.files.updateFile({
       fileId,
-      updateFile: { title: "Autotest News File After Update.docx" },
+      updateFileRequest: { title: "Autotest News File After Update.docx" },
     });
 
     const { data, status } = await userApi.rooms.getNewRoomItems({
@@ -445,7 +445,7 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest News Old Title.docx" },
+      createFileRequest: { title: "Autotest News Old Title.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -465,7 +465,7 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
 
     await ownerApi.files.updateFile({
       fileId,
-      updateFile: { title: "Autotest News New Title.docx" },
+      updateFileRequest: { title: "Autotest News New Title.docx" },
     });
 
     const { data, status } = await userApi.rooms.getNewRoomItems({
@@ -506,7 +506,7 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
 
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest News Subfolder By Owner" },
+      createFolderRequest: { title: "Autotest News Subfolder By Owner" },
     });
 
     const { data, status } = await userApi.rooms.getNewRoomItems({
@@ -547,13 +547,13 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
 
     const { data: subfolderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest News Subfolder For File" },
+      createFolderRequest: { title: "Autotest News Subfolder For File" },
     });
     const subfolderId = subfolderData.response!.id!;
 
     await ownerApi.files.createFile({
       folderId: subfolderId,
-      createFileJsonElement: { title: "Autotest News File In Subfolder.docx" },
+      createFileRequest: { title: "Autotest News File In Subfolder.docx" },
     });
 
     const { data, status } = await userApi.rooms.getNewRoomItems({
@@ -594,15 +594,15 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
 
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest News Multi File 1.docx" },
+      createFileRequest: { title: "Autotest News Multi File 1.docx" },
     });
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest News Multi File 2.docx" },
+      createFileRequest: { title: "Autotest News Multi File 2.docx" },
     });
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest News Multi File 3.docx" },
+      createFileRequest: { title: "Autotest News Multi File 3.docx" },
     });
 
     const { data, status } = await userApi.rooms.getNewRoomItems({
@@ -631,7 +631,7 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
     // file A created BEFORE user visit
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest News Old File A.docx" },
+      createFileRequest: { title: "Autotest News Old File A.docx" },
     });
 
     const { api: userApi, data: userData } =
@@ -651,7 +651,7 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
     // file B created AFTER user visit
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest News New File B.docx" },
+      createFileRequest: { title: "Autotest News New File B.docx" },
     });
 
     const { data, status } = await userApi.rooms.getNewRoomItems({
@@ -692,11 +692,11 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
 
     await userApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest News Mixed Own File.docx" },
+      createFileRequest: { title: "Autotest News Mixed Own File.docx" },
     });
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest News Mixed Other File.docx" },
+      createFileRequest: { title: "Autotest News Mixed Other File.docx" },
     });
 
     const { data, status } = await userApi.rooms.getNewRoomItems({
@@ -737,7 +737,7 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest News Will Be Deleted.docx" },
+      createFileRequest: { title: "Autotest News Will Be Deleted.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -759,7 +759,7 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
 
     await ownerApi.files.deleteFile({
       fileId,
-      _delete: { immediately: true },
+      deleteFileRequest: { immediately: true },
     });
     await waitForOperation(ownerApi.operations);
 
@@ -828,7 +828,7 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Cross-check with folder endpo
 
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest News Cross File.docx" },
+      createFileRequest: { title: "Autotest News Cross File.docx" },
     });
 
     const roomResult = await userApi.rooms.getNewRoomItems({ id: roomId });
@@ -895,7 +895,7 @@ test.describe("GET /api/2.0/files/rooms/news - Contract", () => {
 
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Rooms News Shape File.docx" },
+      createFileRequest: { title: "Autotest Rooms News Shape File.docx" },
     });
 
     const { data, status } = await userApi.rooms.getRoomsNewItems();
@@ -945,7 +945,7 @@ test.describe("GET /api/2.0/files/rooms/news - Core semantics", () => {
 
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Rooms News Other File.docx",
       },
     });
@@ -986,7 +986,7 @@ test.describe("GET /api/2.0/files/rooms/news - Core semantics", () => {
 
     await userApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Rooms News My Own File.docx" },
+      createFileRequest: { title: "Autotest Rooms News My Own File.docx" },
     });
 
     const { data, status } = await userApi.rooms.getRoomsNewItems();
@@ -1025,7 +1025,7 @@ test.describe("GET /api/2.0/files/rooms/news - Core semantics", () => {
 
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Rooms News Subfolder By Owner" },
+      createFolderRequest: { title: "Autotest Rooms News Subfolder By Owner" },
     });
 
     const { data, status } = await userApi.rooms.getRoomsNewItems();
@@ -1064,13 +1064,13 @@ test.describe("GET /api/2.0/files/rooms/news - Core semantics", () => {
 
     const { data: subfolderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Rooms News Subfolder For File" },
+      createFolderRequest: { title: "Autotest Rooms News Subfolder For File" },
     });
     const subfolderId = subfolderData.response!.id!;
 
     await ownerApi.files.createFile({
       folderId: subfolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Rooms News File In Subfolder.docx",
       },
     });
@@ -1111,15 +1111,15 @@ test.describe("GET /api/2.0/files/rooms/news - Core semantics", () => {
 
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Rooms News Multi File 1.docx" },
+      createFileRequest: { title: "Autotest Rooms News Multi File 1.docx" },
     });
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Rooms News Multi File 2.docx" },
+      createFileRequest: { title: "Autotest Rooms News Multi File 2.docx" },
     });
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Rooms News Multi File 3.docx" },
+      createFileRequest: { title: "Autotest Rooms News Multi File 3.docx" },
     });
 
     let titles: (string | null | undefined)[] = [];
@@ -1161,13 +1161,13 @@ test.describe("GET /api/2.0/files/rooms/news - Core semantics", () => {
 
     await userApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Rooms News Mixed Own File.docx",
       },
     });
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Rooms News Mixed Other File.docx",
       },
     });
@@ -1208,7 +1208,7 @@ test.describe("GET /api/2.0/files/rooms/news - Core semantics", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Rooms News Will Be Deleted.docx",
       },
     });
@@ -1230,7 +1230,7 @@ test.describe("GET /api/2.0/files/rooms/news - Core semantics", () => {
 
     await ownerApi.files.deleteFile({
       fileId,
-      _delete: { immediately: true },
+      deleteFileRequest: { immediately: true },
     });
     await waitForOperation(ownerApi.operations);
 
@@ -1286,13 +1286,13 @@ test.describe("GET /api/2.0/files/rooms/news - Aggregation across rooms", () => 
 
     await ownerApi.files.createFile({
       folderId: roomAId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Rooms News Aggregate File A.docx",
       },
     });
     await ownerApi.files.createFile({
       folderId: roomBId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Rooms News Aggregate File B.docx",
       },
     });
@@ -1347,13 +1347,13 @@ test.describe("GET /api/2.0/files/rooms/news - Aggregation across rooms", () => 
 
     await ownerApi.files.createFile({
       folderId: roomAId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Rooms News Visible File.docx",
       },
     });
     await ownerApi.files.createFile({
       folderId: roomBId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Rooms News Hidden File.docx",
       },
     });
@@ -1411,13 +1411,13 @@ test.describe("GET /api/2.0/files/rooms/news - Opening one room must not clear a
 
     const { data: fileAData } = await userApi.files.createFile({
       folderId: roomAId,
-      createFileJsonElement: { title: "Autotest News Isolation File A.docx" },
+      createFileRequest: { title: "Autotest News Isolation File A.docx" },
     });
     expect(fileAData.response?.id).toBeDefined();
 
     const { data: fileBData } = await userApi.files.createFile({
       folderId: roomBId,
-      createFileJsonElement: { title: "Autotest News Isolation File B.docx" },
+      createFileRequest: { title: "Autotest News Isolation File B.docx" },
     });
     expect(fileBData.response?.id).toBeDefined();
 
@@ -1501,7 +1501,7 @@ test.describe("GET /api/2.0/files/rooms/news - Cross-check with room endpoint", 
 
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Rooms News Cross File.docx" },
+      createFileRequest: { title: "Autotest Rooms News Cross File.docx" },
     });
 
     const roomsResult = await userApi.rooms.getRoomsNewItems();

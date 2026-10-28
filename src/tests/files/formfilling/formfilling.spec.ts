@@ -128,7 +128,7 @@ test.describe("GET /files/file/:fileId/submissions", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: created } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Submissions Docx.docx" },
+      createFileRequest: { title: "Autotest Submissions Docx.docx" },
     });
 
     const { status } = await ownerApi.files.getFormSubmissions({
@@ -263,7 +263,7 @@ test.describe("POST /files/file/:fileId/xlsx and GET /files/file/:fileId/xlsx", 
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: created } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Xlsx Docx.docx" },
+      createFileRequest: { title: "Autotest Xlsx Docx.docx" },
     });
 
     const { status } = await ownerApi.files.generateXlsx({
@@ -461,7 +461,7 @@ test.describe("POST /files/file/:fileId/formrolemapping", () => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: me } = await ownerApi.profiles.getSelfProfile();
     const { data: created } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest RoleMapping Docx.docx" },
+      createFileRequest: { title: "Autotest RoleMapping Docx.docx" },
     });
     const docId = created.response!.id!;
 

@@ -75,7 +75,7 @@ export async function createKnowledgeFile(
 ): Promise<number> {
   const { data, status } = await api.files.createFile({
     folderId: knowledgeFolderId,
-    createFileJsonElement: { title },
+    createFileRequest: { title },
   });
   const fileId = data.response?.id;
 

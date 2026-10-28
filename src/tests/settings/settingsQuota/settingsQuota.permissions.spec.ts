@@ -62,7 +62,7 @@ test.describe("POST /api/2.0/settings/roomquotasettings - access control", () =>
     const { status } = await apiSdk
       .forAnonymous()
       .settingsQuota.saveRoomQuotaSettings({
-        quotaSettingsRequestsDto: { enableQuota: false, defaultQuota: -1 },
+        quotaSettingsRequestDto: { enableQuota: false, defaultQuota: -1 },
       });
 
     expect(status).toBe(401);
@@ -76,7 +76,7 @@ test.describe("POST /api/2.0/settings/roomquotasettings - access control", () =>
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
       .settingsQuota.saveRoomQuotaSettings({
-        quotaSettingsRequestsDto: { enableQuota: false, defaultQuota: -1 },
+        quotaSettingsRequestDto: { enableQuota: false, defaultQuota: -1 },
       });
 
     expect(status).toBe(403);
@@ -91,7 +91,7 @@ test.describe("POST /api/2.0/settings/roomquotasettings - access control", () =>
     const { data, status } = await apiSdk
       .forRole("user")
       .settingsQuota.saveRoomQuotaSettings({
-        quotaSettingsRequestsDto: { enableQuota: false, defaultQuota: -1 },
+        quotaSettingsRequestDto: { enableQuota: false, defaultQuota: -1 },
       });
 
     expect(status).toBe(403);
@@ -106,7 +106,7 @@ test.describe("POST /api/2.0/settings/roomquotasettings - access control", () =>
     const { data, status } = await apiSdk
       .forRole("guest")
       .settingsQuota.saveRoomQuotaSettings({
-        quotaSettingsRequestsDto: { enableQuota: false, defaultQuota: -1 },
+        quotaSettingsRequestDto: { enableQuota: false, defaultQuota: -1 },
       });
 
     expect(status).toBe(403);
@@ -121,7 +121,7 @@ test.describe("POST /api/2.0/settings/aiagentquotasettings - access control", ()
     const { status } = await apiSdk
       .forAnonymous()
       .settingsQuota.saveAiAgentQuotaSettings({
-        quotaSettingsRequestsDto: { enableQuota: false, defaultQuota: -1 },
+        quotaSettingsRequestDto: { enableQuota: false, defaultQuota: -1 },
       });
 
     expect(status).toBe(401);
@@ -135,7 +135,7 @@ test.describe("POST /api/2.0/settings/aiagentquotasettings - access control", ()
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
       .settingsQuota.saveAiAgentQuotaSettings({
-        quotaSettingsRequestsDto: { enableQuota: false, defaultQuota: -1 },
+        quotaSettingsRequestDto: { enableQuota: false, defaultQuota: -1 },
       });
 
     expect(status).toBe(403);
@@ -150,7 +150,7 @@ test.describe("POST /api/2.0/settings/aiagentquotasettings - access control", ()
     const { data, status } = await apiSdk
       .forRole("user")
       .settingsQuota.saveAiAgentQuotaSettings({
-        quotaSettingsRequestsDto: { enableQuota: false, defaultQuota: -1 },
+        quotaSettingsRequestDto: { enableQuota: false, defaultQuota: -1 },
       });
 
     expect(status).toBe(403);
@@ -165,7 +165,7 @@ test.describe("POST /api/2.0/settings/aiagentquotasettings - access control", ()
     const { data, status } = await apiSdk
       .forRole("guest")
       .settingsQuota.saveAiAgentQuotaSettings({
-        quotaSettingsRequestsDto: { enableQuota: false, defaultQuota: -1 },
+        quotaSettingsRequestDto: { enableQuota: false, defaultQuota: -1 },
       });
 
     expect(status).toBe(403);

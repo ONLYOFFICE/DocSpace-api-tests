@@ -11,7 +11,7 @@ test.describe("GET /api/2.0/group/file/{id} - Permissions", () => {
     const ownerId = ownerProfile.response!.id!;
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: apiSdk.faker.generateString(15) },
+      createFileRequest: { title: apiSdk.faker.generateString(15) },
     });
     const fileId = fileData.response!.id!;
 
@@ -68,7 +68,7 @@ test.describe("GET /api/2.0/group/file/{id} - Permissions", () => {
 
     const { data: fileData } = await userApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: apiSdk.faker.generateString(15) },
+      createFileRequest: { title: apiSdk.faker.generateString(15) },
     });
     const fileId = fileData.response!.id!;
 
@@ -97,7 +97,7 @@ test.describe("GET /api/2.0/group/file/{id} - Permissions", () => {
     const ownerId = ownerProfile.response!.id!;
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: apiSdk.faker.generateString(15) },
+      createFileRequest: { title: apiSdk.faker.generateString(15) },
     });
     const fileId = fileData.response!.id!;
 
@@ -137,7 +137,7 @@ test.describe("GET /api/2.0/group/file/{id} - Permissions", () => {
     const ownerId = ownerProfile.response!.id!;
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: apiSdk.faker.generateString(15) },
+      createFileRequest: { title: apiSdk.faker.generateString(15) },
     });
     const fileId = fileData.response!.id!;
 
@@ -175,7 +175,7 @@ test.describe("GET /api/2.0/group/file/{id} - Permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: apiSdk.faker.generateString(15) },
+      createFileRequest: { title: apiSdk.faker.generateString(15) },
     });
     const fileId = fileData.response!.id!;
 
@@ -201,7 +201,7 @@ test.describe("GET /api/2.0/group/folder/{id} - Permissions", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 
@@ -258,7 +258,7 @@ test.describe("GET /api/2.0/group/folder/{id} - Permissions", () => {
 
     const { data: folderData } = await userApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 
@@ -290,7 +290,7 @@ test.describe("GET /api/2.0/group/folder/{id} - Permissions", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 
@@ -334,7 +334,7 @@ test.describe("GET /api/2.0/group/folder/{id} - Permissions", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 
@@ -376,7 +376,7 @@ test.describe("GET /api/2.0/group/folder/{id} - Permissions", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 

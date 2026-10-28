@@ -8,7 +8,7 @@ test.describe("POST /api/2.0/settings/devtoolsaccess", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .securityAccessToDevTools.setTenantDevToolsAccessSettings({
-        tenantDevToolsAccessSettingsDto: { limitedAccessForUsers: true },
+        tenantDevToolsAccessSettingsRequestDto: { limitedAccessForUsers: true },
       });
 
     expect(status).toBe(200);
@@ -22,7 +22,9 @@ test.describe("POST /api/2.0/settings/devtoolsaccess", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .securityAccessToDevTools.setTenantDevToolsAccessSettings({
-        tenantDevToolsAccessSettingsDto: { limitedAccessForUsers: false },
+        tenantDevToolsAccessSettingsRequestDto: {
+          limitedAccessForUsers: false,
+        },
       });
 
     expect(status).toBe(200);
@@ -38,7 +40,7 @@ test.describe("POST /api/2.0/settings/devtoolsaccess", () => {
     const { status } = await apiSdk
       .forRole("docSpaceAdmin")
       .securityAccessToDevTools.setTenantDevToolsAccessSettings({
-        tenantDevToolsAccessSettingsDto: { limitedAccessForUsers: true },
+        tenantDevToolsAccessSettingsRequestDto: { limitedAccessForUsers: true },
       });
 
     expect(status).toBe(200);

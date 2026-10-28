@@ -27,7 +27,7 @@ async function roomWithFile(
   const roomId = roomData.response!.id!;
   const { data: fileData } = await ownerApi.files.createFile({
     folderId: roomId,
-    createFileJsonElement: { title: fileTitle },
+    createFileRequest: { title: fileTitle },
   });
   return { ownerApi, roomId, fileId: fileData.response!.id! };
 }
@@ -109,7 +109,7 @@ test.describe("GET /files/file/:fileId/openedit - editor configuration", () => {
       (
         await ownerApi.files.createFile({
           folderId: roomId,
-          createFileJsonElement: { title },
+          createFileRequest: { title },
         })
       ).data.response!.id!;
 
@@ -131,7 +131,7 @@ test.describe("GET /files/file/:fileId/openedit - editor configuration", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: created } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest My Docs Edit.docx" },
+      createFileRequest: { title: "Autotest My Docs Edit.docx" },
     });
 
     const { data, status } = await ownerApi.files.openEditFile({
@@ -166,7 +166,7 @@ test.describe("POST /files/file/:fileId/startedit and GET /files/file/:fileId/tr
 
     const { data, status } = await ownerApi.files.startEditFile({
       fileId,
-      startEdit: { editingAlone: true },
+      startEditRequest: { editingAlone: true },
     });
 
     expect(status).toBe(200);
@@ -197,13 +197,13 @@ test.describe("POST /files/file/:fileId/startedit and GET /files/file/:fileId/tr
     expect(inviteStatus).toBe(200);
     const { data: started } = await ownerApi.files.startEditFile({
       fileId,
-      startEdit: { editingAlone: true },
+      startEditRequest: { editingAlone: true },
     });
     const docKey = started.response as unknown as string;
 
     const blocked = await editorApi.files.startEditFile({
       fileId,
-      startEdit: { editingAlone: true },
+      startEditRequest: { editingAlone: true },
     });
     expect(blocked.status).toBe(403);
 
@@ -218,7 +218,7 @@ test.describe("POST /files/file/:fileId/startedit and GET /files/file/:fileId/tr
     const { data: next, status: nextStatus } =
       await editorApi.files.startEditFile({
         fileId,
-        startEdit: { editingAlone: true },
+        startEditRequest: { editingAlone: true },
       });
     expect(nextStatus).toBe(200);
     expect(typeof next.response).toBe("string");
@@ -235,7 +235,7 @@ test.describe("POST /files/file/:fileId/startedit and GET /files/file/:fileId/tr
     );
     const { data: started } = await ownerApi.files.startEditFile({
       fileId,
-      startEdit: { editingAlone: true },
+      startEditRequest: { editingAlone: true },
     });
     const docKey = started.response as unknown as string;
 
@@ -264,7 +264,7 @@ test.describe("POST /files/file/:fileId/startedit and GET /files/file/:fileId/tr
     );
     await ownerApi.files.startEditFile({
       fileId,
-      startEdit: { editingAlone: true },
+      startEditRequest: { editingAlone: true },
     });
 
     const { status } = await ownerApi.files.trackEditFile({
@@ -293,7 +293,7 @@ test.describe("PUT /files/file/:fileId/customfilter - Custom Filter mode", () =>
       const { data: on, status: onStatus } =
         await ownerApi.files.setCustomFilterTag({
           fileId,
-          customFilterParameters: { enabled: true },
+          customFilterRequest: { enabled: true },
         });
       expect(onStatus).toBe(200);
       expect(on.response?.customFilterEnabled).toBe(true);
@@ -302,7 +302,7 @@ test.describe("PUT /files/file/:fileId/customfilter - Custom Filter mode", () =>
 
       const { status: offStatus } = await ownerApi.files.setCustomFilterTag({
         fileId,
-        customFilterParameters: { enabled: false },
+        customFilterRequest: { enabled: false },
       });
       expect(offStatus).toBe(200);
       const { data: infoOff } = await ownerApi.files.getFileInfo({ fileId });
@@ -322,7 +322,7 @@ test.describe("PUT /files/file/:fileId/customfilter - Custom Filter mode", () =>
     const enable = () =>
       ownerApi.files.setCustomFilterTag({
         fileId,
-        customFilterParameters: { enabled: true },
+        customFilterRequest: { enabled: true },
       });
 
     const first = await enable();
@@ -353,7 +353,7 @@ test.describe("PUT /files/file/:fileId/customfilter - Custom Filter mode", () =>
 
       const { status } = await ownerApi.files.setCustomFilterTag({
         fileId,
-        customFilterParameters: { enabled: true },
+        customFilterRequest: { enabled: true },
       });
 
       const { data: info } = await ownerApi.files.getFileInfo({ fileId });

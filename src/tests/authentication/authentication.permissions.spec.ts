@@ -3,12 +3,12 @@ import { test } from "@/src/fixtures";
 import {
   ConfirmType,
   EmployeeStatus,
-  EmailValidationKeyModel,
+  CheckConfirmRequestDto,
   EmployeeType,
   FileShare,
   LinkType,
   RoomType,
-  TfaRequestsDtoType,
+  TfaType,
   ValidationResult,
 } from "@onlyoffice/docspace-api-sdk";
 import { ApiSDK } from "@/src/services/api-sdk";
@@ -33,7 +33,7 @@ test.describe("POST /api/2.0/authentication - permissions", () => {
     const anonymous = isolatedSdk.forAnonymous();
 
     const { data, status } = await anonymous.authentication.authenticateMe({
-      authRequestsDto: {
+      authRequestDto: {
         userName: user.email,
         password: `${user.password}x`,
       },
@@ -46,7 +46,7 @@ test.describe("POST /api/2.0/authentication - permissions", () => {
     // positive control: the account exists and its real password still works
     const { data: control, status: controlStatus } =
       await anonymous.authentication.authenticateMe({
-        authRequestsDto: { userName: user.email, password: user.password },
+        authRequestDto: { userName: user.email, password: user.password },
       });
     expect(controlStatus).toBe(200);
     expect(control.response?.token).toBeTruthy();
@@ -59,7 +59,7 @@ test.describe("POST /api/2.0/authentication - permissions", () => {
     const { data, status } = await apiSdk
       .forAnonymous()
       .authentication.authenticateMe({
-        authRequestsDto: {
+        authRequestDto: {
           userName: apiSdk.faker.generateUser().email,
           password: "somepassword123",
         },
@@ -93,7 +93,7 @@ test.describe("POST /api/2.0/authentication/{code} - permissions", () => {
       .forAnonymous()
       .authentication.authenticateMeFromBodyWithCode({
         code: "123456",
-        authWithCodeRequestsDto: {
+        authWithCodeRequestDto: {
           userName: user.email,
           password: user.password,
           code: "123456",
@@ -112,7 +112,7 @@ test.describe("POST /api/2.0/authentication/{code} - permissions", () => {
       .forAnonymous()
       .authentication.authenticateMeFromBodyWithCode({
         code: "123456",
-        authWithCodeRequestsDto: {
+        authWithCodeRequestDto: {
           userName: apiSdk.faker.generateUser().email,
           password: "wrongpassword",
           code: "123456",
@@ -185,7 +185,7 @@ test.describe("POST /api/2.0/authentication - credential validation", () => {
     const anonymous = isolatedSdk.forAnonymous();
 
     const { data, status } = await anonymous.authentication.authenticateMe({
-      authRequestsDto: { userName: user.email, password: "pASSW0RDaBC" },
+      authRequestDto: { userName: user.email, password: "pASSW0RDaBC" },
     });
 
     expect(status).toBe(401);
@@ -193,7 +193,7 @@ test.describe("POST /api/2.0/authentication - credential validation", () => {
 
     const { status: controlStatus } =
       await anonymous.authentication.authenticateMe({
-        authRequestsDto: { userName: user.email, password: user.password },
+        authRequestDto: { userName: user.email, password: user.password },
       });
     expect(controlStatus).toBe(200);
   });
@@ -213,7 +213,7 @@ test.describe("POST /api/2.0/authentication - credential validation", () => {
     for (const [name, authRequestsDto] of Object.entries(variants)) {
       await test.step(`${name} password is rejected`, async () => {
         const { data, status } = await anonymous.authentication.authenticateMe({
-          authRequestsDto,
+          authRequestDto: authRequestsDto,
         });
         expect(status).toBe(401);
         expect((data as any)?.error?.message).toBe(LOGIN_FAILED);
@@ -223,7 +223,7 @@ test.describe("POST /api/2.0/authentication - credential validation", () => {
 
     const { status: controlStatus } =
       await anonymous.authentication.authenticateMe({
-        authRequestsDto: { userName: user.email, password: user.password },
+        authRequestDto: { userName: user.email, password: user.password },
       });
     expect(controlStatus).toBe(200);
   });
@@ -243,7 +243,7 @@ test.describe("POST /api/2.0/authentication - credential validation", () => {
     for (const [name, authRequestsDto] of Object.entries(variants)) {
       await test.step(`${name} login is rejected`, async () => {
         const { data, status } = await anonymous.authentication.authenticateMe({
-          authRequestsDto,
+          authRequestDto: authRequestsDto,
         });
         expect(status).toBe(401);
         expect((data as any)?.error?.message).toBe(LOGIN_FAILED);
@@ -270,7 +270,7 @@ test.describe("POST /api/2.0/authentication - credential validation", () => {
     for (const [name, authRequestsDto] of Object.entries(variants)) {
       await test.step(`${name} is rejected`, async () => {
         const { data, status } = await anonymous.authentication.authenticateMe({
-          authRequestsDto,
+          authRequestDto: authRequestsDto,
         });
         expect(status).toBe(401);
         expect((data as any)?.error?.message).toBe(LOGIN_FAILED);
@@ -280,7 +280,7 @@ test.describe("POST /api/2.0/authentication - credential validation", () => {
 
     const { status: controlStatus } =
       await anonymous.authentication.authenticateMe({
-        authRequestsDto: { userName: user.email, password: user.password },
+        authRequestDto: { userName: user.email, password: user.password },
       });
     expect(controlStatus).toBe(200);
   });
@@ -299,7 +299,7 @@ test.describe("POST /api/2.0/authentication - credential validation", () => {
     for (const [name, userName] of Object.entries(logins)) {
       await test.step(`${name} is treated as an ordinary unknown login`, async () => {
         const { data, status } = await anonymous.authentication.authenticateMe({
-          authRequestsDto: { userName, password: "x" },
+          authRequestDto: { userName, password: "x" },
         });
         expect(status).toBe(401);
         expect((data as any)?.error?.message).toBe(LOGIN_FAILED);
@@ -317,7 +317,7 @@ test.describe("POST /api/2.0/authentication - credential validation", () => {
 
     await test.step("5000-character login", async () => {
       const { data, status } = await anonymous.authentication.authenticateMe({
-        authRequestsDto: {
+        authRequestDto: {
           userName: `${apiSdk.faker.generateString(5000)}@example.com`,
           password: user.password,
         },
@@ -328,7 +328,7 @@ test.describe("POST /api/2.0/authentication - credential validation", () => {
 
     await test.step("10000-character password", async () => {
       const { data, status } = await anonymous.authentication.authenticateMe({
-        authRequestsDto: { userName: user.email, password: "p".repeat(10000) },
+        authRequestDto: { userName: user.email, password: "p".repeat(10000) },
       });
       expect(status).toBe(401);
       expect((data as any)?.error?.message).toBe(LOGIN_FAILED);
@@ -368,7 +368,7 @@ test.describe("POST /api/2.0/authentication - credential validation", () => {
 
     await test.step("passwordHash that does not match", async () => {
       const { data, status } = await anonymous.authentication.authenticateMe({
-        authRequestsDto: { userName: user.email, passwordHash: "garbage" },
+        authRequestDto: { userName: user.email, passwordHash: "garbage" },
       });
       expect(status).toBe(401);
       expect((data as any)?.error?.message).toBe(LOGIN_FAILED);
@@ -376,7 +376,7 @@ test.describe("POST /api/2.0/authentication - credential validation", () => {
 
     await test.step("provider without an access token", async () => {
       const { data, status } = await anonymous.authentication.authenticateMe({
-        authRequestsDto: { provider: "google" },
+        authRequestDto: { provider: "google" },
       });
       expect(status).toBe(401);
       expect((data as any)?.error?.message).toBe(LOGIN_FAILED);
@@ -416,7 +416,7 @@ test.describe("POST /api/2.0/authentication - credential validation", () => {
 
     await test.step("active user logs in", async () => {
       const { status } = await anonymous.authentication.authenticateMe({
-        authRequestsDto: credentials,
+        authRequestDto: credentials,
       });
       expect(status).toBe(200);
     });
@@ -433,7 +433,7 @@ test.describe("POST /api/2.0/authentication - credential validation", () => {
 
     await test.step("deactivated user is refused with a distinct 403", async () => {
       const { data, status } = await anonymous.authentication.authenticateMe({
-        authRequestsDto: credentials,
+        authRequestDto: credentials,
       });
       expect(status).toBe(403);
       expect((data as any)?.error?.message).toBe("User disabled");
@@ -452,7 +452,7 @@ test.describe("POST /api/2.0/authentication - credential validation", () => {
 
     await test.step("reactivated user logs in again", async () => {
       const { data, status } = await anonymous.authentication.authenticateMe({
-        authRequestsDto: credentials,
+        authRequestDto: credentials,
       });
       expect(status).toBe(200);
       expect(data.response?.token).toBeTruthy();
@@ -484,7 +484,7 @@ test.describe("POST /api/2.0/authentication - credential validation", () => {
       const { data, status } = await isolatedSdk
         .forAnonymous()
         .authentication.authenticateMe({
-          authRequestsDto: { userName: user.email, password: user.password },
+          authRequestDto: { userName: user.email, password: user.password },
         });
       expect(status).toBe(401);
       expect((data as any)?.error?.message).toBe(LOGIN_FAILED);
@@ -669,7 +669,7 @@ test.describe("POST /api/2.0/authentication/confirm - invalid confirmations", ()
 
     await test.step("positive control: the real key is Ok", async () => {
       const { data, status } = await anonymous.authentication.checkConfirm({
-        emailValidationKeyModel: {
+        checkConfirmRequestDto: {
           key,
           uiD: uid,
           emplType: EmployeeType.User,
@@ -680,7 +680,7 @@ test.describe("POST /api/2.0/authentication/confirm - invalid confirmations", ()
       expect(data.response?.result).toBe(ValidationResult.Ok);
     });
 
-    const invalid: Record<string, EmailValidationKeyModel> = {
+    const invalid: Record<string, CheckConfirmRequestDto> = {
       "tampered key": {
         key: `${key.slice(0, -2)}XX`,
         uiD: uid,
@@ -727,7 +727,7 @@ test.describe("POST /api/2.0/authentication/confirm - invalid confirmations", ()
     for (const [name, emailValidationKeyModel] of Object.entries(invalid)) {
       await test.step(`${name} is Invalid`, async () => {
         const { data, status } = await anonymous.authentication.checkConfirm({
-          emailValidationKeyModel,
+          checkConfirmRequestDto: emailValidationKeyModel,
         });
         expect(status).toBe(200);
         expect(data.response?.result).toBe(ValidationResult.Invalid);
@@ -764,7 +764,7 @@ test.describe("POST /api/2.0/authentication/confirm - invalid confirmations", ()
 
     await test.step("positive control: with the creator id the room is disclosed", async () => {
       const { data } = await anonymous.authentication.checkConfirm({
-        emailValidationKeyModel: {
+        checkConfirmRequestDto: {
           key,
           uiD: uid,
           type: ConfirmType.LinkInvite,
@@ -777,7 +777,7 @@ test.describe("POST /api/2.0/authentication/confirm - invalid confirmations", ()
     await test.step("without the creator id the key is Invalid and no room data leaks", async () => {
       const { data, status: checkStatus } =
         await anonymous.authentication.checkConfirm({
-          emailValidationKeyModel: { key, type: ConfirmType.LinkInvite },
+          checkConfirmRequestDto: { key, type: ConfirmType.LinkInvite },
         });
       expect(checkStatus).toBe(200);
       expect(data.response?.result).toBe(ValidationResult.Invalid);
@@ -799,7 +799,7 @@ test.describe("POST /api/2.0/authentication/confirm - invalid confirmations", ()
 
     await test.step("empty object", async () => {
       const { data, status } = await anonymous.authentication.checkConfirm({
-        emailValidationKeyModel: {},
+        checkConfirmRequestDto: {},
       });
       expect(status).toBe(400);
       expect((data as any)?.error?.message).toBeTruthy();
@@ -837,7 +837,7 @@ test.describe("POST /api/2.0/authentication/confirm - invalid confirmations", ()
     const { data, status } = await apiSdk
       .forAnonymous()
       .authentication.checkConfirm({
-        emailValidationKeyModel: {
+        checkConfirmRequestDto: {
           key: "garbage",
           email: "someone@example.com",
           type: ConfirmType.EmpInvite,
@@ -862,7 +862,7 @@ test.describe("SMS two-factor authentication on the test stand", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .tfaSettings.updateTfaSettings({
-        tfaRequestsDto: { type: TfaRequestsDtoType.Sms },
+        tfaRequestDto: { type: TfaType.Sms },
       });
 
     // If this starts returning 200, SMS flows became testable: add the
@@ -881,7 +881,7 @@ test.describe("POST /api/2.0/authentication/setphone - permissions", () => {
     const { status } = await apiSdk
       .forAnonymous()
       .authentication.saveMobilePhone({
-        mobileRequestsDto: { mobilePhone: "+14155550123" },
+        mobileRequestDto: { mobilePhone: "+14155550123" },
       });
 
     expect(status).toBe(401);
@@ -901,7 +901,7 @@ test.describe("POST /api/2.0/authentication/setphone - permissions", () => {
     for (const [name, mobileRequestsDto] of Object.entries(variants)) {
       await test.step(`${name} is refused before it is looked at`, async () => {
         const { status } = await ownerApi.authentication.saveMobilePhone({
-          mobileRequestsDto,
+          mobileRequestDto: mobileRequestsDto,
         });
         expect(status).toBe(403);
       });
@@ -923,7 +923,7 @@ test.describe("POST /api/2.0/authentication/sendsms - invalid credentials", () =
 
     await test.step("wrong password of an existing account", async () => {
       const { data, status } = await anonymous.authentication.sendSmsCode({
-        authRequestsDto: {
+        authRequestDto: {
           userName: user.email,
           password: `${user.password}x`,
         },
@@ -934,7 +934,7 @@ test.describe("POST /api/2.0/authentication/sendsms - invalid credentials", () =
 
     await test.step("unknown user", async () => {
       const { data, status } = await anonymous.authentication.sendSmsCode({
-        authRequestsDto: {
+        authRequestDto: {
           userName: apiSdk.faker.generateUser().email,
           password: "somepassword123",
         },
@@ -951,7 +951,7 @@ test.describe("POST /api/2.0/authentication/sendsms - invalid credentials", () =
 
     await test.step("empty credentials object", async () => {
       const { data, status } = await anonymous.authentication.sendSmsCode({
-        authRequestsDto: {},
+        authRequestDto: {},
       });
       expect(status).toBe(401);
       expect((data as any)?.error?.message).toBe(LOGIN_FAILED);
@@ -980,7 +980,7 @@ test.describe("POST /api/2.0/authentication/sendsms - invalid credentials", () =
     );
 
     const { status } = await apiSdk.forAnonymous().authentication.sendSmsCode({
-      authRequestsDto: {
+      authRequestDto: {
         userName: user.email,
         password: user.password,
       },
@@ -1015,7 +1015,7 @@ test.describe("POST /api/2.0/authentication/{code} - invalid codes", () => {
   async function firstStepSecret(isolatedSdk: ApiSDK, account: Account) {
     const { data, status } = await isolatedSdk
       .forAnonymous()
-      .authentication.authenticateMe({ authRequestsDto: account });
+      .authentication.authenticateMe({ authRequestDto: account });
     expect(status).toBe(200);
     expect(data.response?.tfa).toBe(true);
     expect(Boolean(data.response?.token)).toBe(false);
@@ -1040,7 +1040,7 @@ test.describe("POST /api/2.0/authentication/{code} - invalid codes", () => {
       .forAnonymous()
       .authentication.authenticateMeFromBodyWithCode({
         code,
-        authWithCodeRequestsDto: body,
+        authWithCodeRequestDto: body,
       });
   }
 

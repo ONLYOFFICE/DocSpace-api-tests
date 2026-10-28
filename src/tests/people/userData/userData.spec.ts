@@ -78,7 +78,7 @@ test.describe("GET /people/reassign/necessary - Check data for reassignment need
 
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Reassign File",
       },
     });
@@ -106,7 +106,7 @@ test.describe("GET /people/reassign/necessary - Check data for reassignment need
 
     await docSpaceAdminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Reassign File",
       },
     });
@@ -150,7 +150,7 @@ test.describe("POST /people/reassign/start - Start data reassignment", () => {
 
     await roomAdminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Reassign File",
       },
     });
@@ -212,7 +212,7 @@ test.describe("POST /people/reassign/start - Start data reassignment", () => {
 
     await roomAdminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Reassign File",
       },
     });
@@ -273,7 +273,7 @@ test.describe("GET /people/reassign/progress - Check reassignment progress", () 
     const roomId = roomData.response!.id!;
     await roomAdminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Reassign File",
       },
     });
@@ -306,7 +306,7 @@ test.describe("GET /people/reassign/progress - Check reassignment progress", () 
     let status: number | undefined;
     await expect(async () => {
       ({ data, status } = await ownerApi.userData.getReassignProgress({
-        userid: roomAdminId,
+        userId: roomAdminId,
       }));
       expect(data.response?.status).toBe(2);
     }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
@@ -348,7 +348,7 @@ test.describe("GET /people/reassign/progress - Check reassignment progress", () 
     const roomId = roomData.response!.id!;
     await roomAdminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Reassign File",
       },
     });
@@ -386,7 +386,7 @@ test.describe("GET /people/reassign/progress - Check reassignment progress", () 
     let status: number | undefined;
     await expect(async () => {
       ({ data, status } = await docSpaceAdminApi.userData.getReassignProgress({
-        userid: roomAdminId,
+        userId: roomAdminId,
       }));
       expect(data.response?.status).toBe(2);
     }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
@@ -424,7 +424,7 @@ test.describe("PUT /people/reassign/terminate - Terminate data reassignment", ()
     const roomId = roomData.response!.id!;
     await roomAdminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Reassign File",
       },
     });
@@ -495,7 +495,7 @@ test.describe("PUT /people/reassign/terminate - Terminate data reassignment", ()
     const roomId = roomData.response!.id!;
     await roomAdminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Reassign File",
       },
     });
@@ -610,7 +610,7 @@ test.describe("POST /people/remove/start - Start data removal", () => {
     // Wait for removal to complete
     await expect(async () => {
       const { data } = await ownerApi.userData.getRemoveProgress({
-        userid: adminId,
+        userId: adminId,
       });
       expect(data.response?.isCompleted).toBe(true);
     }).toPass({
@@ -700,7 +700,7 @@ test.describe("POST /people/remove/start - Start data removal", () => {
     // Wait for removal to complete
     await expect(async () => {
       const { data } = await ownerApi.userData.getRemoveProgress({
-        userid: roomAdminId,
+        userId: roomAdminId,
       });
       expect(data.response?.isCompleted).toBe(true);
     }).toPass({
@@ -747,7 +747,7 @@ test.describe("POST /people/remove/start - Start data removal", () => {
     const roomId = roomData.response!.id!;
     await roomAdminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Remove File",
       },
     });
@@ -808,7 +808,7 @@ test.describe("POST /people/remove/start - Start data removal", () => {
     const roomId = roomData.response!.id!;
     await roomAdminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Remove File",
       },
     });
@@ -868,7 +868,7 @@ test.describe("GET /people/remove/progress - Check data removal progress", () =>
     });
     await roomAdminApi.files.createFile({
       folderId: roomData.response!.id!,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Remove File",
       },
     });
@@ -893,7 +893,7 @@ test.describe("GET /people/remove/progress - Check data removal progress", () =>
 
     // Check progress
     const { data, status } = await ownerApi.userData.getRemoveProgress({
-      userid: roomAdminId,
+      userId: roomAdminId,
     });
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -930,7 +930,7 @@ test.describe("GET /people/remove/progress - Check data removal progress", () =>
     });
     await roomAdminApi.files.createFile({
       folderId: roomData.response!.id!,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Remove File",
       },
     });
@@ -959,7 +959,7 @@ test.describe("GET /people/remove/progress - Check data removal progress", () =>
 
     // DocSpaceAdmin checks progress
     const { data, status } = await docSpaceAdminApi.userData.getRemoveProgress({
-      userid: roomAdminId,
+      userId: roomAdminId,
     });
 
     expect(status).toBe(200);
@@ -994,7 +994,7 @@ test.describe("PUT /people/remove/terminate - Terminate data removal", () => {
     const roomId = roomData.response!.id!;
     await roomAdminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Remove File",
       },
     });
@@ -1059,7 +1059,7 @@ test.describe("PUT /people/remove/terminate - Terminate data removal", () => {
     const roomId = roomData.response!.id!;
     await roomAdminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Remove File",
       },
     });

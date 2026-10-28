@@ -16,7 +16,7 @@ test.describe("POST /api/2.0/settings/banner - permissions", () => {
     const { status } = await apiSdk
       .forAnonymous()
       .securityBanners.setTenantBannerSettings({
-        tenantBannerSettingsDto: { hidden: true },
+        tenantBannerSettingsRequestDto: { hidden: true },
       });
 
     expect(status).toBe(401);
@@ -30,7 +30,7 @@ test.describe("POST /api/2.0/settings/banner - permissions", () => {
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
       .securityBanners.setTenantBannerSettings({
-        tenantBannerSettingsDto: { hidden: true },
+        tenantBannerSettingsRequestDto: { hidden: true },
       });
 
     expect(status).toBe(403);
@@ -45,7 +45,7 @@ test.describe("POST /api/2.0/settings/banner - permissions", () => {
     const { data, status } = await apiSdk
       .forRole("user")
       .securityBanners.setTenantBannerSettings({
-        tenantBannerSettingsDto: { hidden: true },
+        tenantBannerSettingsRequestDto: { hidden: true },
       });
 
     expect(status).toBe(403);
@@ -60,7 +60,7 @@ test.describe("POST /api/2.0/settings/banner - permissions", () => {
     const { data, status } = await apiSdk
       .forRole("guest")
       .securityBanners.setTenantBannerSettings({
-        tenantBannerSettingsDto: { hidden: true },
+        tenantBannerSettingsRequestDto: { hidden: true },
       });
 
     expect(status).toBe(403);

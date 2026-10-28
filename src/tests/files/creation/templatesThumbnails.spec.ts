@@ -49,7 +49,7 @@ test.describe("POST/DELETE /files/templates - personal template list", () => {
       (
         await ownerApi.files.createFile({
           folderId: roomId,
-          createFileJsonElement: { title },
+          createFileRequest: { title },
         })
       ).data.response!.id!;
     const files: Record<string, number> = {
@@ -87,7 +87,7 @@ test.describe("POST/DELETE /files/templates - personal template list", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: created } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Template Safe.docx" },
+      createFileRequest: { title: "Autotest Template Safe.docx" },
     });
     const fileId = created.response!.id!;
     const before = await fileInfo(ownerApi, fileId);

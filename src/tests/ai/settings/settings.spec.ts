@@ -1,9 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import type {
-  AiAiSettingsDto,
-  SettingsApi,
-} from "@onlyoffice/docspace-api-sdk";
+import type { AiSettingsDto, SettingsApi } from "@onlyoffice/docspace-api-sdk";
 import { UserType } from "@/src/services/api-sdk";
 import { AiSettings, type AiUserConfig } from "@/src/helpers/ai-settings";
 import { setPortalAiAccess } from "@/src/helpers/ai-access";
@@ -39,7 +36,7 @@ import { Role } from "@/src/services/token-store";
 // An earlier, longer body also carried the MCP tool names, portalMcpServerId,
 // modelAliases and the webSearchEnabled / webSearchNeedReset / aiReadyNeedReset
 // flags. They were dropped deliberately, not lost: SDK 3.7.0 renamed the model
-// (AiSettingsDto -> AiAiSettingsDto) and declares exactly the six fields above,
+// (AiSettingsDto -> AiSettingsDto) and declares exactly the six fields above,
 // so the shorter body is the contract.
 
 const ROLES: Array<{ label: string; type?: UserType }> = [
@@ -120,7 +117,7 @@ test.describe("AI Settings - per-user chat config", () => {
 
     const { data: written, status: writeStatus } =
       await ownerApi.aiSettings.aiSettingsSetUser({
-        requestBody: { chatRecommendedModelVisible: updated },
+        aiSettingsSetUserRequest: { chatRecommendedModelVisible: updated },
       });
     expect(writeStatus).toBe(200);
     expect(written.response?.chatRecommendedModelVisible).toBe(updated);
@@ -153,7 +150,7 @@ test.describe("AI Settings - per-user chat config", () => {
     const target = !userBefore.response?.chatRecommendedModelVisible;
 
     const { status } = await userApi.aiSettings.aiSettingsSetUser({
-      requestBody: { chatRecommendedModelVisible: target },
+      aiSettingsSetUserRequest: { chatRecommendedModelVisible: target },
     });
     expect(status).toBe(200);
 
@@ -235,12 +232,12 @@ test.describe("AI Settings - per-user chat config", () => {
 // above rather than repeating them.
 //
 // `GET /ai/config` today also carries `toolPermissionMode`, which SDK 4.0.0's
-// AiAiSettingsDto does not declare. It is left unasserted on purpose: it is not
+// AiSettingsDto does not declare. It is left unasserted on purpose: it is not
 // part of the documented contract, so the shape tests below pin the six
 // declared fields (and the absence of the retired ones) and nothing more.
 // ---------------------------------------------------------------------------
 
-/** Fields SDK 4.0.0's AiAiSettingsDto declares. */
+/** Fields SDK 4.0.0's AiSettingsDto declares. */
 const DECLARED_CONFIG_FIELDS = [
   "vectorizationEnabled",
   "vectorizationNeedReset",
@@ -285,7 +282,7 @@ async function readVisible(api: UserSettingsClient) {
 
 async function writeVisible(api: UserSettingsClient, value: boolean) {
   const { status } = await api.aiSettings.aiSettingsSetUser({
-    requestBody: { chatRecommendedModelVisible: value },
+    aiSettingsSetUserRequest: { chatRecommendedModelVisible: value },
   });
   expect(status, "PUT /ai/config/user").toBe(200);
 }
@@ -488,7 +485,7 @@ test.describe("AI Settings - per-user chat config reads", () => {
     // redirect the write, and neither may redirect the read.
     const { status } = await userApi.aiSettings.aiSettingsSetUser(
       {
-        requestBody: {
+        aiSettingsSetUserRequest: {
           chatRecommendedModelVisible: false,
           userId: ownerId,
           id: ownerId,
@@ -522,7 +519,7 @@ test.describe("AI Settings - per-user chat config writes", () => {
 
     for (const value of [true, false, true]) {
       const { data, status } = await ownerApi.aiSettings.aiSettingsSetUser({
-        requestBody: { chatRecommendedModelVisible: value },
+        aiSettingsSetUserRequest: { chatRecommendedModelVisible: value },
       });
       expect(status).toBe(200);
       expect(typeof data.response?.chatRecommendedModelVisible).toBe("boolean");
@@ -561,7 +558,7 @@ test.describe("AI Settings - per-user chat config writes", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const portalFields = (r: AiAiSettingsDto | undefined) =>
+    const portalFields = (r: AiSettingsDto | undefined) =>
       Object.fromEntries(
         DECLARED_CONFIG_FIELDS.map((field) => [field, r?.[field]]),
       );
@@ -572,7 +569,7 @@ test.describe("AI Settings - per-user chat config writes", () => {
 
     // The body tries to flip the portal's own flags next to the legitimate one.
     const { status } = await ownerApi.aiSettings.aiSettingsSetUser({
-      requestBody: {
+      aiSettingsSetUserRequest: {
         chatRecommendedModelVisible: false,
         aiReady: true,
         vectorizationEnabled: true,
@@ -917,7 +914,7 @@ test.describe("AI services management - the portal AI switch", () => {
     const { status } = await apiSdk
       .forAnonymous()
       .commonSettings.setTenantAiAccessSettings({
-        tenantAiAccessSettingsDto: { enabled: false },
+        tenantAiAccessSettingsRequestDto: { enabled: false },
       });
 
     const after = await ownerApi.commonSettings.getTenantAiAccessSettings();
@@ -1095,7 +1092,7 @@ test.describe("AI services management - the payer boundary", () => {
       [
         "POST /portal/payment/topupsettings",
         adminApi.payment.setTenantWalletSettings({
-          tenantWalletSettingsWrapper: {
+          tenantWalletSettingsRequestDto: {
             settings: { enabled: true, minBalance: 100, upToBalance: 1000 },
           },
         }),

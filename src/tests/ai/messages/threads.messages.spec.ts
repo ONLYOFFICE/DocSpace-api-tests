@@ -114,13 +114,17 @@ test.describe("GET /api/2.0/ai/threads/read-messages - ThreadsApi.aiThreadsReadM
       "third",
     ]);
 
-    await ctx.api.aiThreadsDeleteMessage({ body: first });
+    await ctx.api.aiThreadsDeleteMessage({
+      aiThreadsDeleteMessageRequest: first,
+    });
     expect(await readTexts(ctx, threadId), "after a delete").toEqual([
       "second, edited",
       "third",
     ]);
 
-    await ctx.api.aiThreadsClearMessages({ body: threadId });
+    await ctx.api.aiThreadsClearMessages({
+      aiThreadsClearMessagesRequest: threadId,
+    });
     expect(await readAll(ctx, threadId), "after a clear").toEqual([]);
     void third;
   });
@@ -236,7 +240,10 @@ test.describe("GET /api/2.0/ai/threads/read-messages - ThreadsApi.aiThreadsReadM
     const keeper = await createThread(ctx, "Keeper");
     await appendText(ctx, keeper, "control");
     const doomed = await createThread(ctx, "Doomed");
-    expect((await ctx.api.aiThreadsDelete({ body: doomed })).status).toBe(200);
+    expect(
+      (await ctx.api.aiThreadsDelete({ aiThreadsDeleteRequest: doomed }))
+        .status,
+    ).toBe(200);
 
     const unknown = await ctx.api.aiThreadsReadMessages({
       threadId: UNKNOWN_ID,
@@ -367,7 +374,9 @@ test.describe("POST /api/2.0/ai/threads/append-user-message - ThreadsApi.aiThrea
 
     expect(await readTexts(ctx, threadId)).toEqual(texts);
 
-    await ctx.api.aiThreadsClearMessages({ body: threadId });
+    await ctx.api.aiThreadsClearMessages({
+      aiThreadsClearMessagesRequest: threadId,
+    });
     await appendText(ctx, threadId, "after the clear");
     expect(await readTexts(ctx, threadId)).toEqual(["after the clear"]);
 
@@ -415,7 +424,10 @@ test.describe("POST /api/2.0/ai/threads/append-user-message - ThreadsApi.aiThrea
     const threadId = await createThread(ctx, "Strict");
     await appendText(ctx, threadId, "control");
     const doomed = await createThread(ctx, "Doomed");
-    expect((await ctx.api.aiThreadsDelete({ body: doomed })).status).toBe(200);
+    expect(
+      (await ctx.api.aiThreadsDelete({ aiThreadsDeleteRequest: doomed }))
+        .status,
+    ).toBe(200);
     const message = { role: "user", content: [{ type: "text", text: "x" }] };
     const append = (body: unknown) =>
       ctx.raw.send(
@@ -583,7 +595,9 @@ test.describe("GET /api/2.0/ai/threads/get-message-by-id - ThreadsApi.aiThreadsG
       ),
     ).toBe("first, edited");
 
-    await ctx.api.aiThreadsDeleteMessage({ body: second });
+    await ctx.api.aiThreadsDeleteMessage({
+      aiThreadsDeleteMessageRequest: second,
+    });
     expect(
       textOf(
         (await ctx.api.aiThreadsGetMessageById({ messageId: first })).data,
@@ -641,15 +655,19 @@ test.describe("GET /api/2.0/ai/threads/get-message-by-id - ThreadsApi.aiThreadsG
 
     const deletedMessageThread = await createThread(ctx, "Deleted message");
     const deletedMessage = await appendText(ctx, deletedMessageThread, "x");
-    await ctx.api.aiThreadsDeleteMessage({ body: deletedMessage });
+    await ctx.api.aiThreadsDeleteMessage({
+      aiThreadsDeleteMessageRequest: deletedMessage,
+    });
 
     const clearedThread = await createThread(ctx, "Cleared");
     const clearedMessage = await appendText(ctx, clearedThread, "x");
-    await ctx.api.aiThreadsClearMessages({ body: clearedThread });
+    await ctx.api.aiThreadsClearMessages({
+      aiThreadsClearMessagesRequest: clearedThread,
+    });
 
     const deletedThread = await createThread(ctx, "Deleted thread");
     const orphanMessage = await appendText(ctx, deletedThread, "x");
-    await ctx.api.aiThreadsDelete({ body: deletedThread });
+    await ctx.api.aiThreadsDelete({ aiThreadsDeleteRequest: deletedThread });
 
     const probes: Array<[string, string]> = [
       ["a never-issued id", UNKNOWN_ID],
@@ -773,9 +791,13 @@ test.describe("PUT /api/2.0/ai/threads/update-message - ThreadsApi.aiThreadsUpda
     const messageId = await appendText(ctx, threadId, "original");
     const clearedThread = await createThread(ctx, "Cleared");
     const clearedMessage = await appendText(ctx, clearedThread, "x");
-    await ctx.api.aiThreadsClearMessages({ body: clearedThread });
+    await ctx.api.aiThreadsClearMessages({
+      aiThreadsClearMessagesRequest: clearedThread,
+    });
     const deletedMessage = await appendText(ctx, threadId, "to delete");
-    await ctx.api.aiThreadsDeleteMessage({ body: deletedMessage });
+    await ctx.api.aiThreadsDeleteMessage({
+      aiThreadsDeleteMessageRequest: deletedMessage,
+    });
     const message = {
       role: "user",
       content: [{ type: "text", text: "changed" }],
@@ -951,15 +973,21 @@ test.describe("DELETE /api/2.0/ai/threads/delete-message - ThreadsApi.aiThreadsD
     };
 
     // SDK 4.0.0 takes the id as a bare JSON string.
-    const first = await ctx.api.aiThreadsDeleteMessage({ body: ids[0] });
+    const first = await ctx.api.aiThreadsDeleteMessage({
+      aiThreadsDeleteMessageRequest: ids[0],
+    });
     expect(first.status).toBe(200);
     expect(first.data.success).toBe(true);
     await expectState("without the first", ["b", "c", "d", "e"]);
 
-    await ctx.api.aiThreadsDeleteMessage({ body: ids[2] });
+    await ctx.api.aiThreadsDeleteMessage({
+      aiThreadsDeleteMessageRequest: ids[2],
+    });
     await expectState("without the middle", ["b", "d", "e"]);
 
-    await ctx.api.aiThreadsDeleteMessage({ body: ids[4] });
+    await ctx.api.aiThreadsDeleteMessage({
+      aiThreadsDeleteMessageRequest: ids[4],
+    });
     await expectState("without the last", ["b", "d"]);
 
     expect(
@@ -987,7 +1015,7 @@ test.describe("DELETE /api/2.0/ai/threads/delete-message - ThreadsApi.aiThreadsD
     const messageId = await appendText(ctx, threadId, "the only one");
 
     const { status } = await ctx.api.aiThreadsDeleteMessage({
-      body: messageId,
+      aiThreadsDeleteMessageRequest: messageId,
     });
 
     expect(status).toBe(200);
@@ -1009,11 +1037,17 @@ test.describe("DELETE /api/2.0/ai/threads/delete-message - ThreadsApi.aiThreadsD
     const keep = await appendText(ctx, threadId, "keep");
     const gone = await appendText(ctx, threadId, "gone");
 
-    const once = await ctx.api.aiThreadsDeleteMessage({ body: gone });
-    const twice = await ctx.api.aiThreadsDeleteMessage({ body: gone });
-    const unknown = await ctx.api.aiThreadsDeleteMessage({ body: UNKNOWN_ID });
+    const once = await ctx.api.aiThreadsDeleteMessage({
+      aiThreadsDeleteMessageRequest: gone,
+    });
+    const twice = await ctx.api.aiThreadsDeleteMessage({
+      aiThreadsDeleteMessageRequest: gone,
+    });
+    const unknown = await ctx.api.aiThreadsDeleteMessage({
+      aiThreadsDeleteMessageRequest: UNKNOWN_ID,
+    });
     const malformed = await ctx.api.aiThreadsDeleteMessage({
-      body: MALFORMED_ID,
+      aiThreadsDeleteMessageRequest: MALFORMED_ID,
     });
     const emptyString = await ctx.raw.sendJsonText(
       "owner",

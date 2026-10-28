@@ -415,7 +415,7 @@ test.describe("API profiling tests for access rights", () => {
     const { data: userData } = await apiSdk.addMember("owner", "Guest");
     const userId = userData.response!.id!;
     const { data, status } = await ownerApi.profiles.deleteMember({
-      userid: userId,
+      userId: userId,
     });
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
@@ -450,7 +450,7 @@ test.describe("API profiling tests for access rights", () => {
       "DocSpaceAdmin",
     );
     const { data, status } = await adminApi.profiles.deleteMember({
-      userid: userId,
+      userId: userId,
     });
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
@@ -525,7 +525,7 @@ test.describe("API profiling tests for access rights", () => {
     );
 
     const { data, status } = await adminApi.profiles.deleteMember({
-      userid: userIdToDelete,
+      userId: userIdToDelete,
     });
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
@@ -662,9 +662,9 @@ test.describe("API profiling tests for access rights", () => {
       status: EmployeeStatus.Terminated,
       updateMembersRequestDto: userDataChangeStatus,
     });
-    await ownerApi.profiles.deleteMember({ userid: userId });
+    await ownerApi.profiles.deleteMember({ userId: userId });
     const { data, status } = await ownerApi.profiles.deleteMember({
-      userid: userId,
+      userId: userId,
     });
     expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
@@ -729,7 +729,7 @@ test.describe("API profiling tests for access rights", () => {
     });
 
     const { data, status } = await ownerApi.profiles.getProfileByUserId({
-      userid: userId,
+      userId: userId,
     });
     expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
@@ -747,7 +747,7 @@ test.describe("API profiling tests for access rights", () => {
     const userId = userData.response!.id!;
 
     const { status } = await anonApi.profiles.getProfileByUserId({
-      userid: userId,
+      userId: userId,
     });
     expect(status).toBe(401);
   });
@@ -772,7 +772,7 @@ test.describe("API profiling tests for access rights", () => {
       "User",
     );
     const { data, status } = await userApi.profiles.getProfileByUserId({
-      userid: userId,
+      userId: userId,
     });
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
@@ -799,7 +799,7 @@ test.describe("API profiling tests for access rights", () => {
       "Guest",
     );
     const { data, status } = await guestApi.profiles.getProfileByUserId({
-      userid: userId,
+      userId: userId,
     });
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
@@ -820,7 +820,7 @@ test.describe("API profiling tests for access rights", () => {
     };
 
     const { status } = await anonApi.profiles.updateMember({
-      userid: userId,
+      userId: userId,
       updateMemberRequestDto: userData,
     });
     expect(status).toBe(401);
@@ -854,7 +854,7 @@ test.describe("API profiling tests for access rights", () => {
       lastName: faker.person.lastName(),
     };
     const { data, status } = await ownerApi.profiles.updateMember({
-      userid: userId,
+      userId: userId,
       updateMemberRequestDto: updateData,
     });
     expect(status).toBe(404);
@@ -882,7 +882,7 @@ test.describe("API profiling tests for access rights", () => {
       lastName: faker.person.lastName(),
     };
     const { data, status } = await adminApi.profiles.updateMember({
-      userid: userId,
+      userId: userId,
       updateMemberRequestDto: userData,
     });
     expect(status).toBe(403);
@@ -907,7 +907,7 @@ test.describe("API profiling tests for access rights", () => {
       lastName: faker.person.lastName(),
     };
     const { data, status } = await roomAdminApi.profiles.updateMember({
-      userid: userId,
+      userId: userId,
       updateMemberRequestDto: userData,
     });
     expect(status).toBe(403);
@@ -932,7 +932,7 @@ test.describe("API profiling tests for access rights", () => {
       lastName: faker.person.lastName(),
     };
     const { data, status } = await userApi.profiles.updateMember({
-      userid: userId,
+      userId: userId,
       updateMemberRequestDto: userData,
     });
     expect(status).toBe(403);
@@ -957,7 +957,7 @@ test.describe("API profiling tests for access rights", () => {
       lastName: faker.person.lastName(),
     };
     const { data, status } = await guestApi.profiles.updateMember({
-      userid: userId,
+      userId: userId,
       updateMemberRequestDto: userData,
     });
     expect(status).toBe(403);
@@ -979,7 +979,7 @@ test.describe("API profiling tests for access rights", () => {
     };
 
     const { data, status } = await ownerApi.profiles.updateMember({
-      userid: userId,
+      userId: userId,
       updateMemberRequestDto: userData,
     });
     expect(status).toBe(400);
@@ -1003,7 +1003,7 @@ test.describe("API profiling tests for access rights", () => {
     };
 
     const { data } = await userApi.profiles.updateMember({
-      userid: userId,
+      userId: userId,
       updateMemberRequestDto: userData,
     });
     expect((data as any).response.status).toBe(400);
@@ -1038,7 +1038,7 @@ test.describe("API profiling tests for access rights", () => {
     };
 
     const { data } = await guestApi.profiles.updateMember({
-      userid: userId,
+      userId: userId,
       updateMemberRequestDto: userData,
     });
     expect((data as any).response.status).toBe(400);
@@ -1281,8 +1281,8 @@ test.describe("API profiling tests for access rights", () => {
     const ownerId = ownerData.response!.id!;
 
     const { status } = await anonApi.profiles.updateMemberCulture({
-      userid: ownerId,
-      culture: {
+      userId: ownerId,
+      updateMemberCultureRequest: {
         cultureName: "es",
       },
     });
@@ -1313,8 +1313,8 @@ test.describe("API profiling tests for access rights", () => {
 
     const { data: docSpaceAdminResponse, status } =
       await ownerApi.profiles.updateMemberCulture({
-        userid: docSpaceAdminId,
-        culture: {
+        userId: docSpaceAdminId,
+        updateMemberCultureRequest: {
           cultureName: "es",
         },
       });
@@ -1324,8 +1324,8 @@ test.describe("API profiling tests for access rights", () => {
 
     const { data: roomAdminResponse, status: roomAdminResponseStatus } =
       await ownerApi.profiles.updateMemberCulture({
-        userid: roomAdminId,
-        culture: {
+        userId: roomAdminId,
+        updateMemberCultureRequest: {
           cultureName: "es",
         },
       });
@@ -1335,8 +1335,8 @@ test.describe("API profiling tests for access rights", () => {
 
     const { data: userResponse, status: userResponseStatus } =
       await ownerApi.profiles.updateMemberCulture({
-        userid: userId,
-        culture: {
+        userId: userId,
+        updateMemberCultureRequest: {
           cultureName: "es",
         },
       });
@@ -1346,8 +1346,8 @@ test.describe("API profiling tests for access rights", () => {
 
     const { data: guestResponse, status: guestResponseStatus } =
       await ownerApi.profiles.updateMemberCulture({
-        userid: guestId,
-        culture: {
+        userId: guestId,
+        updateMemberCultureRequest: {
           cultureName: "es",
         },
       });
@@ -1381,8 +1381,8 @@ test.describe("API profiling tests for access rights", () => {
     );
     const { data: ownerResponse, status } =
       await adminApi.profiles.updateMemberCulture({
-        userid: ownerId,
-        culture: {
+        userId: ownerId,
+        updateMemberCultureRequest: {
           cultureName: "es",
         },
       });
@@ -1392,8 +1392,8 @@ test.describe("API profiling tests for access rights", () => {
 
     const { data: roomAdminResponse, status: roomAdminResponseStatus } =
       await adminApi.profiles.updateMemberCulture({
-        userid: roomAdminId,
-        culture: {
+        userId: roomAdminId,
+        updateMemberCultureRequest: {
           cultureName: "es",
         },
       });
@@ -1403,8 +1403,8 @@ test.describe("API profiling tests for access rights", () => {
 
     const { data: userResponse, status: userResponseStatus } =
       await adminApi.profiles.updateMemberCulture({
-        userid: userId,
-        culture: {
+        userId: userId,
+        updateMemberCultureRequest: {
           cultureName: "es",
         },
       });
@@ -1414,8 +1414,8 @@ test.describe("API profiling tests for access rights", () => {
 
     const { data: guestResponse, status: guestResponseStatus } =
       await ownerApi.profiles.updateMemberCulture({
-        userid: guestId,
-        culture: {
+        userId: guestId,
+        updateMemberCultureRequest: {
           cultureName: "es",
         },
       });
@@ -1449,8 +1449,8 @@ test.describe("API profiling tests for access rights", () => {
     );
     const { data: ownerResponse, status } =
       await roomAdminApi.profiles.updateMemberCulture({
-        userid: ownerId,
-        culture: {
+        userId: ownerId,
+        updateMemberCultureRequest: {
           cultureName: "es",
         },
       });
@@ -1460,8 +1460,8 @@ test.describe("API profiling tests for access rights", () => {
 
     const { data: docSpaceAdminResponse, status: docSpaceAdminResponseStatus } =
       await roomAdminApi.profiles.updateMemberCulture({
-        userid: docSpaceAdminId,
-        culture: {
+        userId: docSpaceAdminId,
+        updateMemberCultureRequest: {
           cultureName: "es",
         },
       });
@@ -1471,8 +1471,8 @@ test.describe("API profiling tests for access rights", () => {
 
     const { data: userResponse, status: userResponseStatus } =
       await roomAdminApi.profiles.updateMemberCulture({
-        userid: userId,
-        culture: {
+        userId: userId,
+        updateMemberCultureRequest: {
           cultureName: "es",
         },
       });
@@ -1482,8 +1482,8 @@ test.describe("API profiling tests for access rights", () => {
 
     const { data: guestResponse, status: guestResponseStatus } =
       await ownerApi.profiles.updateMemberCulture({
-        userid: guestId,
-        culture: {
+        userId: guestId,
+        updateMemberCultureRequest: {
           cultureName: "es",
         },
       });
@@ -1520,8 +1520,8 @@ test.describe("API profiling tests for access rights", () => {
     );
     const { data: ownerResponse, status } =
       await userApi.profiles.updateMemberCulture({
-        userid: ownerId,
-        culture: {
+        userId: ownerId,
+        updateMemberCultureRequest: {
           cultureName: "es",
         },
       });
@@ -1531,8 +1531,8 @@ test.describe("API profiling tests for access rights", () => {
 
     const { data: docSpaceAdminResponse, status: docSpaceAdminResponseStatus } =
       await userApi.profiles.updateMemberCulture({
-        userid: docSpaceAdminId,
-        culture: {
+        userId: docSpaceAdminId,
+        updateMemberCultureRequest: {
           cultureName: "es",
         },
       });
@@ -1542,8 +1542,8 @@ test.describe("API profiling tests for access rights", () => {
 
     const { data: roomAdminResponse, status: roomAdminResponseStatus } =
       await userApi.profiles.updateMemberCulture({
-        userid: roomAdminId,
-        culture: {
+        userId: roomAdminId,
+        updateMemberCultureRequest: {
           cultureName: "es",
         },
       });
@@ -1553,8 +1553,8 @@ test.describe("API profiling tests for access rights", () => {
 
     const { data: guestResponse, status: guestResponseStatus } =
       await ownerApi.profiles.updateMemberCulture({
-        userid: guestId,
-        culture: {
+        userId: guestId,
+        updateMemberCultureRequest: {
           cultureName: "es",
         },
       });
@@ -1591,8 +1591,8 @@ test.describe("API profiling tests for access rights", () => {
     );
     const { data: ownerResponse, status } =
       await guestApi.profiles.updateMemberCulture({
-        userid: ownerId,
-        culture: {
+        userId: ownerId,
+        updateMemberCultureRequest: {
           cultureName: "es",
         },
       });
@@ -1602,8 +1602,8 @@ test.describe("API profiling tests for access rights", () => {
 
     const { data: docSpaceAdminResponse, status: docSpaceAdminResponseStatus } =
       await guestApi.profiles.updateMemberCulture({
-        userid: docSpaceAdminId,
-        culture: {
+        userId: docSpaceAdminId,
+        updateMemberCultureRequest: {
           cultureName: "es",
         },
       });
@@ -1613,8 +1613,8 @@ test.describe("API profiling tests for access rights", () => {
 
     const { data: roomAdminResponse, status: roomAdminResponseStatus } =
       await guestApi.profiles.updateMemberCulture({
-        userid: roomAdminId,
-        culture: {
+        userId: roomAdminId,
+        updateMemberCultureRequest: {
           cultureName: "es",
         },
       });
@@ -1624,8 +1624,8 @@ test.describe("API profiling tests for access rights", () => {
 
     const { data: userResponse, status: userResponseStatus } =
       await guestApi.profiles.updateMemberCulture({
-        userid: userId,
-        culture: {
+        userId: userId,
+        updateMemberCultureRequest: {
           cultureName: "es",
         },
       });
@@ -1640,8 +1640,8 @@ test.describe("API profiling tests for access rights", () => {
     const ownerApi = apiSdk.forRole("owner");
     const userId = faker.string.uuid();
     const { data, status } = await ownerApi.profiles.updateMemberCulture({
-      userid: userId,
-      culture: {
+      userId: userId,
+      updateMemberCultureRequest: {
         cultureName: "es",
       },
     });
@@ -1661,8 +1661,8 @@ test.describe("API profiling tests for access rights", () => {
     const longString = apiSdk.faker.generateString(260);
 
     const { data } = await ownerApi.profiles.updateMemberCulture({
-      userid: ownerId,
-      culture: {
+      userId: ownerId,
+      updateMemberCultureRequest: {
         cultureName: longString,
       },
     });

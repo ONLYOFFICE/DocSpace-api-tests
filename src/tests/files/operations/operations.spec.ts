@@ -24,7 +24,7 @@ test.describe("POST /api/2.0/files/favorites - Add favorite files and folders", 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest AddFav File.docx" },
+      createFileRequest: { title: "Autotest AddFav File.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -49,7 +49,7 @@ test.describe("POST /api/2.0/files/favorites - Add favorite files and folders", 
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest AddFav Folder" },
+      createFolderRequest: { title: "Autotest AddFav Folder" },
     });
     const folderId = folderData.response!.id!;
 
@@ -74,11 +74,11 @@ test.describe("POST /api/2.0/files/favorites - Add favorite files and folders", 
 
     const { data: file1Data } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest AddFav Multi1.docx" },
+      createFileRequest: { title: "Autotest AddFav Multi1.docx" },
     });
     const { data: file2Data } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest AddFav Multi2.docx" },
+      createFileRequest: { title: "Autotest AddFav Multi2.docx" },
     });
     const fileId1 = file1Data.response!.id!;
     const fileId2 = file2Data.response!.id!;
@@ -105,11 +105,11 @@ test.describe("POST /api/2.0/files/favorites - Add favorite files and folders", 
 
     const { data: folder1Data } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest AddFav MultiFolderA" },
+      createFolderRequest: { title: "Autotest AddFav MultiFolderA" },
     });
     const { data: folder2Data } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest AddFav MultiFolderB" },
+      createFolderRequest: { title: "Autotest AddFav MultiFolderB" },
     });
     const folderId1 = folder1Data.response!.id!;
     const folderId2 = folder2Data.response!.id!;
@@ -136,11 +136,11 @@ test.describe("POST /api/2.0/files/favorites - Add favorite files and folders", 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest AddFav Mixed File.docx" },
+      createFileRequest: { title: "Autotest AddFav Mixed File.docx" },
     });
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest AddFav Mixed Folder" },
+      createFolderRequest: { title: "Autotest AddFav Mixed Folder" },
     });
     const fileId = fileData.response!.id!;
     const folderId = folderData.response!.id!;
@@ -168,7 +168,7 @@ test.describe("POST /api/2.0/files/favorites - Add favorite files and folders", 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest AddFav Idempotent.docx" },
+      createFileRequest: { title: "Autotest AddFav Idempotent.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -289,13 +289,13 @@ test.describe("POST /api/2.0/files/favorites - Add favorite files and folders", 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest AddFav Trash File.docx" },
+      createFileRequest: { title: "Autotest AddFav Trash File.docx" },
     });
     const fileId = fileData.response!.id!;
 
     await ownerApi.files.deleteFile({
       fileId,
-      _delete: { immediately: false },
+      deleteFileRequest: { immediately: false },
     });
     await waitForOperation(ownerApi.operations);
 
@@ -320,7 +320,7 @@ test.describe("POST /api/2.0/files/favorites - Add favorite files and folders", 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest AddFav Recent File.docx" },
+      createFileRequest: { title: "Autotest AddFav Recent File.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -352,7 +352,7 @@ test.describe("POST /api/2.0/files/favorites - Add favorite files and folders", 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest AddFav Custom Room File.docx" },
+      createFileRequest: { title: "Autotest AddFav Custom Room File.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -382,7 +382,7 @@ test.describe("POST /api/2.0/files/favorites - Add favorite files and folders", 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest AddFav Editing Room File.docx",
       },
     });
@@ -440,7 +440,7 @@ test.describe("POST /api/2.0/files/favorites - Add favorite files and folders", 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest AddFav Public Room File.docx" },
+      createFileRequest: { title: "Autotest AddFav Public Room File.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -470,7 +470,7 @@ test.describe("POST /api/2.0/files/favorites - Add favorite files and folders", 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest AddFav VDR File.docx" },
+      createFileRequest: { title: "Autotest AddFav VDR File.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -500,7 +500,7 @@ test.describe("POST /api/2.0/files/favorites - Add favorite files and folders", 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest AddFav Archived File.docx" },
+      createFileRequest: { title: "Autotest AddFav Archived File.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -533,7 +533,7 @@ test.describe("PUT /api/2.0/files/fileops/bulkdownload - Bulk download", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest BulkDownload Single.docx" },
+      createFileRequest: { title: "Autotest BulkDownload Single.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -562,11 +562,11 @@ test.describe("PUT /api/2.0/files/fileops/bulkdownload - Bulk download", () => {
 
     const { data: file1Data } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest BulkDownload Multi1.docx" },
+      createFileRequest: { title: "Autotest BulkDownload Multi1.docx" },
     });
     const { data: file2Data } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest BulkDownload Multi2.docx" },
+      createFileRequest: { title: "Autotest BulkDownload Multi2.docx" },
     });
     const fileId1 = file1Data.response!.id!;
     const fileId2 = file2Data.response!.id!;
@@ -596,13 +596,13 @@ test.describe("PUT /api/2.0/files/fileops/bulkdownload - Bulk download", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest BulkDownload Folder" },
+      createFolderRequest: { title: "Autotest BulkDownload Folder" },
     });
     const folderId = folderData.response!.id!;
 
     await ownerApi.files.createFile({
       folderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest BulkDownload In Folder.docx",
       },
     });
@@ -631,24 +631,24 @@ test.describe("PUT /api/2.0/files/fileops/bulkdownload - Bulk download", () => {
 
     const { data: folder1Data } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest BulkDownload MultiFolder1" },
+      createFolderRequest: { title: "Autotest BulkDownload MultiFolder1" },
     });
     const { data: folder2Data } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest BulkDownload MultiFolder2" },
+      createFolderRequest: { title: "Autotest BulkDownload MultiFolder2" },
     });
     const folderId1 = folder1Data.response!.id!;
     const folderId2 = folder2Data.response!.id!;
 
     await ownerApi.files.createFile({
       folderId: folderId1,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest BulkDownload Folder1 File.docx",
       },
     });
     await ownerApi.files.createFile({
       folderId: folderId2,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest BulkDownload Folder2 File.docx",
       },
     });
@@ -677,20 +677,20 @@ test.describe("PUT /api/2.0/files/fileops/bulkdownload - Bulk download", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest BulkDownload Mixed File.docx",
       },
     });
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest BulkDownload Mixed Folder" },
+      createFolderRequest: { title: "Autotest BulkDownload Mixed Folder" },
     });
     const fileId = fileData.response!.id!;
     const folderId = folderData.response!.id!;
 
     await ownerApi.files.createFile({
       folderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest BulkDownload In Mixed Folder.docx",
       },
     });
@@ -725,7 +725,7 @@ test.describe("PUT /api/2.0/files/fileops/bulkdownload - Bulk download", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest BulkDownload Room File.docx",
       },
     });
@@ -756,7 +756,7 @@ test.describe("PUT /api/2.0/files/fileops/bulkdownload - Bulk download", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest BulkDownload ReturnSingle.docx",
       },
     });
@@ -814,7 +814,7 @@ test.describe("PUT /api/2.0/files/fileops/bulkdownload - Bulk download", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest BulkDownload Convert.docx",
       },
     });
@@ -849,7 +849,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Check conversi
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest StartConversion docx.docx",
       },
     });
@@ -880,7 +880,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Check conversi
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest CheckConversion No Active.docx",
       },
     });
@@ -907,7 +907,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Check conversi
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest StartConversion xlsx.xlsx",
       },
     });
@@ -938,7 +938,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Check conversi
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest StartConversion pptx.pptx",
       },
     });
@@ -969,7 +969,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Check conversi
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest StartConversion startConvertFalse.docx",
       },
     });
@@ -1009,6 +1009,9 @@ test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Check conversi
 });
 
 test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () => {
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test("GET /api/2.0/files/fileops/move - Owner checks move of folder from MyDocs to CustomRoom returns 200", async ({
     apiSdk,
   }) => {
@@ -1019,7 +1022,7 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest CheckMove Source Folder" },
+      createFolderRequest: { title: "Autotest CheckMove Source Folder" },
     });
     const folderId = folderData.response!.id!;
 
@@ -1033,11 +1036,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data, status } =
       await ownerApi.operations.checkMoveOrCopyBatchItems({
-        inDto: {
-          folderIds: [folderId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        },
+        folderIds: [folderId],
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Skip,
       });
 
     expect(status).toBe(200);
@@ -1045,6 +1046,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
     expect(data.response).toHaveLength(0);
   });
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test("GET /api/2.0/files/fileops/move - Owner checks move of file from MyDocs to EditingRoom returns 200", async ({
     apiSdk,
   }) => {
@@ -1055,7 +1059,7 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest CheckMove To EditingRoom.docx",
       },
     });
@@ -1071,11 +1075,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data, status } =
       await ownerApi.operations.checkMoveOrCopyBatchItems({
-        inDto: {
-          fileIds: [fileId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        },
+        fileIds: [fileId],
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Skip,
       });
 
     expect(status).toBe(200);
@@ -1083,6 +1085,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
     expect(data.response).toHaveLength(0);
   });
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test("GET /api/2.0/files/fileops/move - Owner checks move of file from MyDocs to FillingFormsRoom returns 200", async ({
     apiSdk,
   }) => {
@@ -1093,7 +1098,7 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest CheckMove To FillingForms.docx",
       },
     });
@@ -1109,11 +1114,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data, status } =
       await ownerApi.operations.checkMoveOrCopyBatchItems({
-        inDto: {
-          fileIds: [fileId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        },
+        fileIds: [fileId],
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Skip,
       });
 
     expect(status).toBe(200);
@@ -1121,6 +1124,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
     expect(data.response).toHaveLength(0);
   });
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test("GET /api/2.0/files/fileops/move - Owner checks move of file from MyDocs to PublicRoom returns 200", async ({
     apiSdk,
   }) => {
@@ -1131,7 +1137,7 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest CheckMove To PublicRoom.docx" },
+      createFileRequest: { title: "Autotest CheckMove To PublicRoom.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1145,11 +1151,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data, status } =
       await ownerApi.operations.checkMoveOrCopyBatchItems({
-        inDto: {
-          fileIds: [fileId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        },
+        fileIds: [fileId],
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Skip,
       });
 
     expect(status).toBe(200);
@@ -1157,6 +1161,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
     expect(data.response).toHaveLength(0);
   });
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test("GET /api/2.0/files/fileops/move - Owner checks move of file from MyDocs to VirtualDataRoom returns 200", async ({
     apiSdk,
   }) => {
@@ -1167,7 +1174,7 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest CheckMove To VDR.docx" },
+      createFileRequest: { title: "Autotest CheckMove To VDR.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1181,11 +1188,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data, status } =
       await ownerApi.operations.checkMoveOrCopyBatchItems({
-        inDto: {
-          fileIds: [fileId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        },
+        fileIds: [fileId],
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Skip,
       });
 
     expect(status).toBe(200);
@@ -1193,6 +1198,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
     expect(data.response).toHaveLength(0);
   });
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test("GET /api/2.0/files/fileops/move - Conflict detected: same-named file in destination appears in response", async ({
     apiSdk,
   }) => {
@@ -1205,7 +1213,7 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
     const conflictTitle = "Autotest CheckMove ConflictFile.docx";
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: conflictTitle },
+      createFileRequest: { title: conflictTitle },
     });
     const fileId = fileData.response!.id!;
 
@@ -1219,16 +1227,14 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     await ownerApi.files.createFile({
       folderId: destFolderId,
-      createFileJsonElement: { title: conflictTitle },
+      createFileRequest: { title: conflictTitle },
     });
 
     const { data, status } =
       await ownerApi.operations.checkMoveOrCopyBatchItems({
-        inDto: {
-          fileIds: [fileId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        },
+        fileIds: [fileId],
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Skip,
       });
 
     expect(status).toBe(200);
@@ -1237,6 +1243,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
     expect(data.response![0].title).toBe(conflictTitle);
   });
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test("GET /api/2.0/files/fileops/move - No conflict: response is empty when destination has no same-named file", async ({
     apiSdk,
   }) => {
@@ -1248,7 +1257,7 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest CheckMove NoConflict.docx" },
+      createFileRequest: { title: "Autotest CheckMove NoConflict.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1262,11 +1271,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data, status } =
       await ownerApi.operations.checkMoveOrCopyBatchItems({
-        inDto: {
-          fileIds: [fileId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        },
+        fileIds: [fileId],
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Skip,
       });
 
     expect(status).toBe(200);
@@ -1274,6 +1281,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
     expect(data.response).toHaveLength(0);
   });
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test("GET /api/2.0/files/fileops/move - conflictResolveType Overwrite returns 200 with conflict item", async ({
     apiSdk,
   }) => {
@@ -1285,7 +1295,7 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
     const conflictTitle = "Autotest CheckMove Overwrite.docx";
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: conflictTitle },
+      createFileRequest: { title: conflictTitle },
     });
     const fileId = fileData.response!.id!;
 
@@ -1299,16 +1309,14 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     await ownerApi.files.createFile({
       folderId: destFolderId,
-      createFileJsonElement: { title: conflictTitle },
+      createFileRequest: { title: conflictTitle },
     });
 
     const { data, status } =
       await ownerApi.operations.checkMoveOrCopyBatchItems({
-        inDto: {
-          fileIds: [fileId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Overwrite,
-        },
+        fileIds: [fileId],
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Overwrite,
       });
 
     expect(status).toBe(200);
@@ -1317,6 +1325,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
     expect(data.response![0].title).toBe(conflictTitle);
   });
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test("GET /api/2.0/files/fileops/move - conflictResolveType Duplicate returns 200 with empty response when no conflict", async ({
     apiSdk,
   }) => {
@@ -1327,7 +1338,7 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest CheckMove Duplicate.docx" },
+      createFileRequest: { title: "Autotest CheckMove Duplicate.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1341,11 +1352,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data, status } =
       await ownerApi.operations.checkMoveOrCopyBatchItems({
-        inDto: {
-          fileIds: [fileId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Duplicate,
-        },
+        fileIds: [fileId],
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Duplicate,
       });
 
     expect(status).toBe(200);
@@ -1353,6 +1362,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
     expect(data.response).toHaveLength(0);
   });
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test("GET /api/2.0/files/fileops/move - Multiple files checked at once returns 200", async ({
     apiSdk,
   }) => {
@@ -1363,11 +1375,11 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data: file1 } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest CheckMove Multi1.docx" },
+      createFileRequest: { title: "Autotest CheckMove Multi1.docx" },
     });
     const { data: file2 } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest CheckMove Multi2.docx" },
+      createFileRequest: { title: "Autotest CheckMove Multi2.docx" },
     });
     const fileIds = [file1.response!.id!, file2.response!.id!];
 
@@ -1381,11 +1393,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data, status } =
       await ownerApi.operations.checkMoveOrCopyBatchItems({
-        inDto: {
-          fileIds,
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        },
+        fileIds,
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Skip,
       });
 
     expect(status).toBe(200);
@@ -1393,6 +1403,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
     expect(data.response).toHaveLength(0);
   });
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test("GET /api/2.0/files/fileops/move - Owner checks copy (deleteAfter false) of file to CustomRoom returns 200", async ({
     apiSdk,
   }) => {
@@ -1404,7 +1417,7 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest CheckCopy File.docx" },
+      createFileRequest: { title: "Autotest CheckCopy File.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1418,12 +1431,10 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data, status } =
       await ownerApi.operations.checkMoveOrCopyBatchItems({
-        inDto: {
-          fileIds: [fileId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-          deleteAfter: false,
-        },
+        fileIds: [fileId],
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Skip,
+        deleteAfter: false,
       });
 
     expect(status).toBe(200);
@@ -1431,6 +1442,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
     expect(data.response).toHaveLength(0);
   });
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test("GET /api/2.0/files/fileops/move - Owner checks move of files and folders together returns 200", async ({
     apiSdk,
   }) => {
@@ -1441,11 +1455,11 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest CheckMove Mixed File.docx" },
+      createFileRequest: { title: "Autotest CheckMove Mixed File.docx" },
     });
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest CheckMove Mixed Folder" },
+      createFolderRequest: { title: "Autotest CheckMove Mixed Folder" },
     });
 
     const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -1458,12 +1472,10 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data, status } =
       await ownerApi.operations.checkMoveOrCopyBatchItems({
-        inDto: {
-          fileIds: [fileData.response!.id!],
-          folderIds: [folderData.response!.id!],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        },
+        fileIds: [fileData.response!.id!],
+        folderIds: [folderData.response!.id!],
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Skip,
       });
 
     expect(status).toBe(200);
@@ -1471,6 +1483,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
     expect(data.response).toHaveLength(0);
   });
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test("GET /api/2.0/files/fileops/move - content true: check move of folder content only returns 200", async ({
     apiSdk,
   }) => {
@@ -1481,13 +1496,13 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest CheckMove Content True Folder" },
+      createFolderRequest: { title: "Autotest CheckMove Content True Folder" },
     });
     const folderId = folderData.response!.id!;
 
     await ownerApi.files.createFile({
       folderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest CheckMove Content True File.docx",
       },
     });
@@ -1502,12 +1517,10 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data, status } =
       await ownerApi.operations.checkMoveOrCopyBatchItems({
-        inDto: {
-          folderIds: [folderId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-          content: true,
-        },
+        folderIds: [folderId],
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Skip,
+        content: true,
       });
 
     expect(status).toBe(200);
@@ -1515,6 +1528,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
     expect(data.response).toHaveLength(0);
   });
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test("GET /api/2.0/files/fileops/move - Empty request (no fileIds, no folderIds) returns 200 with empty response", async ({
     apiSdk,
   }) => {
@@ -1532,10 +1548,8 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data, status } =
       await ownerApi.operations.checkMoveOrCopyBatchItems({
-        inDto: {
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        },
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Skip,
       });
 
     expect(status).toBe(200);
@@ -1543,6 +1557,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
     expect(data.response).toHaveLength(0);
   });
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test("GET /api/2.0/files/fileops/move - Move to same folder (source equals destination) returns 200", async ({
     apiSdk,
   }) => {
@@ -1555,17 +1572,15 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
     const fileTitle = "Autotest CheckMove SameFolder.docx";
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: fileTitle },
+      createFileRequest: { title: fileTitle },
     });
     const fileId = fileData.response!.id!;
 
     const { data, status } =
       await ownerApi.operations.checkMoveOrCopyBatchItems({
-        inDto: {
-          fileIds: [fileId],
-          destFolderId: myDocsFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        },
+        fileIds: [fileId],
+        destFolderId: myDocsFolderId,
+        conflictResolveType: FileConflictResolveType.Skip,
       });
 
     expect(status).toBe(200);
@@ -1574,6 +1589,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
     expect(data.response![0].title).toBe(fileTitle);
   });
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test("GET /api/2.0/files/fileops/move - Move to archived room returns 403", async ({
     apiSdk,
   }) => {
@@ -1584,7 +1602,7 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest CheckMove Archived.docx" },
+      createFileRequest: { title: "Autotest CheckMove Archived.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1603,16 +1621,17 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
     await waitForOperation(ownerApi.operations);
 
     const { status } = await ownerApi.operations.checkMoveOrCopyBatchItems({
-      inDto: {
-        fileIds: [fileId],
-        destFolderId: roomId,
-        conflictResolveType: FileConflictResolveType.Skip,
-      },
+      fileIds: [fileId],
+      destFolderId: roomId,
+      conflictResolveType: FileConflictResolveType.Skip,
     });
 
     expect(status).toBe(403);
   });
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test("GET /api/2.0/files/fileops/move - Non-existent fileId returns 200 with empty response", async ({
     apiSdk,
   }) => {
@@ -1629,11 +1648,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data, status } =
       await ownerApi.operations.checkMoveOrCopyBatchItems({
-        inDto: {
-          fileIds: [999999999],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        },
+        fileIds: [999999999],
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Skip,
       });
 
     expect(status).toBe(200);
@@ -1642,6 +1659,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
   });
 
   // BUG 81881: GET /api/2.0/files/fileops/move - non-existent destFolderId returns 403 instead of 404
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test("BUG 81881: GET /api/2.0/files/fileops/move - Non-existent destFolderId returns 404", async ({
     apiSdk,
   }) => {
@@ -1653,18 +1673,16 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest CheckMove NonExist Dest.docx",
       },
     });
     const fileId = fileData.response!.id!;
 
     const { status } = await ownerApi.operations.checkMoveOrCopyBatchItems({
-      inDto: {
-        fileIds: [fileId],
-        destFolderId: 999999999,
-        conflictResolveType: FileConflictResolveType.Skip,
-      },
+      fileIds: [fileId],
+      destFolderId: 999999999,
+      conflictResolveType: FileConflictResolveType.Skip,
     });
 
     expect(status).toBe(404);
@@ -1682,17 +1700,15 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest CheckMove NoDestFolder.docx",
       },
     });
     const fileId = fileData.response!.id!;
 
     const { status } = await ownerApi.operations.checkMoveOrCopyBatchItems({
-      inDto: {
-        fileIds: [fileId],
-        conflictResolveType: FileConflictResolveType.Skip,
-      },
+      fileIds: [fileId],
+      conflictResolveType: FileConflictResolveType.Skip,
     });
 
     expect(status).toBe(400);
@@ -1700,6 +1716,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 });
 
 test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestFolder", () => {
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test(
     "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of file" +
       " to CustomRoom returns AllAllowed and files contains source file",
@@ -1713,7 +1732,7 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
       const sourceFileTitle = "Autotest CheckDestFolder File CustomRoom.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: sourceFileTitle },
+        createFileRequest: { title: sourceFileTitle },
       });
       const fileId = fileData.response!.id!;
 
@@ -1727,12 +1746,10 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data, status } =
         await ownerApi.operations.checkMoveOrCopyDestFolder({
-          inDto: {
-            fileIds: [fileId],
-            destFolderId,
-            conflictResolveType: FileConflictResolveType.Skip,
-            deleteAfter: true,
-          },
+          fileIds: [fileId],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: true,
         });
 
       expect(status).toBe(200);
@@ -1742,6 +1759,9 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test(
     "GET /api/2.0/files/fileops/checkdestfolder - files field contains all" +
       " source files when multiple files are checked",
@@ -1756,11 +1776,11 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data: file1Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: file1Title },
+        createFileRequest: { title: file1Title },
       });
       const { data: file2Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: file2Title },
+        createFileRequest: { title: file2Title },
       });
       const fileIds = [file1Data.response!.id!, file2Data.response!.id!];
 
@@ -1774,12 +1794,10 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data, status } =
         await ownerApi.operations.checkMoveOrCopyDestFolder({
-          inDto: {
-            fileIds,
-            destFolderId,
-            conflictResolveType: FileConflictResolveType.Skip,
-            deleteAfter: true,
-          },
+          fileIds,
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: true,
         });
 
       expect(status).toBe(200);
@@ -1791,6 +1809,9 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test(
     "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of file" +
       " to EditingRoom returns AllAllowed",
@@ -1802,7 +1823,7 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: {
+        createFileRequest: {
           title: "Autotest CheckDestFolder File EditingRoom.docx",
         },
       });
@@ -1818,12 +1839,10 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data, status } =
         await ownerApi.operations.checkMoveOrCopyDestFolder({
-          inDto: {
-            fileIds: [fileId],
-            destFolderId,
-            conflictResolveType: FileConflictResolveType.Skip,
-            deleteAfter: true,
-          },
+          fileIds: [fileId],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: true,
         });
 
       expect(status).toBe(200);
@@ -1831,6 +1850,9 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test(
     "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of" +
       " .docx file to FillingFormsRoom returns NoneAllowed",
@@ -1843,7 +1865,7 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: {
+        createFileRequest: {
           title: "Autotest CheckDestFolder Docx FillingForms.docx",
         },
       });
@@ -1859,12 +1881,10 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data, status } =
         await ownerApi.operations.checkMoveOrCopyDestFolder({
-          inDto: {
-            fileIds: [fileId],
-            destFolderId,
-            conflictResolveType: FileConflictResolveType.Skip,
-            deleteAfter: true,
-          },
+          fileIds: [fileId],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: true,
         });
 
       expect(status).toBe(200);
@@ -1872,6 +1892,9 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test(
     "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of" +
       " form file to FillingFormsRoom returns AllAllowed",
@@ -1894,12 +1917,10 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data, status } =
         await ownerApi.operations.checkMoveOrCopyDestFolder({
-          inDto: {
-            fileIds: [formFileId],
-            destFolderId,
-            conflictResolveType: FileConflictResolveType.Skip,
-            deleteAfter: true,
-          },
+          fileIds: [formFileId],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: true,
         });
 
       expect(status).toBe(200);
@@ -1907,6 +1928,9 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test(
     "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of file" +
       " to PublicRoom returns AllAllowed",
@@ -1918,7 +1942,7 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: {
+        createFileRequest: {
           title: "Autotest CheckDestFolder File PublicRoom.docx",
         },
       });
@@ -1934,12 +1958,10 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data, status } =
         await ownerApi.operations.checkMoveOrCopyDestFolder({
-          inDto: {
-            fileIds: [fileId],
-            destFolderId,
-            conflictResolveType: FileConflictResolveType.Skip,
-            deleteAfter: true,
-          },
+          fileIds: [fileId],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: true,
         });
 
       expect(status).toBe(200);
@@ -1947,6 +1969,9 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test(
     "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of file" +
       " to VirtualDataRoom returns AllAllowed",
@@ -1958,7 +1983,7 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: {
+        createFileRequest: {
           title: "Autotest CheckDestFolder File VDR.docx",
         },
       });
@@ -1974,12 +1999,10 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data, status } =
         await ownerApi.operations.checkMoveOrCopyDestFolder({
-          inDto: {
-            fileIds: [fileId],
-            destFolderId,
-            conflictResolveType: FileConflictResolveType.Skip,
-            deleteAfter: true,
-          },
+          fileIds: [fileId],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: true,
         });
 
       expect(status).toBe(200);
@@ -1987,6 +2010,9 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test(
     "GET /api/2.0/files/fileops/checkdestfolder - Owner checks copy" +
       " (deleteAfter: false) of file returns AllAllowed",
@@ -1998,7 +2024,7 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: {
+        createFileRequest: {
           title: "Autotest CheckDestFolder Copy File.docx",
         },
       });
@@ -2014,12 +2040,10 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data, status } =
         await ownerApi.operations.checkMoveOrCopyDestFolder({
-          inDto: {
-            fileIds: [fileId],
-            destFolderId,
-            conflictResolveType: FileConflictResolveType.Skip,
-            deleteAfter: false,
-          },
+          fileIds: [fileId],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
         });
 
       expect(status).toBe(200);
@@ -2027,6 +2051,9 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test(
     "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of folder" +
       " returns AllAllowed",
@@ -2038,7 +2065,9 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: "Autotest CheckDestFolder Source Folder" },
+        createFolderRequest: {
+          title: "Autotest CheckDestFolder Source Folder",
+        },
       });
       const sourceFolderId = folderData.response!.id!;
 
@@ -2052,12 +2081,10 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data, status } =
         await ownerApi.operations.checkMoveOrCopyDestFolder({
-          inDto: {
-            folderIds: [sourceFolderId],
-            destFolderId,
-            conflictResolveType: FileConflictResolveType.Skip,
-            deleteAfter: true,
-          },
+          folderIds: [sourceFolderId],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: true,
         });
 
       expect(status).toBe(200);
@@ -2065,6 +2092,9 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test(
     "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of" +
       " multiple files returns AllAllowed",
@@ -2076,13 +2106,13 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data: file1Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: {
+        createFileRequest: {
           title: "Autotest CheckDestFolder Multi File1.docx",
         },
       });
       const { data: file2Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: {
+        createFileRequest: {
           title: "Autotest CheckDestFolder Multi File2.docx",
         },
       });
@@ -2098,12 +2128,10 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data, status } =
         await ownerApi.operations.checkMoveOrCopyDestFolder({
-          inDto: {
-            fileIds,
-            destFolderId,
-            conflictResolveType: FileConflictResolveType.Skip,
-            deleteAfter: true,
-          },
+          fileIds,
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: true,
         });
 
       expect(status).toBe(200);
@@ -2111,6 +2139,9 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test("BUG 82103: GET /api/2.0/files/fileops/checkdestfolder - Move to archived room returns 403", async ({
     apiSdk,
   }) => {
@@ -2120,7 +2151,7 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest CheckDestFolder Archived Dest.docx",
       },
     });
@@ -2141,17 +2172,18 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     await waitForOperation(ownerApi.operations);
 
     const { status } = await ownerApi.operations.checkMoveOrCopyDestFolder({
-      inDto: {
-        fileIds: [fileId],
-        destFolderId: roomId,
-        conflictResolveType: FileConflictResolveType.Skip,
-        deleteAfter: true,
-      },
+      fileIds: [fileId],
+      destFolderId: roomId,
+      conflictResolveType: FileConflictResolveType.Skip,
+      deleteAfter: true,
     });
 
     expect(status).toBe(403);
   });
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test("BUG 82158: GET /api/2.0/files/fileops/checkdestfolder - Non-existent destFolderId returns 404", async ({
     apiSdk,
   }) => {
@@ -2161,19 +2193,17 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest CheckDestFolder NonExistent Dest.docx",
       },
     });
     const fileId = fileData.response!.id!;
 
     const { status } = await ownerApi.operations.checkMoveOrCopyDestFolder({
-      inDto: {
-        fileIds: [fileId],
-        destFolderId: 999999999,
-        conflictResolveType: FileConflictResolveType.Skip,
-        deleteAfter: true,
-      },
+      fileIds: [fileId],
+      destFolderId: 999999999,
+      conflictResolveType: FileConflictResolveType.Skip,
+      deleteAfter: true,
     });
 
     expect(status).toBe(404);
@@ -2188,22 +2218,23 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest CheckDestFolder No Dest.docx",
       },
     });
     const fileId = fileData.response!.id!;
 
     const { status } = await ownerApi.operations.checkMoveOrCopyDestFolder({
-      inDto: {
-        fileIds: [fileId],
-        conflictResolveType: FileConflictResolveType.Skip,
-      },
+      fileIds: [fileId],
+      conflictResolveType: FileConflictResolveType.Skip,
     });
 
     expect(status).toBe(400);
   });
 
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Expectations are unchanged.
   test(
     "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of file" +
       " to room with connected Third-party storage returns AllAllowed",
@@ -2216,7 +2247,7 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: {
+        createFileRequest: {
           title: "Autotest CheckDestFolder ThirdParty File.docx",
         },
       });
@@ -2236,7 +2267,7 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data: roomData } = await ownerApi.rooms.createRoomThirdParty({
         id: thirdPartyFolderId,
-        createThirdPartyRoom: {
+        createThirdPartyRoomRequest: {
           title: "Autotest CheckDestFolder ThirdParty Room",
           roomType: RoomType.CustomRoom,
         },
@@ -2245,12 +2276,10 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data, status } =
         await ownerApi.operations.checkMoveOrCopyDestFolder({
-          inDto: {
-            fileIds: [fileId],
-            destFolderId,
-            conflictResolveType: FileConflictResolveType.Skip,
-            deleteAfter: true,
-          },
+          fileIds: [fileId],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: true,
         });
 
       expect(status).toBe(200);
@@ -2272,7 +2301,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const sourceTitle = "Autotest CopyBatch File to Room.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: sourceTitle },
+        createFileRequest: { title: sourceTitle },
       });
       const fileId = fileData.response!.id!;
 
@@ -2328,14 +2357,14 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const folderTitle = "Autotest CopyBatch Source Folder";
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: folderTitle },
+        createFolderRequest: { title: folderTitle },
       });
       const sourceFolderId = folderData.response!.id!;
 
       const innerFileTitle = "Autotest CopyBatch File In Folder.docx";
       await ownerApi.files.createFile({
         folderId: sourceFolderId,
-        createFileJsonElement: { title: innerFileTitle },
+        createFileRequest: { title: innerFileTitle },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -2397,11 +2426,11 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
 
       const { data: file1Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: title1 },
+        createFileRequest: { title: title1 },
       });
       const { data: file2Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: title2 },
+        createFileRequest: { title: title2 },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -2448,7 +2477,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const fileTitle = "Autotest CopyBatch Skip Conflict.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
       const fileId = fileData.response!.id!;
 
@@ -2516,7 +2545,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
 
       const { data: file1Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
       await ownerApi.operations.copyBatchItems({
         batchRequestDto: {
@@ -2535,7 +2564,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
 
       const { data: file2Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { status } = await ownerApi.operations.copyBatchItems({
@@ -2572,7 +2601,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const fileTitle = "Autotest CopyBatch Duplicate Conflict.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
       const fileId = fileData.response!.id!;
 
@@ -2625,14 +2654,14 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const folderTitle = "Autotest CopyBatch Content Folder";
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: folderTitle },
+        createFolderRequest: { title: folderTitle },
       });
       const sourceFolderId = folderData.response!.id!;
 
       const innerFileTitle = "Autotest CopyBatch Content Inner File.docx";
       await ownerApi.files.createFile({
         folderId: sourceFolderId,
-        createFileJsonElement: { title: innerFileTitle },
+        createFileRequest: { title: innerFileTitle },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -2691,7 +2720,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const fileTitle = "Autotest CopyBatch Inter-Room File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: srcRoomId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data: destRoomData } = await ownerApi.rooms.createRoom({
@@ -2736,7 +2765,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
 
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: {
+        createFileRequest: {
           title: "Autotest CopyBatch Docx FillingForms.docx",
         },
       });
@@ -2813,7 +2842,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const fileTitle = "Autotest CopyBatch Level2 File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -2826,7 +2855,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
 
       const { data: subfolderData } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Autotest CopyBatch Level2 Subfolder" },
+        createFolderRequest: { title: "Autotest CopyBatch Level2 Subfolder" },
       });
       const subfolderId = subfolderData.response!.id!;
 
@@ -2872,7 +2901,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const fileTitle = "Autotest CopyBatch Level3 File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -2885,11 +2914,11 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
 
       const { data: folder2Data } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Autotest CopyBatch L3 Level2" },
+        createFolderRequest: { title: "Autotest CopyBatch L3 Level2" },
       });
       const { data: folder3Data } = await ownerApi.folders.createFolder({
         folderId: folder2Data.response!.id!,
-        createFolder: { title: "Autotest CopyBatch L3 Level3" },
+        createFolderRequest: { title: "Autotest CopyBatch L3 Level3" },
       });
       const folder3Id = folder3Data.response!.id!;
 
@@ -2934,12 +2963,12 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const sourceFolderTitle = "Autotest CopyBatch Folder to L3";
       const { data: srcFolderData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: sourceFolderTitle },
+        createFolderRequest: { title: sourceFolderTitle },
       });
       const innerFileTitle = "Autotest CopyBatch Folder to L3 Inner.docx";
       await ownerApi.files.createFile({
         folderId: srcFolderData.response!.id!,
-        createFileJsonElement: { title: innerFileTitle },
+        createFileRequest: { title: innerFileTitle },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -2950,11 +2979,11 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       });
       const { data: folder2Data } = await ownerApi.folders.createFolder({
         folderId: roomData.response!.id!,
-        createFolder: { title: "Autotest CopyBatch Folder L3 L2" },
+        createFolderRequest: { title: "Autotest CopyBatch Folder L3 L2" },
       });
       const { data: folder3Data } = await ownerApi.folders.createFolder({
         folderId: folder2Data.response!.id!,
-        createFolder: { title: "Autotest CopyBatch Folder L3 L3" },
+        createFolderRequest: { title: "Autotest CopyBatch Folder L3 L3" },
       });
       const folder3Id = folder3Data.response!.id!;
 
@@ -3003,7 +3032,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const fileTitle = "Autotest CopyBatch Skip L3 Conflict.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
       const fileId = fileData.response!.id!;
 
@@ -3015,11 +3044,11 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       });
       const { data: folder2Data } = await ownerApi.folders.createFolder({
         folderId: roomData.response!.id!,
-        createFolder: { title: "Autotest Skip L3 L2" },
+        createFolderRequest: { title: "Autotest Skip L3 L2" },
       });
       const { data: folder3Data } = await ownerApi.folders.createFolder({
         folderId: folder2Data.response!.id!,
-        createFolder: { title: "Autotest Skip L3 L3" },
+        createFolderRequest: { title: "Autotest Skip L3 L3" },
       });
       const folder3Id = folder3Data.response!.id!;
 
@@ -3071,7 +3100,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const fileTitle = "Autotest CopyBatch Dup L3.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
       const fileId = fileData.response!.id!;
 
@@ -3083,11 +3112,11 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       });
       const { data: folder2Data } = await ownerApi.folders.createFolder({
         folderId: roomData.response!.id!,
-        createFolder: { title: "Autotest Dup L3 L2" },
+        createFolderRequest: { title: "Autotest Dup L3 L2" },
       });
       const { data: folder3Data } = await ownerApi.folders.createFolder({
         folderId: folder2Data.response!.id!,
-        createFolder: { title: "Autotest Dup L3 L3" },
+        createFolderRequest: { title: "Autotest Dup L3 L3" },
       });
       const folder3Id = folder3Data.response!.id!;
 
@@ -3135,19 +3164,19 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       });
       const { data: folder2Data } = await ownerApi.folders.createFolder({
         folderId: srcRoomData.response!.id!,
-        createFolder: { title: "Autotest L3Sub L2" },
+        createFolderRequest: { title: "Autotest L3Sub L2" },
       });
       const subFolderTitle = "Autotest L3Sub Level3 Folder";
       const { data: folder3Data } = await ownerApi.folders.createFolder({
         folderId: folder2Data.response!.id!,
-        createFolder: { title: subFolderTitle },
+        createFolderRequest: { title: subFolderTitle },
       });
       const folder3Id = folder3Data.response!.id!;
 
       const innerFileTitle = "Autotest CopyBatch L3Sub Inner File.docx";
       await ownerApi.files.createFile({
         folderId: folder3Id,
-        createFileJsonElement: { title: innerFileTitle },
+        createFileRequest: { title: innerFileTitle },
       });
 
       const { data: destRoomData } = await ownerApi.rooms.createRoom({
@@ -3226,7 +3255,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest CopyBatch Archived Dest.docx",
       },
     });
@@ -3316,7 +3345,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
 
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: {
+        createFileRequest: {
           title: "Autotest CopyBatch SameRoom File.docx",
         },
       });
@@ -3380,7 +3409,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
 
       const { data: destData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: "Autotest CopyBatch GhostFolder Dest" },
+        createFolderRequest: { title: "Autotest CopyBatch GhostFolder Dest" },
       });
       const destFolderId = destData.response!.id!;
 
@@ -3428,7 +3457,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest CopyBatch BadDest.docx" },
+      createFileRequest: { title: "Autotest CopyBatch BadDest.docx" },
     });
 
     const { status } = await ownerApi.operations.copyBatchItems({
@@ -3456,11 +3485,11 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const title2 = "Autotest CopyBatch Multi L3 File2.docx";
       const { data: file1 } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: title1 },
+        createFileRequest: { title: title1 },
       });
       const { data: file2 } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: title2 },
+        createFileRequest: { title: title2 },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -3471,11 +3500,11 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       });
       const { data: folder2 } = await ownerApi.folders.createFolder({
         folderId: roomData.response!.id!,
-        createFolder: { title: "Autotest Multi L3 L2" },
+        createFolderRequest: { title: "Autotest Multi L3 L2" },
       });
       const { data: folder3 } = await ownerApi.folders.createFolder({
         folderId: folder2.response!.id!,
-        createFolder: { title: "Autotest Multi L3 L3" },
+        createFolderRequest: { title: "Autotest Multi L3 L3" },
       });
       const folder3Id = folder3.response!.id!;
 
@@ -3521,17 +3550,17 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       });
       const { data: folder2 } = await ownerApi.folders.createFolder({
         folderId: roomData.response!.id!,
-        createFolder: { title: "Autotest Overwrite L3 L2" },
+        createFolderRequest: { title: "Autotest Overwrite L3 L2" },
       });
       const { data: folder3 } = await ownerApi.folders.createFolder({
         folderId: folder2.response!.id!,
-        createFolder: { title: "Autotest Overwrite L3 L3" },
+        createFolderRequest: { title: "Autotest Overwrite L3 L3" },
       });
       const folder3Id = folder3.response!.id!;
 
       const { data: file1 } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
       await ownerApi.operations.copyBatchItems({
         batchRequestDto: {
@@ -3550,7 +3579,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
 
       const { data: file2 } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { status } = await ownerApi.operations.copyBatchItems({
@@ -3587,12 +3616,12 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const srcFolderTitle = "Autotest CopyBatch ContentL3 Src";
       const { data: srcFolder } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: srcFolderTitle },
+        createFolderRequest: { title: srcFolderTitle },
       });
       const innerFileTitle = "Autotest CopyBatch ContentL3 Inner.docx";
       await ownerApi.files.createFile({
         folderId: srcFolder.response!.id!,
-        createFileJsonElement: { title: innerFileTitle },
+        createFileRequest: { title: innerFileTitle },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -3603,11 +3632,11 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       });
       const { data: folder2 } = await ownerApi.folders.createFolder({
         folderId: roomData.response!.id!,
-        createFolder: { title: "Autotest ContentL3 L2" },
+        createFolderRequest: { title: "Autotest ContentL3 L2" },
       });
       const { data: folder3 } = await ownerApi.folders.createFolder({
         folderId: folder2.response!.id!,
-        createFolder: { title: "Autotest ContentL3 L3" },
+        createFolderRequest: { title: "Autotest ContentL3 L3" },
       });
       const folder3Id = folder3.response!.id!;
 
@@ -3655,11 +3684,11 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
 
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: folderTitle },
+        createFolderRequest: { title: folderTitle },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -3712,11 +3741,11 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
 
       const { data: folder1 } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: folder1Title },
+        createFolderRequest: { title: folder1Title },
       });
       const { data: folder2 } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: folder2Title },
+        createFolderRequest: { title: folder2Title },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -3763,7 +3792,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const emptyFolderTitle = "Autotest CopyBatch EmptyFolder";
       const { data: emptyFolder } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: emptyFolderTitle },
+        createFolderRequest: { title: emptyFolderTitle },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -3822,7 +3851,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const fileTitle = "Autotest CopyBatch RoomToMyDocs File.docx";
       const { data: srcFileData } = await ownerApi.files.createFile({
         folderId: srcRoomId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data: myDocsData } = await ownerApi.folders.getMyFolder();
@@ -3876,13 +3905,13 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       });
       const { data: srcFolderData } = await ownerApi.folders.createFolder({
         folderId: srcRoomData.response!.id!,
-        createFolder: { title: "Autotest CopyBatch SubSrc Folder" },
+        createFolderRequest: { title: "Autotest CopyBatch SubSrc Folder" },
       });
 
       const fileTitle = "Autotest CopyBatch SubSrc File.docx";
       const { data: srcFileData } = await ownerApi.files.createFile({
         folderId: srcFolderData.response!.id!,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data: destRoomData } = await ownerApi.rooms.createRoom({
@@ -3927,7 +3956,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const fileTitle = "Autotest CopyBatch DeleteAfter File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -3982,7 +4011,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const fileTitle = "Autotest CopyBatch DupId File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
       const fileId = fileData.response!.id!;
 
@@ -4030,7 +4059,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const fileTitle = "Autotest CopyBatch PublicRoom File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -4075,7 +4104,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const fileTitle = "Autotest CopyBatch EditingRoom File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -4120,7 +4149,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const fileTitle = "Autotest CopyBatch VirtualDataRoom File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -4171,7 +4200,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const folderTitle = "Autotest CopyBatch ThirdParty Folder";
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: srcRoomId,
-        createFolder: { title: folderTitle },
+        createFolderRequest: { title: folderTitle },
       });
 
       const { data: tpData } =
@@ -4187,7 +4216,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
 
       const { data: destRoomData } = await ownerApi.rooms.createRoomThirdParty({
         id: tpData.response!.id!,
-        createThirdPartyRoom: {
+        createThirdPartyRoomRequest: {
           title: "Autotest CopyBatch ThirdParty Room",
           roomType: RoomType.CustomRoom,
         },
@@ -4340,7 +4369,7 @@ test.describe("POST /api/2.0/files/{folderId}/session - createUploadSessionInFol
       const fileName = "Autotest UploadSession ExistingFile.docx";
       await ownerApi.files.createFile({
         folderId,
-        createFileJsonElement: { title: fileName },
+        createFileRequest: { title: fileName },
       });
 
       const fileContent = Buffer.from("uploaded content");
@@ -4522,7 +4551,7 @@ test.describe("POST /api/2.0/files/{folderId}/session - createUploadSessionInFol
       const fileName = "Autotest UploadSession Overwrite.docx";
       await ownerApi.files.createFile({
         folderId,
-        createFileJsonElement: { title: fileName },
+        createFileRequest: { title: fileName },
       });
 
       const fileContent = Buffer.from("overwritten content");
@@ -4732,7 +4761,7 @@ test.describe("PUT /api/2.0/files/fileops/delete - deleteBatchItems", () => {
       const fileName = "Autotest Delete ToTrash File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId,
-        createFileJsonElement: { title: fileName },
+        createFileRequest: { title: fileName },
       });
       const fileId = fileData.response!.id!;
 
@@ -4777,7 +4806,7 @@ test.describe("PUT /api/2.0/files/fileops/delete - deleteBatchItems", () => {
       const fileName = "Autotest Delete Permanent File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId,
-        createFileJsonElement: { title: fileName },
+        createFileRequest: { title: fileName },
       });
       const fileId = fileData.response!.id!;
 
@@ -4820,7 +4849,7 @@ test.describe("PUT /api/2.0/files/fileops/delete - deleteBatchItems", () => {
       const folderTitle = "Autotest Delete FolderToTrash";
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: parentId,
-        createFolder: { title: folderTitle },
+        createFolderRequest: { title: folderTitle },
       });
       const subFolderId = folderData.response!.id!;
 
@@ -4857,13 +4886,13 @@ test.describe("PUT /api/2.0/files/fileops/delete - deleteBatchItems", () => {
       const folderTitle = "Autotest Delete FolderWithFiles";
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: parentId,
-        createFolder: { title: folderTitle },
+        createFolderRequest: { title: folderTitle },
       });
       const subFolderId = folderData.response!.id!;
 
       await ownerApi.files.createFile({
         folderId: subFolderId,
-        createFileJsonElement: { title: "Autotest Delete InnerFile.docx" },
+        createFileRequest: { title: "Autotest Delete InnerFile.docx" },
       });
 
       const { data, status } = await ownerApi.operations.deleteBatchItems({
@@ -4898,15 +4927,15 @@ test.describe("PUT /api/2.0/files/fileops/delete - deleteBatchItems", () => {
 
       const { data: file1 } = await ownerApi.files.createFile({
         folderId: parentId,
-        createFileJsonElement: { title: "Autotest Batch Delete File1.docx" },
+        createFileRequest: { title: "Autotest Batch Delete File1.docx" },
       });
       const { data: file2 } = await ownerApi.files.createFile({
         folderId: parentId,
-        createFileJsonElement: { title: "Autotest Batch Delete File2.docx" },
+        createFileRequest: { title: "Autotest Batch Delete File2.docx" },
       });
       const { data: folder1 } = await ownerApi.folders.createFolder({
         folderId: parentId,
-        createFolder: { title: "Autotest Batch Delete Folder1" },
+        createFolderRequest: { title: "Autotest Batch Delete Folder1" },
       });
 
       const { data, status } = await ownerApi.operations.deleteBatchItems({
@@ -4979,7 +5008,7 @@ test.describe("PUT /api/2.0/files/fileops/delete - deleteBatchItems", () => {
       const fileName = "Autotest Delete FromTrash File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId,
-        createFileJsonElement: { title: fileName },
+        createFileRequest: { title: fileName },
       });
       const fileId = fileData.response!.id!;
 
@@ -5018,13 +5047,13 @@ test.describe("PUT /api/2.0/files/fileops/deleteversion - deleteFileVersions", (
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest DelVer Single File.docx" },
+      createFileRequest: { title: "Autotest DelVer Single File.docx" },
     });
     const fileId = fileData.response!.id!;
 
     await ownerApi.files.updateFile({
       fileId,
-      updateFile: { lastVersion: 2 },
+      updateFileRequest: { lastVersion: 2 },
     });
 
     const { data, status } = await ownerApi.operations.deleteFileVersions({
@@ -5053,12 +5082,18 @@ test.describe("PUT /api/2.0/files/fileops/deleteversion - deleteFileVersions", (
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest DelVer Multi File.docx" },
+      createFileRequest: { title: "Autotest DelVer Multi File.docx" },
     });
     const fileId = fileData.response!.id!;
 
-    await ownerApi.files.updateFile({ fileId, updateFile: { lastVersion: 2 } });
-    await ownerApi.files.updateFile({ fileId, updateFile: { lastVersion: 3 } });
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFileRequest: { lastVersion: 2 },
+    });
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFileRequest: { lastVersion: 3 },
+    });
 
     const { data, status } = await ownerApi.operations.deleteFileVersions({
       deleteVersionBatchRequestDto: { fileId, versions: [1, 2] },
@@ -5087,11 +5122,14 @@ test.describe("PUT /api/2.0/files/fileops/deleteversion - deleteFileVersions", (
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest DelVer Accessible.docx" },
+      createFileRequest: { title: "Autotest DelVer Accessible.docx" },
     });
     const fileId = fileData.response!.id!;
 
-    await ownerApi.files.updateFile({ fileId, updateFile: { lastVersion: 2 } });
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFileRequest: { lastVersion: 2 },
+    });
 
     await ownerApi.operations.deleteFileVersions({
       deleteVersionBatchRequestDto: { fileId, versions: [1] },
@@ -5114,7 +5152,7 @@ test.describe("PUT /api/2.0/files/fileops/deleteversion - deleteFileVersions", (
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest DelVer NonExistVer.docx" },
+      createFileRequest: { title: "Autotest DelVer NonExistVer.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5161,11 +5199,14 @@ test.describe("PUT /api/2.0/files/fileops/deleteversion - deleteFileVersions", (
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest DelVer Room File.docx" },
+      createFileRequest: { title: "Autotest DelVer Room File.docx" },
     });
     const fileId = fileData.response!.id!;
 
-    await ownerApi.files.updateFile({ fileId, updateFile: { lastVersion: 2 } });
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFileRequest: { lastVersion: 2 },
+    });
 
     const { data, status } = await ownerApi.operations.deleteFileVersions({
       deleteVersionBatchRequestDto: { fileId, versions: [1] },
@@ -5199,11 +5240,14 @@ test.describe("PUT /api/2.0/files/fileops/deleteversion - deleteFileVersions", (
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest DelVer Archived File.docx" },
+      createFileRequest: { title: "Autotest DelVer Archived File.docx" },
     });
     const fileId = fileData.response!.id!;
 
-    await ownerApi.files.updateFile({ fileId, updateFile: { lastVersion: 2 } });
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFileRequest: { lastVersion: 2 },
+    });
 
     await ownerApi.rooms.archiveRoom({
       id: roomId,
@@ -5227,11 +5271,14 @@ test.describe("PUT /api/2.0/files/fileops/deleteversion - deleteFileVersions", (
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest DelVer Trash File.docx" },
+      createFileRequest: { title: "Autotest DelVer Trash File.docx" },
     });
     const fileId = fileData.response!.id!;
 
-    await ownerApi.files.updateFile({ fileId, updateFile: { lastVersion: 2 } });
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFileRequest: { lastVersion: 2 },
+    });
 
     await ownerApi.operations.deleteBatchItems({
       deleteBatchRequestDto: { fileIds: [fileId], immediately: false },
@@ -5254,11 +5301,14 @@ test.describe("PUT /api/2.0/files/fileops/deleteversion - deleteFileVersions", (
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest DelVer Null Versions.docx" },
+      createFileRequest: { title: "Autotest DelVer Null Versions.docx" },
     });
     const fileId = fileData.response!.id!;
 
-    await ownerApi.files.updateFile({ fileId, updateFile: { lastVersion: 2 } });
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFileRequest: { lastVersion: 2 },
+    });
 
     const { data, status } = await ownerApi.operations.deleteFileVersions({
       deleteVersionBatchRequestDto: { fileId, versions: null },
@@ -5277,13 +5327,16 @@ test.describe("PUT /api/2.0/files/fileops/deleteversion - deleteFileVersions", (
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest DelVer SingleOp File.docx",
       },
     });
     const fileId = fileData.response!.id!;
 
-    await ownerApi.files.updateFile({ fileId, updateFile: { lastVersion: 2 } });
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFileRequest: { lastVersion: 2 },
+    });
 
     const { data, status } = await ownerApi.operations.deleteFileVersions({
       deleteVersionBatchRequestDto: {
@@ -5317,7 +5370,7 @@ test.describe("DELETE /api/2.0/files/favorites - Remove favorite files and folde
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest DelFav File.docx" },
+      createFileRequest: { title: "Autotest DelFav File.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5346,7 +5399,7 @@ test.describe("DELETE /api/2.0/files/favorites - Remove favorite files and folde
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest DelFav Folder" },
+      createFolderRequest: { title: "Autotest DelFav Folder" },
     });
     const folderId = folderData.response!.id!;
 
@@ -5375,11 +5428,11 @@ test.describe("DELETE /api/2.0/files/favorites - Remove favorite files and folde
 
     const { data: file1Data } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest DelFav Multi1.docx" },
+      createFileRequest: { title: "Autotest DelFav Multi1.docx" },
     });
     const { data: file2Data } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest DelFav Multi2.docx" },
+      createFileRequest: { title: "Autotest DelFav Multi2.docx" },
     });
     const fileId1 = file1Data.response!.id!;
     const fileId2 = file2Data.response!.id!;
@@ -5410,11 +5463,11 @@ test.describe("DELETE /api/2.0/files/favorites - Remove favorite files and folde
 
     const { data: folder1Data } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest DelFav MultiFolderA" },
+      createFolderRequest: { title: "Autotest DelFav MultiFolderA" },
     });
     const { data: folder2Data } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest DelFav MultiFolderB" },
+      createFolderRequest: { title: "Autotest DelFav MultiFolderB" },
     });
     const folderId1 = folder1Data.response!.id!;
     const folderId2 = folder2Data.response!.id!;
@@ -5445,11 +5498,11 @@ test.describe("DELETE /api/2.0/files/favorites - Remove favorite files and folde
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest DelFav Mixed File.docx" },
+      createFileRequest: { title: "Autotest DelFav Mixed File.docx" },
     });
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest DelFav Mixed Folder" },
+      createFolderRequest: { title: "Autotest DelFav Mixed Folder" },
     });
     const fileId = fileData.response!.id!;
     const folderId = folderData.response!.id!;
@@ -5481,7 +5534,7 @@ test.describe("DELETE /api/2.0/files/favorites - Remove favorite files and folde
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest DelFav Source File.docx" },
+      createFileRequest: { title: "Autotest DelFav Source File.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5509,7 +5562,7 @@ test.describe("DELETE /api/2.0/files/favorites - Remove favorite files and folde
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest DelFav Idempotent File.docx" },
+      createFileRequest: { title: "Autotest DelFav Idempotent File.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5585,7 +5638,7 @@ test.describe("PUT /api/2.0/files/fileops/duplicate - duplicateBatchItems", () =
     const fileBase = "Autotest Dup Single File";
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: `${fileBase}.docx` },
+      createFileRequest: { title: `${fileBase}.docx` },
     });
     const fileId = fileData.response!.id!;
 
@@ -5619,7 +5672,7 @@ test.describe("PUT /api/2.0/files/fileops/duplicate - duplicateBatchItems", () =
     const folderBase = "Autotest Dup Single Folder";
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: folderBase },
+      createFolderRequest: { title: folderBase },
     });
     const folderId = folderData.response!.id!;
 
@@ -5654,11 +5707,11 @@ test.describe("PUT /api/2.0/files/fileops/duplicate - duplicateBatchItems", () =
     const base2 = "Autotest Dup Multi FileB";
     const { data: file1Data } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: `${base1}.docx` },
+      createFileRequest: { title: `${base1}.docx` },
     });
     const { data: file2Data } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: `${base2}.docx` },
+      createFileRequest: { title: `${base2}.docx` },
     });
     const fileId1 = file1Data.response!.id!;
     const fileId2 = file2Data.response!.id!;
@@ -5702,7 +5755,7 @@ test.describe("PUT /api/2.0/files/fileops/duplicate - duplicateBatchItems", () =
     const fileBase = "Autotest Dup Room File";
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: `${fileBase}.docx` },
+      createFileRequest: { title: `${fileBase}.docx` },
     });
     const fileId = fileData.response!.id!;
 
@@ -5736,7 +5789,7 @@ test.describe("PUT /api/2.0/files/fileops/duplicate - duplicateBatchItems", () =
     const fileBase = "Autotest Dup Üñó Résumé";
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: `${fileBase}.docx` },
+      createFileRequest: { title: `${fileBase}.docx` },
     });
     const fileId = fileData.response!.id!;
 
@@ -5805,7 +5858,7 @@ test.describe("PUT /api/2.0/files/fileops/duplicate - duplicateBatchItems", () =
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Dup Archived File.docx" },
+      createFileRequest: { title: "Autotest Dup Archived File.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5831,7 +5884,7 @@ test.describe("PUT /api/2.0/files/fileops/duplicate - duplicateBatchItems", () =
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest Dup Trash File.docx" },
+      createFileRequest: { title: "Autotest Dup Trash File.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5870,13 +5923,13 @@ test.describe("PUT /api/2.0/files/fileops/duplicate - duplicateBatchItems", () =
       const folderBase = "Autotest Dup Nested Folder";
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: folderBase },
+        createFolderRequest: { title: folderBase },
       });
       const folderId = folderData.response!.id!;
 
       const { data: fileData } = await ownerApi.files.createFile({
         folderId,
-        createFileJsonElement: { title: "Autotest Dup Nested File.docx" },
+        createFileRequest: { title: "Autotest Dup Nested File.docx" },
       });
       const innerFileTitle = fileData.response!.title!;
 
@@ -5923,14 +5976,14 @@ test.describe("PUT /api/2.0/files/fileops/duplicate - duplicateBatchItems", () =
       const fileBase = "Autotest Dup Mixed File";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: `${fileBase}.docx` },
+        createFileRequest: { title: `${fileBase}.docx` },
       });
       const fileId = fileData.response!.id!;
 
       const folderBase = "Autotest Dup Mixed Folder";
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: folderBase },
+        createFolderRequest: { title: folderBase },
       });
       const folderId = folderData.response!.id!;
 
@@ -5973,14 +6026,14 @@ test.describe("PUT /api/2.0/files/fileops/duplicate - duplicateBatchItems", () =
 
       const { data: subFolderData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: "Autotest Dup Subfolder" },
+        createFolderRequest: { title: "Autotest Dup Subfolder" },
       });
       const subFolderId = subFolderData.response!.id!;
 
       const fileBase = "Autotest Dup Subfolder File";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: subFolderId,
-        createFileJsonElement: { title: `${fileBase}.docx` },
+        createFileRequest: { title: `${fileBase}.docx` },
       });
       const fileId = fileData.response!.id!;
 
@@ -6019,7 +6072,7 @@ test.describe("PUT /api/2.0/files/fileops/emptytrash - emptyTrash", () => {
       const fileName = "Autotest EmptyTrash File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileName },
+        createFileRequest: { title: fileName },
       });
       const fileId = fileData.response!.id!;
 
@@ -6059,7 +6112,7 @@ test.describe("PUT /api/2.0/files/fileops/emptytrash - emptyTrash", () => {
       const folderTitle = "Autotest EmptyTrash Folder";
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: folderTitle },
+        createFolderRequest: { title: folderTitle },
       });
       const folderId = folderData.response!.id!;
 
@@ -6102,14 +6155,14 @@ test.describe("PUT /api/2.0/files/fileops/emptytrash - emptyTrash", () => {
       const fileName = "Autotest EmptyTrash Mixed File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileName },
+        createFileRequest: { title: fileName },
       });
       const fileId = fileData.response!.id!;
 
       const folderTitle = "Autotest EmptyTrash Mixed Folder";
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: folderTitle },
+        createFolderRequest: { title: folderTitle },
       });
       const folderId = folderData.response!.id!;
 
@@ -6169,7 +6222,7 @@ test.describe("PUT /api/2.0/files/fileops/emptytrash - emptyTrash", () => {
       const fileName = "Autotest EmptyTrash Room File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title: fileName },
+        createFileRequest: { title: fileName },
       });
       const fileId = fileData.response!.id!;
 
@@ -6207,7 +6260,7 @@ test.describe("PUT /api/2.0/files/fileops/emptytrash - emptyTrash", () => {
 
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: "Autotest EmptyTrash Single.docx" },
+        createFileRequest: { title: "Autotest EmptyTrash Single.docx" },
       });
       const fileId = fileData.response!.id!;
 
@@ -6257,7 +6310,7 @@ test.describe("PUT /api/2.0/files/fileops/emptytrash - emptyTrash", () => {
 
         const { data: filesFileData } = await ownerApi.files.createFile({
           folderId: myDocsFolderId,
-          createFileJsonElement: { title: filesTitle },
+          createFileRequest: { title: filesTitle },
         });
         await ownerApi.operations.deleteBatchItems({
           deleteBatchRequestDto: {
@@ -6275,7 +6328,7 @@ test.describe("PUT /api/2.0/files/fileops/emptytrash - emptyTrash", () => {
         });
         const { data: roomsFileData } = await ownerApi.files.createFile({
           folderId: roomData.response!.id!,
-          createFileJsonElement: { title: roomsTitle },
+          createFileRequest: { title: roomsTitle },
         });
         await ownerApi.operations.deleteBatchItems({
           deleteBatchRequestDto: {
@@ -6582,7 +6635,7 @@ test.describe("PUT /api/2.0/files/fileops/markasread - markAsRead", () => {
 
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title: "Autotest MarkAsRead File.docx" },
+        createFileRequest: { title: "Autotest MarkAsRead File.docx" },
       });
       const fileId = fileData.response!.id!;
 
@@ -6644,13 +6697,13 @@ test.describe("PUT /api/2.0/files/fileops/markasread - markAsRead", () => {
 
       const { data: file1Data } = await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title: "Autotest MarkAsRead File1.docx" },
+        createFileRequest: { title: "Autotest MarkAsRead File1.docx" },
       });
       const file1Id = file1Data.response!.id!;
 
       const { data: file2Data } = await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title: "Autotest MarkAsRead File2.docx" },
+        createFileRequest: { title: "Autotest MarkAsRead File2.docx" },
       });
       const file2Id = file2Data.response!.id!;
 
@@ -6710,7 +6763,7 @@ test.describe("PUT /api/2.0/files/fileops/markasread - markAsRead", () => {
 
       const { data: subFolderData } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Autotest MarkAsRead Subfolder" },
+        createFolderRequest: { title: "Autotest MarkAsRead Subfolder" },
       });
       const subFolderId = subFolderData.response!.id!;
 
@@ -6752,13 +6805,13 @@ test.describe("PUT /api/2.0/files/fileops/markasread - markAsRead", () => {
 
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title: "Autotest MarkAsRead Mix File.docx" },
+        createFileRequest: { title: "Autotest MarkAsRead Mix File.docx" },
       });
       const fileId = fileData.response!.id!;
 
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Autotest MarkAsRead Mix Folder" },
+        createFolderRequest: { title: "Autotest MarkAsRead Mix Folder" },
       });
       const folderId = folderData.response!.id!;
 
@@ -6834,7 +6887,7 @@ test.describe("PUT /api/2.0/files/fileops/markasread - markAsRead", () => {
 
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: {
+        createFileRequest: {
           title: "Autotest MarkAsRead Idempotent File.docx",
         },
       });
@@ -6883,13 +6936,15 @@ test.describe("PUT /api/2.0/files/fileops/markasread - markAsRead", () => {
 
       const { data: subFolderData } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Autotest MarkAsRead Folder Business Sub" },
+        createFolderRequest: {
+          title: "Autotest MarkAsRead Folder Business Sub",
+        },
       });
       const subFolderId = subFolderData.response!.id!;
 
       await ownerApi.files.createFile({
         folderId: subFolderId,
-        createFileJsonElement: {
+        createFileRequest: {
           title: "Autotest MarkAsRead Folder File.docx",
         },
       });
@@ -6939,7 +6994,7 @@ test.describe("PUT /api/2.0/files/fileops/markasread - markAsRead", () => {
         async () => {
           const { data: fileData } = await ownerApi.files.createFile({
             folderId: myDocsFolderId,
-            createFileJsonElement: {
+            createFileRequest: {
               title:
                 "Autotest MarkAsRead Cross Files " +
                 apiSdk.faker.generateString(8) +
@@ -6981,7 +7036,7 @@ test.describe("PUT /api/2.0/files/fileops/markasread - markAsRead", () => {
             ".docx";
           await userApi.files.updateFile({
             fileId,
-            updateFile: { title: filesTitle },
+            updateFileRequest: { title: filesTitle },
           });
 
           // ...and creates a file inside the room
@@ -6991,7 +7046,7 @@ test.describe("PUT /api/2.0/files/fileops/markasread - markAsRead", () => {
             ".docx";
           await userApi.files.createFile({
             folderId: roomId,
-            createFileJsonElement: { title: roomsTitle },
+            createFileRequest: { title: roomsTitle },
           });
         },
       );
@@ -7066,7 +7121,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const sourceTitle = "Autotest MoveBatch Single File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: sourceTitle },
+        createFileRequest: { title: sourceTitle },
       });
       const fileId = fileData.response!.id!;
 
@@ -7123,11 +7178,11 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: file1Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: title1 },
+        createFileRequest: { title: title1 },
       });
       const { data: file2Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: title2 },
+        createFileRequest: { title: title2 },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -7183,14 +7238,14 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const folderTitle = "Autotest MoveBatch Source Folder";
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: folderTitle },
+        createFolderRequest: { title: folderTitle },
       });
       const sourceFolderId = folderData.response!.id!;
 
       const innerFileTitle = "Autotest MoveBatch Inner File.docx";
       await ownerApi.files.createFile({
         folderId: sourceFolderId,
-        createFileJsonElement: { title: innerFileTitle },
+        createFileRequest: { title: innerFileTitle },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -7257,13 +7312,13 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const fileTitle = "Autotest MoveBatch Mix File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const folderTitle = "Autotest MoveBatch Mix Folder";
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: folderTitle },
+        createFolderRequest: { title: folderTitle },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -7320,7 +7375,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const fileTitle = "Autotest MoveBatch InterRoom File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: srcFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data: destRoomData } = await ownerApi.rooms.createRoom({
@@ -7382,7 +7437,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const fileTitle = "Autotest MoveBatch RoomToMyDocs File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: srcFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data, status } = await ownerApi.operations.moveBatchItems({
@@ -7428,19 +7483,19 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: srcFolderData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: "Autotest MoveBatch MyDocsSrc Folder" },
+        createFolderRequest: { title: "Autotest MoveBatch MyDocsSrc Folder" },
       });
       const srcFolderId = srcFolderData.response!.id!;
 
       const fileTitle = "Autotest MoveBatch MyDocs Subfolder File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: srcFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data: destFolderData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: "Autotest MoveBatch MyDocsDest Folder" },
+        createFolderRequest: { title: "Autotest MoveBatch MyDocsDest Folder" },
       });
       const destFolderId = destFolderData.response!.id!;
 
@@ -7493,12 +7548,12 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const srcTitle = "Autotest MoveBatch Src Subfolder";
       const { data: srcFolderData } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: srcTitle },
+        createFolderRequest: { title: srcTitle },
       });
 
       const { data: destFolderData } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Autotest MoveBatch Dest Parent" },
+        createFolderRequest: { title: "Autotest MoveBatch Dest Parent" },
       });
       const destFolderId = destFolderData.response!.id!;
 
@@ -7538,7 +7593,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const fileTitle = "Autotest MoveBatch Skip Conflict.docx";
       const { data: file1Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -7570,7 +7625,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: file2Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data: srcBeforeMove } =
@@ -7631,7 +7686,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: file1Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
       await ownerApi.operations.copyBatchItems({
         batchRequestDto: {
@@ -7650,7 +7705,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: file2Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { status } = await ownerApi.operations.moveBatchItems({
@@ -7695,7 +7750,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: file1Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
       await ownerApi.operations.copyBatchItems({
         batchRequestDto: {
@@ -7709,7 +7764,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: file2Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { status } = await ownerApi.operations.moveBatchItems({
@@ -7743,14 +7798,14 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const folderTitle = "Autotest MoveBatch Content Folder";
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: folderTitle },
+        createFolderRequest: { title: folderTitle },
       });
       const sourceFolderId = folderData.response!.id!;
 
       const innerFileTitle = "Autotest MoveBatch Content Inner File.docx";
       await ownerApi.files.createFile({
         folderId: sourceFolderId,
-        createFileJsonElement: { title: innerFileTitle },
+        createFileRequest: { title: innerFileTitle },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -7823,7 +7878,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest MoveBatch Archived Dest.docx",
       },
     });
@@ -7870,7 +7925,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest MoveBatch SameDest File.docx",
       },
     });
@@ -7899,7 +7954,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const fileTitle = "Autotest MoveBatch ThirdParty File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data: tpData } =
@@ -7915,7 +7970,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: roomData } = await ownerApi.rooms.createRoomThirdParty({
         id: tpData.response!.id!,
-        createThirdPartyRoom: {
+        createThirdPartyRoomRequest: {
           title: "Autotest MoveBatch ThirdParty Room",
           roomType: RoomType.CustomRoom,
         },
@@ -7958,7 +8013,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const folderTitle = "Autotest MoveBatch ThirdParty Folder";
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: folderTitle },
+        createFolderRequest: { title: folderTitle },
       });
 
       const { data: tpData } =
@@ -7974,7 +8029,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: roomData } = await ownerApi.rooms.createRoomThirdParty({
         id: tpData.response!.id!,
-        createThirdPartyRoom: {
+        createThirdPartyRoomRequest: {
           title: "Autotest MoveBatch ThirdParty Folder Room",
           roomType: RoomType.CustomRoom,
         },
@@ -8019,11 +8074,11 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: file1Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: title1 },
+        createFileRequest: { title: title1 },
       });
       const { data: file2Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: title2 },
+        createFileRequest: { title: title2 },
       });
 
       const { data: tpData } =
@@ -8039,7 +8094,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: roomData } = await ownerApi.rooms.createRoomThirdParty({
         id: tpData.response!.id!,
-        createThirdPartyRoom: {
+        createThirdPartyRoomRequest: {
           title: "Autotest MoveBatch ThirdParty Multi Room",
           roomType: RoomType.CustomRoom,
         },
@@ -8080,14 +8135,14 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const folderTitle = "Autotest MoveBatch TP Content Folder";
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: folderTitle },
+        createFolderRequest: { title: folderTitle },
       });
       const sourceFolderId = folderData.response!.id!;
 
       const innerFileTitle = "Autotest MoveBatch TP Content Inner.docx";
       await ownerApi.files.createFile({
         folderId: sourceFolderId,
-        createFileJsonElement: { title: innerFileTitle },
+        createFileRequest: { title: innerFileTitle },
       });
 
       const { data: tpData } =
@@ -8103,7 +8158,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: roomData } = await ownerApi.rooms.createRoomThirdParty({
         id: tpData.response!.id!,
-        createThirdPartyRoom: {
+        createThirdPartyRoomRequest: {
           title: "Autotest MoveBatch TP Content Room",
           roomType: RoomType.CustomRoom,
         },
@@ -8158,7 +8213,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: roomData } = await ownerApi.rooms.createRoomThirdParty({
         id: tpData.response!.id!,
-        createThirdPartyRoom: {
+        createThirdPartyRoomRequest: {
           title: "Autotest MoveBatch TP Overwrite Room",
           roomType: RoomType.CustomRoom,
         },
@@ -8168,7 +8223,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const fileTitle = "Autotest MoveBatch TP Overwrite Conflict.docx";
       const { data: file1Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
       await ownerApi.operations.copyBatchItems({
         batchRequestDto: {
@@ -8182,7 +8237,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: file2Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { status } = await ownerApi.operations.moveBatchItems({
@@ -8231,7 +8286,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: roomData } = await ownerApi.rooms.createRoomThirdParty({
         id: tpData.response!.id!,
-        createThirdPartyRoom: {
+        createThirdPartyRoomRequest: {
           title: "Autotest MoveBatch TP Duplicate Room",
           roomType: RoomType.CustomRoom,
         },
@@ -8241,7 +8296,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const fileTitle = "Autotest MoveBatch TP Duplicate Conflict.docx";
       const { data: file1Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
       await ownerApi.operations.copyBatchItems({
         batchRequestDto: {
@@ -8255,7 +8310,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: file2Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { status } = await ownerApi.operations.moveBatchItems({
@@ -8302,7 +8357,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: roomData } = await ownerApi.rooms.createRoomThirdParty({
         id: tpData.response!.id!,
-        createThirdPartyRoom: {
+        createThirdPartyRoomRequest: {
           title: "Autotest MoveBatch TP Skip Room",
           roomType: RoomType.CustomRoom,
         },
@@ -8312,7 +8367,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const fileTitle = "Autotest MoveBatch TP Skip Conflict.docx";
       const { data: file1Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
       await ownerApi.operations.copyBatchItems({
         batchRequestDto: {
@@ -8326,7 +8381,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: file2Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data: srcBeforeMove } =
@@ -8384,7 +8439,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: roomData } = await ownerApi.rooms.createRoomThirdParty({
         id: tpData.response!.id!,
-        createThirdPartyRoom: {
+        createThirdPartyRoomRequest: {
           title: "Autotest MoveBatch TP ToMyDocs Room",
           roomType: RoomType.CustomRoom,
         },
@@ -8394,7 +8449,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const fileTitle = "Autotest MoveBatch TP ToMyDocs File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: srcFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data, status } = await ownerApi.operations.moveBatchItems({
@@ -8442,7 +8497,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: srcRoomData } = await ownerApi.rooms.createRoomThirdParty({
         id: tpData.response!.id!,
-        createThirdPartyRoom: {
+        createThirdPartyRoomRequest: {
           title: "Autotest MoveBatch TP ToRoom Src",
           roomType: RoomType.CustomRoom,
         },
@@ -8452,7 +8507,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const fileTitle = "Autotest MoveBatch TP ToRoom File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: srcFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data: destRoomData } = await ownerApi.rooms.createRoom({
@@ -8507,7 +8562,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: srcRoomData } = await ownerApi.rooms.createRoomThirdParty({
         id: tp1Data.response!.id!,
-        createThirdPartyRoom: {
+        createThirdPartyRoomRequest: {
           title: "Autotest MoveBatch InterTP Src Room",
           roomType: RoomType.CustomRoom,
         },
@@ -8517,7 +8572,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const fileTitle = "Autotest MoveBatch InterTP File.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: srcFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data: tp2Data } =
@@ -8533,7 +8588,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: destRoomData } = await ownerApi.rooms.createRoomThirdParty({
         id: tp2Data.response!.id!,
-        createThirdPartyRoom: {
+        createThirdPartyRoomRequest: {
           title: "Autotest MoveBatch InterTP Dest Room",
           roomType: RoomType.CustomRoom,
         },
@@ -8568,7 +8623,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: {
+        createFileRequest: {
           title: "Autotest MoveBatch FillingFormsRoom.docx",
         },
       });
@@ -8655,7 +8710,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const fileTitle = "Autotest MoveBatch EditingRoom.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -8709,7 +8764,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const fileTitle = "Autotest MoveBatch PublicRoom.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -8763,7 +8818,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const fileTitle = "Autotest MoveBatch VirtualDataRoom.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -8817,7 +8872,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const fileTitle = "Autotest MoveBatch DeleteAfter.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -8866,7 +8921,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const fileTitle = "Autotest MoveBatch SingleOp.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -8935,7 +8990,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: destData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: "Autotest MoveBatch GhostFolder Dest" },
+        createFolderRequest: { title: "Autotest MoveBatch GhostFolder Dest" },
       });
       const destFolderId = destData.response!.id!;
 
@@ -8989,14 +9044,14 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const newFolder = async (name: string) => {
         const { data } = await ownerApi.folders.createFolder({
           folderId: myDocsFolderId,
-          createFolder: { title: name },
+          createFolderRequest: { title: name },
         });
         return data.response!.id!;
       };
       const newFile = async (folderId: number) => {
         const { data } = await ownerApi.files.createFile({
           folderId,
-          createFileJsonElement: { title },
+          createFileRequest: { title },
         });
         return data.response!.id!;
       };
@@ -9084,7 +9139,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const folderTitle = "Autotest MoveBatch ThirdParty Collab Folder";
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: srcRoomId,
-        createFolder: { title: folderTitle },
+        createFolderRequest: { title: folderTitle },
       });
 
       const { data: tpData } =
@@ -9100,7 +9155,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: destRoomData } = await ownerApi.rooms.createRoomThirdParty({
         id: tpData.response!.id!,
-        createThirdPartyRoom: {
+        createThirdPartyRoomRequest: {
           title: "Autotest MoveBatch ThirdParty Collab Room",
           roomType: RoomType.CustomRoom,
         },
@@ -9150,7 +9205,7 @@ test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks", () =
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest TerminateTasks Delete.docx",
       },
     });
@@ -9179,7 +9234,7 @@ test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks", () =
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest TerminateTasks Duplicate.docx",
       },
     });
@@ -9216,7 +9271,7 @@ test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks", () =
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest TerminateTasks Completed.docx",
       },
     });
@@ -9246,7 +9301,7 @@ test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks", () =
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest TerminateTasks Copy Source.docx",
       },
     });
@@ -9292,7 +9347,7 @@ test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks", () =
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest TerminateTasks Move Source.docx",
       },
     });
@@ -9339,7 +9394,7 @@ test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks", () =
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest TerminateTasks MarkAsRead.docx",
       },
     });
@@ -9376,7 +9431,7 @@ test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks", () =
       Array.from({ length: 50 }, (_, i) =>
         ownerApi.files.createFile({
           folderId: myDocsFolderId,
-          createFileJsonElement: {
+          createFileRequest: {
             title: `Autotest TerminateTasks EmptyTrash ${i}.docx`,
           },
         }),
@@ -9427,7 +9482,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest UpdateComment Basic.docx",
       },
     });
@@ -9435,7 +9490,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
 
     const { data, status } = await ownerApi.operations.updateFileComment({
       fileId,
-      updateComment: { version: 1, comment: "Initial comment" },
+      updateCommentRequest: { version: 1, comment: "Initial comment" },
     });
 
     expect(status).toBe(200);
@@ -9451,7 +9506,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest UpdateComment Empty.docx",
       },
     });
@@ -9459,7 +9514,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
 
     const { data, status } = await ownerApi.operations.updateFileComment({
       fileId,
-      updateComment: { version: 1, comment: "" },
+      updateCommentRequest: { version: 1, comment: "" },
     });
 
     expect(status).toBe(200);
@@ -9475,7 +9530,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest UpdateComment Null.docx",
       },
     });
@@ -9483,7 +9538,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
 
     const { data, status } = await ownerApi.operations.updateFileComment({
       fileId,
-      updateComment: { version: 1, comment: null },
+      updateCommentRequest: { version: 1, comment: null },
     });
 
     expect(status).toBe(200);
@@ -9499,7 +9554,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest UpdateComment Overwrite.docx",
       },
     });
@@ -9507,12 +9562,12 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
 
     await ownerApi.operations.updateFileComment({
       fileId,
-      updateComment: { version: 1, comment: "First comment" },
+      updateCommentRequest: { version: 1, comment: "First comment" },
     });
 
     const { data, status } = await ownerApi.operations.updateFileComment({
       fileId,
-      updateComment: { version: 1, comment: "Updated comment" },
+      updateCommentRequest: { version: 1, comment: "Updated comment" },
     });
 
     expect(status).toBe(200);
@@ -9528,7 +9583,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest UpdateComment Unicode.docx",
       },
     });
@@ -9538,7 +9593,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
 
     const { data, status } = await ownerApi.operations.updateFileComment({
       fileId,
-      updateComment: { version: 1, comment },
+      updateCommentRequest: { version: 1, comment },
     });
 
     expect(status).toBe(200);
@@ -9554,7 +9609,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest UpdateComment HTML.docx",
       },
     });
@@ -9564,7 +9619,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
 
     const { data, status } = await ownerApi.operations.updateFileComment({
       fileId,
-      updateComment: { version: 1, comment },
+      updateCommentRequest: { version: 1, comment },
     });
 
     expect(status).toBe(200);
@@ -9580,7 +9635,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest UpdateComment Long.docx",
       },
     });
@@ -9590,7 +9645,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
 
     const { status } = await ownerApi.operations.updateFileComment({
       fileId,
-      updateComment: { version: 1, comment },
+      updateCommentRequest: { version: 1, comment },
     });
 
     expect(status).toBe(400);
@@ -9603,7 +9658,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
 
     const { status } = await ownerApi.operations.updateFileComment({
       fileId: 999999999,
-      updateComment: { version: 1, comment: "test" },
+      updateCommentRequest: { version: 1, comment: "test" },
     });
 
     expect(status).toBe(404);
@@ -9618,7 +9673,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest UpdateComment BadVersion.docx",
       },
     });
@@ -9626,7 +9681,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
 
     const { status } = await ownerApi.operations.updateFileComment({
       fileId,
-      updateComment: { version: 999, comment: "test" },
+      updateCommentRequest: { version: 999, comment: "test" },
     });
 
     expect(status).toBe(400);
@@ -9641,7 +9696,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest UpdateComment Version0.docx",
       },
     });
@@ -9649,7 +9704,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
 
     const { status } = await ownerApi.operations.updateFileComment({
       fileId,
-      updateComment: { version: 0, comment: "test" },
+      updateCommentRequest: { version: 0, comment: "test" },
     });
 
     expect(status).toBe(400);
@@ -9664,7 +9719,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest UpdateComment NegVer.docx",
       },
     });
@@ -9672,7 +9727,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
 
     const { status } = await ownerApi.operations.updateFileComment({
       fileId,
-      updateComment: { version: -1, comment: "test" },
+      updateCommentRequest: { version: -1, comment: "test" },
     });
 
     expect(status).toBe(400);

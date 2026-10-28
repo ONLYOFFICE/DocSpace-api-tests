@@ -159,11 +159,11 @@ test.describe("AI Editor Tools - AI Disabled", () => {
     const api = new AiEditorTools(apiSdk.request, apiSdk.tokenStore);
     const folderId = await myFolderId(apiSdk);
     const { data: file } = await owner.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest AI off victim.docx" },
+      createFileRequest: { title: "Autotest AI off victim.docx" },
     });
     const fileId = file.response!.id!;
     const { data: other } = await owner.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest AI off control.docx" },
+      createFileRequest: { title: "Autotest AI off control.docx" },
     });
     const controlId = other.response!.id!;
 

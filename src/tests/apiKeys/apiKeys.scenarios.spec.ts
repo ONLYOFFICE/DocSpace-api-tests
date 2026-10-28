@@ -126,7 +126,7 @@ test.describe("POST /api/2.0/keys - scenarios", () => {
     await test.step("Owner creates a file in the room", async () => {
       const { status } = await apiSdk.forRole("owner").files.createFile({
         folderId: roomId!,
-        createFileJsonElement: { title: "Autotest File.docx" },
+        createFileRequest: { title: "Autotest File.docx" },
       });
 
       expect(status).toBe(200);

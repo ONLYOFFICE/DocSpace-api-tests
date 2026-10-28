@@ -242,7 +242,7 @@ test.describe("AI Agents - AI Disabled", () => {
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      quotaSettingsRequestsDto: {
+      quotaSettingsRequestDto: {
         enableQuota: true,
         defaultQuota: VALID_QUOTA_BYTES,
       },
@@ -279,7 +279,7 @@ test.describe("AI Agents - AI Disabled", () => {
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      quotaSettingsRequestsDto: {
+      quotaSettingsRequestDto: {
         enableQuota: true,
         defaultQuota: VALID_QUOTA_BYTES,
       },
@@ -400,7 +400,7 @@ test.describe("AI Agents - AI Tools wallet service not paid for", () => {
     await configureAiToolsAsUnpaid(ownerApi);
     await paymentsApi.setupPayment();
     await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1048576 },
+      quotaSettingsRequestDto: { enableQuota: true, defaultQuota: 1048576 },
     });
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);

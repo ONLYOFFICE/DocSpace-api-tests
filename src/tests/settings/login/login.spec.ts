@@ -140,7 +140,7 @@ test.describe("POST /api/2.0/authentication - Login lockout after too many faile
         const { status } = await apiSdk
           .forAnonymous()
           .authentication.authenticateMe({
-            authRequestsDto: {
+            authRequestDto: {
               userName: userData.email,
               password: "definitely-wrong-password",
             },
@@ -153,7 +153,7 @@ test.describe("POST /api/2.0/authentication - Login lockout after too many faile
       const { data, status } = await apiSdk
         .forAnonymous()
         .authentication.authenticateMe({
-          authRequestsDto: {
+          authRequestDto: {
             userName: userData.email,
             password: userData.password,
           },
@@ -169,7 +169,7 @@ test.describe("POST /api/2.0/authentication - Login lockout after too many faile
       const { status } = await apiSdk
         .forRole("owner")
         .authentication.authenticateMe({
-          authRequestsDto: {
+          authRequestDto: {
             userName: config.DOCSPACE_OWNER_EMAIL,
             password: config.DOCSPACE_OWNER_PASSWORD,
           },

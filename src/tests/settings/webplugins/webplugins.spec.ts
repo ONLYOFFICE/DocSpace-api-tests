@@ -210,7 +210,7 @@ test.describe("DELETE and PUT /api/2.0/settings/webplugins/{name} - reserved nam
       const webPlugins = makeWebPluginsApi(apiSdk, "owner");
       const { status } = await webPlugins.updateWebPlugin({
         name: pluginName,
-        webPluginRequests: { enabled: false, settings: null },
+        webPluginRequest: { enabled: false, settings: null },
       });
       expect(status).toBe(200);
     },

@@ -4,7 +4,7 @@ import {
   RoomType,
   FileShare,
   SubjectType,
-  Status,
+  ExternalShareStatus,
   FileEntryType,
   LinkType,
 } from "@onlyoffice/docspace-api-sdk";
@@ -44,7 +44,7 @@ test.describe("POST /api/2.0/files/share", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Sharing File.docx" },
+      createFileRequest: { title: "Autotest Sharing File.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -80,7 +80,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info File" },
+      createFileRequest: { title: "Autotest Security Info File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -121,12 +121,12 @@ test.describe("POST /api/2.0/files/share", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData1 } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info File 1" },
+      createFileRequest: { title: "Autotest Security Info File 1" },
     });
     const fileId1 = fileData1.response!.id!;
 
     const { data: fileData2 } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info File 2" },
+      createFileRequest: { title: "Autotest Security Info File 2" },
     });
     const fileId2 = fileData2.response!.id!;
 
@@ -147,7 +147,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info File" },
+      createFileRequest: { title: "Autotest Security Info File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -177,7 +177,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info File" },
+      createFileRequest: { title: "Autotest Security Info File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -196,7 +196,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info File" },
+      createFileRequest: { title: "Autotest Security Info File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -233,7 +233,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info File" },
+      createFileRequest: { title: "Autotest Security Info File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -278,7 +278,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info File" },
+      createFileRequest: { title: "Autotest Security Info File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -306,7 +306,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info File" },
+      createFileRequest: { title: "Autotest Security Info File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -329,7 +329,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info File" },
+      createFileRequest: { title: "Autotest Security Info File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -366,7 +366,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info File" },
+      createFileRequest: { title: "Autotest Security Info File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -412,7 +412,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info File" },
+      createFileRequest: { title: "Autotest Security Info File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -449,7 +449,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info File" },
+      createFileRequest: { title: "Autotest Security Info File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -470,7 +470,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info File" },
+      createFileRequest: { title: "Autotest Security Info File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -511,7 +511,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info File" },
+      createFileRequest: { title: "Autotest Security Info File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -562,7 +562,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info File" },
+      createFileRequest: { title: "Autotest Security Info File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -607,7 +607,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info File" },
+      createFileRequest: { title: "Autotest Security Info File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -651,7 +651,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info File" },
+      createFileRequest: { title: "Autotest Security Info File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -708,13 +708,13 @@ test.describe("POST /api/2.0/files/share", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info File" },
+      createFileRequest: { title: "Autotest Security Info File" },
     });
     const fileId = fileData.response!.id!;
 
     await ownerApi.files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: true },
+      lockFileRequest: { lockFile: true },
     });
 
     const { data, status } = await ownerApi.sharing.getSecurityInfo({
@@ -734,7 +734,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info File" },
+      createFileRequest: { title: "Autotest Security Info File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -797,7 +797,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/sharedusers", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Shared Users File" },
+      createFileRequest: { title: "Autotest Shared Users File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -815,7 +815,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/sharedusers", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Shared Users File" },
+      createFileRequest: { title: "Autotest Shared Users File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -847,7 +847,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/sharedusers", () => {
     const ownerId = ownerProfile.response!.id!;
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Shared Users File" },
+      createFileRequest: { title: "Autotest Shared Users File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -876,7 +876,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/sharedusers", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Shared Users File" },
+      createFileRequest: { title: "Autotest Shared Users File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -897,7 +897,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/sharedusers", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Shared Users File" },
+      createFileRequest: { title: "Autotest Shared Users File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -931,7 +931,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/sharedusers", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Shared Users File" },
+      createFileRequest: { title: "Autotest Shared Users File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -963,7 +963,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/sharedusers", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Shared Users File" },
+      createFileRequest: { title: "Autotest Shared Users File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1001,7 +1001,7 @@ test.describe("DELETE /api/2.0/files/share - Remove security info", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Remove Security File" },
+      createFileRequest: { title: "Autotest Remove Security File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1086,12 +1086,12 @@ test.describe("DELETE /api/2.0/files/share - Remove security info", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData1 } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Remove Security File 1" },
+      createFileRequest: { title: "Autotest Remove Security File 1" },
     });
     const fileId1 = fileData1.response!.id!;
 
     const { data: fileData2 } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Remove Security File 2" },
+      createFileRequest: { title: "Autotest Remove Security File 2" },
     });
     const fileId2 = fileData2.response!.id!;
 
@@ -1152,7 +1152,7 @@ test.describe("DELETE /api/2.0/files/share - Remove security info", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Remove Security File" },
+      createFileRequest: { title: "Autotest Remove Security File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1221,7 +1221,7 @@ test.describe("DELETE /api/2.0/files/share - Remove security info", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Remove Security Unshared File",
       },
     });
@@ -1242,7 +1242,7 @@ test.describe("DELETE /api/2.0/files/share - Remove security info", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Remove Security File" },
+      createFileRequest: { title: "Autotest Remove Security File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1281,7 +1281,7 @@ test.describe("DELETE /api/2.0/files/share - Remove security info", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Remove Security File" },
+      createFileRequest: { title: "Autotest Remove Security File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1342,7 +1342,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info File" },
+      createFileRequest: { title: "Autotest Security Info File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1361,7 +1361,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info No Shares" },
+      createFileRequest: { title: "Autotest Security Info No Shares" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1379,7 +1379,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info Owner Entry" },
+      createFileRequest: { title: "Autotest Security Info Owner Entry" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1407,7 +1407,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Security Info CanEditAccess",
       },
     });
@@ -1437,7 +1437,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Security Info SubjectType Owner",
       },
     });
@@ -1467,7 +1467,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info Shared Read" },
+      createFileRequest: { title: "Autotest Security Info Shared Read" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1504,7 +1504,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Security Info Shared Comment",
       },
     });
@@ -1542,7 +1542,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Security Info Shared ReadWrite",
       },
     });
@@ -1580,7 +1580,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info IsOwner False" },
+      createFileRequest: { title: "Autotest Security Info IsOwner False" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1616,7 +1616,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Security Info SubjectType User",
       },
     });
@@ -1654,7 +1654,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Security Info Count Param" },
+      createFileRequest: { title: "Autotest Security Info Count Param" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1717,7 +1717,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Security Info Multiple Users",
       },
     });
@@ -1760,7 +1760,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Security Info StartIndex",
       },
     });
@@ -1800,7 +1800,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Security Info Access Update",
       },
     });
@@ -1847,7 +1847,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Security Info Revoke Disappear",
       },
     });
@@ -1893,7 +1893,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Security Info CanRevoke",
       },
     });
@@ -1931,7 +1931,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Security Info SharedToUser Id",
       },
     });
@@ -1972,7 +1972,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Security Info Guest Entry",
       },
     });
@@ -2034,7 +2034,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Security Info Room File" },
+      createFileRequest: { title: "Autotest Security Info Room File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2060,7 +2060,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Security Info Group Entry",
       },
     });
@@ -2112,7 +2112,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Security Info Trash File",
       },
     });
@@ -2131,7 +2131,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
 
     await ownerApi.files.deleteFile({
       fileId,
-      _delete: { immediately: false },
+      deleteFileRequest: { immediately: false },
     });
     await waitForOperation(ownerApi.operations);
 
@@ -2155,7 +2155,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Security Info Perm Delete File",
       },
     });
@@ -2163,7 +2163,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
 
     await ownerApi.files.deleteFile({
       fileId,
-      _delete: { immediately: true },
+      deleteFileRequest: { immediately: true },
     });
     await waitForOperation(ownerApi.operations);
 
@@ -2180,7 +2180,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Security Info Trash Shared",
       },
     });
@@ -2200,7 +2200,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
 
     await ownerApi.files.deleteFile({
       fileId,
-      _delete: { immediately: false },
+      deleteFileRequest: { immediately: false },
     });
     await waitForOperation(ownerApi.operations);
 
@@ -2228,7 +2228,7 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Notify File.docx" },
+      createFileRequest: { title: "Autotest Notify File.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2246,7 +2246,7 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
     const { data, status } = await ownerApi.sharing.sendEditorNotify({
       fileId,
-      mentionMessageWrapper: {
+      mentionMessageRequest: {
         actionLink: { action: { data: "test-action", type: "comment" } },
         emails: [userEmail],
         message: "Hello",
@@ -2272,7 +2272,7 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Notify File.docx" },
+      createFileRequest: { title: "Autotest Notify File.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2290,7 +2290,7 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
     const { data, status } = await ownerApi.sharing.sendEditorNotify({
       fileId,
-      mentionMessageWrapper: {
+      mentionMessageRequest: {
         actionLink: { action: { data: "test-action", type: "comment" } },
         emails: [userEmail],
         message: "test",
@@ -2320,7 +2320,7 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Notify File.docx" },
+      createFileRequest: { title: "Autotest Notify File.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2338,7 +2338,7 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
     const { data, status } = await ownerApi.sharing.sendEditorNotify({
       fileId,
-      mentionMessageWrapper: {
+      mentionMessageRequest: {
         actionLink: { action: { data: "test-action", type: "comment" } },
         emails: [userEmail],
         message: "test",
@@ -2365,7 +2365,7 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Notify File.docx" },
+      createFileRequest: { title: "Autotest Notify File.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2374,7 +2374,7 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
     const { data, status } = await ownerApi.sharing.sendEditorNotify({
       fileId,
-      mentionMessageWrapper: {
+      mentionMessageRequest: {
         actionLink: { action: { data: "test-action", type: "comment" } },
         emails: [outsiderEmail],
         message: "test",
@@ -2401,7 +2401,7 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Notify File.docx" },
+      createFileRequest: { title: "Autotest Notify File.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2422,7 +2422,7 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
     const { data, status } = await ownerApi.sharing.sendEditorNotify({
       fileId,
-      mentionMessageWrapper: {
+      mentionMessageRequest: {
         actionLink: { action: { data: "test-action", type: "comment" } },
         emails: [ownerEmail, user1Email],
         message: "test",
@@ -2449,13 +2449,13 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Notify File.docx" },
+      createFileRequest: { title: "Autotest Notify File.docx" },
     });
     const fileId = fileData.response!.id!;
 
     const { status } = await ownerApi.sharing.sendEditorNotify({
       fileId,
-      mentionMessageWrapper: {
+      mentionMessageRequest: {
         actionLink: { action: { data: "test-action", type: "comment" } },
         emails: [],
         message: "test",
@@ -2480,7 +2480,7 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Notify File.docx" },
+      createFileRequest: { title: "Autotest Notify File.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2498,7 +2498,7 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
     const { status } = await ownerApi.sharing.sendEditorNotify({
       fileId,
-      mentionMessageWrapper: {
+      mentionMessageRequest: {
         actionLink: { action: { data: "a".repeat(256), type: "comment" } },
         emails: [userEmail],
         message: "test",
@@ -2523,7 +2523,7 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Notify File.docx" },
+      createFileRequest: { title: "Autotest Notify File.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2541,7 +2541,7 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
     const { status } = await ownerApi.sharing.sendEditorNotify({
       fileId,
-      mentionMessageWrapper: {
+      mentionMessageRequest: {
         actionLink: { action: { data: "test-action", type: "comment" } },
         emails: [userEmail],
         message: "",
@@ -2566,7 +2566,7 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Notify File.docx" },
+      createFileRequest: { title: "Autotest Notify File.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2584,7 +2584,7 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
     const { status } = await ownerApi.sharing.sendEditorNotify({
       fileId,
-      mentionMessageWrapper: {
+      mentionMessageRequest: {
         actionLink: { action: { data: "test-action", type: "comment" } },
         emails: [userEmail],
         message: "a".repeat(256),
@@ -2604,7 +2604,7 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
     const { status } = await ownerApi.sharing.sendEditorNotify({
       fileId: 999999999,
-      mentionMessageWrapper: {
+      mentionMessageRequest: {
         actionLink: { action: { data: "test-action", type: "comment" } },
         emails: [userEmail],
         message: "test",
@@ -2629,7 +2629,7 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Notify File Trash.docx" },
+      createFileRequest: { title: "Autotest Notify File Trash.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2638,13 +2638,13 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
     await ownerApi.files.deleteFile({
       fileId,
-      _delete: { immediately: false },
+      deleteFileRequest: { immediately: false },
     });
     await waitForOperation(ownerApi.operations);
 
     const { status } = await ownerApi.sharing.sendEditorNotify({
       fileId,
-      mentionMessageWrapper: {
+      mentionMessageRequest: {
         actionLink: { action: { data: "test-action", type: "comment" } },
         emails: [userEmail],
         message: "test",
@@ -2669,7 +2669,7 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Notify File Perm.docx" },
+      createFileRequest: { title: "Autotest Notify File Perm.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2678,13 +2678,13 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
     await ownerApi.files.deleteFile({
       fileId,
-      _delete: { immediately: true },
+      deleteFileRequest: { immediately: true },
     });
     await waitForOperation(ownerApi.operations);
 
     const { status } = await ownerApi.sharing.sendEditorNotify({
       fileId,
-      mentionMessageWrapper: {
+      mentionMessageRequest: {
         actionLink: { action: { data: "test-action", type: "comment" } },
         emails: [userEmail],
         message: "test",
@@ -2722,7 +2722,7 @@ test.describe("GET /api/2.0/files/share - getExternalShareData", () => {
 
     expect(status).toBe(200);
     expect(data.response).toBeDefined();
-    expect(data.response!.status).toBe(Status.Ok);
+    expect(data.response!.status).toBe(ExternalShareStatus.Ok);
     expect(data.response!.entityId).toBe(String(roomId));
     expect(data.response!.entityTitle).toBe(roomTitle);
     expect(data.response!.isRoom).toBe(true);
@@ -2739,7 +2739,7 @@ test.describe("GET /api/2.0/files/share - getExternalShareData", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest External Share Data File.docx",
       },
     });
@@ -2757,7 +2757,7 @@ test.describe("GET /api/2.0/files/share - getExternalShareData", () => {
 
     expect(status).toBe(200);
     expect(data.response).toBeDefined();
-    expect(data.response!.status).toBe(Status.Ok);
+    expect(data.response!.status).toBe(ExternalShareStatus.Ok);
     expect(data.response!.type).toBe(FileEntryType.File);
     expect(data.response!.isRoom).not.toBe(true);
     expect(data.response!.isAuthenticated).toBe(true);
@@ -2869,7 +2869,7 @@ test.describe("GET /api/2.0/files/share - getExternalShareData", () => {
       });
 
     expect(status).toBe(200);
-    expect(data.response!.status).toBe(Status.RequiredPassword);
+    expect(data.response!.status).toBe(ExternalShareStatus.RequiredPassword);
   });
 
   test("GET /api/2.0/files/share - Non-existent key returns 200 with status Invalid", async ({
@@ -2882,6 +2882,6 @@ test.describe("GET /api/2.0/files/share - getExternalShareData", () => {
       });
 
     expect(status).toBe(200);
-    expect(data.response!.status).toBe(Status.Invalid);
+    expect(data.response!.status).toBe(ExternalShareStatus.Invalid);
   });
 });

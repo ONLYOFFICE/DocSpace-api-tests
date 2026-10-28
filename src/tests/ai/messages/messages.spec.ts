@@ -230,7 +230,7 @@ test.describe("AI Messages - text-to-docx export", () => {
     // be renamed to "… (1)" by the duplicate handling.
     const { data: controlFolder } = await ownerApi.folders.createFolder({
       folderId,
-      createFolder: { title: "Autotest TextToDocx Control" },
+      createFolderRequest: { title: "Autotest TextToDocx Control" },
     });
     const controlFolderId = controlFolder.response!.id!;
 
@@ -271,7 +271,7 @@ test.describe("AI Messages - text-to-docx export", () => {
     const folderId = myFolder.response!.current!.id!;
     const { data: controlFolder } = await ownerApi.folders.createFolder({
       folderId,
-      createFolder: { title: "Autotest TextToDocx Control" },
+      createFolderRequest: { title: "Autotest TextToDocx Control" },
     });
     const controlFolderId = controlFolder.response!.id!;
 
@@ -350,7 +350,7 @@ test.describe("AI Messages - text-to-docx export", () => {
 
     const { data: subData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest TextToDocx Subfolder" },
+      createFolderRequest: { title: "Autotest TextToDocx Subfolder" },
     });
     const subFolderId = subData.response!.id!;
 
@@ -395,7 +395,7 @@ test.describe("AI Messages - text-to-docx export", () => {
     // list is also what a listing nobody could read would look like.
     const { data: control } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Control" },
+      createFileRequest: { title: "Autotest Control" },
     });
     const controlId = control.response!.id!;
 
@@ -433,12 +433,12 @@ test.describe("AI Messages - text-to-docx export", () => {
     // Same reason as above: something has to be in Trash already, or "nothing
     // was created" cannot be told apart from "the listing came back empty".
     const { data: control } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Control" },
+      createFileRequest: { title: "Autotest Control" },
     });
     const controlId = control.response!.id!;
     await ownerApi.files.deleteFile({
       fileId: controlId,
-      _delete: { deleteAfter: false, immediately: false },
+      deleteFileRequest: { deleteAfter: false, immediately: false },
     });
     await waitForOperation(ownerApi.operations);
 
@@ -548,7 +548,7 @@ test.describe("AI Messages - text-to-docx export", () => {
     // its own so it cannot turn the export into "… (1).docx".
     const { data: controlFolder } = await ownerApi.folders.createFolder({
       folderId,
-      createFolder: { title: "Autotest TextToDocx Unicode Control" },
+      createFolderRequest: { title: "Autotest TextToDocx Unicode Control" },
     });
     const title = `Assistant report café 第二项 ${apiSdk.faker.generateString(8)}`;
     const expectedTitle = await filesApiTitleFor(
@@ -685,7 +685,7 @@ test.describe("AI Messages - text-to-docx into every room type", () => {
       // successful export would be the only evidence for both claims at once.
       const control = await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: {
+        createFileRequest: {
           title: `Control ${apiSdk.faker.generateString(8)}`,
         },
       });
@@ -742,7 +742,7 @@ test.describe("AI Messages - text-to-docx into every room type", () => {
 
     const control = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: `Control ${apiSdk.faker.generateString(8)}`,
       },
     });
@@ -935,7 +935,7 @@ test.describe("AI Messages - text-to-docx and the room storage quota", () => {
 
     const { status: quotaSettingsStatus } =
       await ownerApi.settingsQuota.saveRoomQuotaSettings({
-        quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1024 },
+        quotaSettingsRequestDto: { enableQuota: true, defaultQuota: 1024 },
       });
     expect(quotaSettingsStatus).toBe(200);
 
@@ -966,7 +966,7 @@ test.describe("AI Messages - text-to-docx and the room storage quota", () => {
     // and it is also the answer the export is measured against.
     const oracle = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: `Oracle ${apiSdk.faker.generateString(8)}`,
       },
     });
@@ -1870,7 +1870,7 @@ test.describe("AI Messages - text-to-docx validation", () => {
 
     const { data: subData } = await ownerApi.folders.createFolder({
       folderId: myFolderId,
-      createFolder: { title: "Autotest TextToDocx Deleted Folder" },
+      createFolderRequest: { title: "Autotest TextToDocx Deleted Folder" },
     });
     const subFolderId = subData.response!.id!;
 
@@ -1885,7 +1885,7 @@ test.describe("AI Messages - text-to-docx validation", () => {
 
     await ownerApi.folders.deleteFolder({
       folderId: subFolderId,
-      deleteFolder: { deleteAfter: false, immediately: true },
+      deleteFolderRequest: { deleteAfter: false, immediately: true },
     });
     await waitForOperation(ownerApi.operations);
 
@@ -1905,7 +1905,7 @@ test.describe("AI Messages - text-to-docx validation", () => {
     const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest TextToDocx Target.docx" },
+      createFileRequest: { title: "Autotest TextToDocx Target.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2163,7 +2163,7 @@ test.describe("AI Messages - text-to-docx naming and concurrency", () => {
     const folderId = myFolder.response!.current!.id!;
     const { data: controlFolder } = await ownerApi.folders.createFolder({
       folderId,
-      createFolder: { title: "Autotest TextToDocx Control" },
+      createFolderRequest: { title: "Autotest TextToDocx Control" },
     });
     const controlFolderId = controlFolder.response!.id!;
 
@@ -2265,11 +2265,11 @@ test.describe("AI Messages - text-to-docx naming and concurrency", () => {
     const myId = myFolder.response!.current!.id!;
     const { data: a } = await ownerApi.folders.createFolder({
       folderId: myId,
-      createFolder: { title: "Autotest Parallel A" },
+      createFolderRequest: { title: "Autotest Parallel A" },
     });
     const { data: b } = await ownerApi.folders.createFolder({
       folderId: myId,
-      createFolder: { title: "Autotest Parallel B" },
+      createFolderRequest: { title: "Autotest Parallel B" },
     });
     const folders = [a.response!.id!, b.response!.id!];
 

@@ -46,7 +46,7 @@ test.describe("PUT /api/2.0/settings/security/password - Update password setting
     const { data, status } = await apiSdk
       .forRole("owner")
       .security.updatePasswordSettings({
-        passwordSettingsRequestsDto: {
+        passwordSettingsRequestDto: {
           minLength: 12,
           upperCase: true,
           digits: true,
@@ -79,7 +79,7 @@ test.describe("PUT /api/2.0/settings/security/password - Update password setting
     );
 
     const { data, status } = await adminApi.security.updatePasswordSettings({
-      passwordSettingsRequestsDto: { minLength: 15, upperCase: true },
+      passwordSettingsRequestDto: { minLength: 15, upperCase: true },
     });
 
     expect(status).toBe(200);
@@ -95,7 +95,7 @@ test.describe("PUT /api/2.0/settings/security/password - Owner sends invalid val
     const { data, status } = await apiSdk
       .forRole("owner")
       .security.updatePasswordSettings({
-        passwordSettingsRequestsDto: { minLength: 999 },
+        passwordSettingsRequestDto: { minLength: 999 },
       });
 
     expect(status).toBe(400);
@@ -108,7 +108,7 @@ test.describe("PUT /api/2.0/settings/security/password - Owner sends invalid val
     const { data, status } = await apiSdk
       .forRole("owner")
       .security.updatePasswordSettings({
-        passwordSettingsRequestsDto: { minLength: -5 },
+        passwordSettingsRequestDto: { minLength: -5 },
       });
 
     expect(status).toBe(400);
@@ -180,7 +180,7 @@ test.describe("GET /api/2.0/settings/security/security - Get web items security 
     const targetId = target.response!.id!;
 
     await apiSdk.forRole("owner").security.setWebItemSecurity({
-      webItemSecurityRequestsDto: { id, enabled: true, subjects: [targetId] },
+      webItemSecurityRequestDto: { id, enabled: true, subjects: [targetId] },
     });
 
     const { api: guestApi } = await apiSdk.addAuthenticatedMember(
@@ -203,7 +203,7 @@ test.describe("GET /api/2.0/settings/security/security - Get web items security 
     const targetId = target.response!.id!;
 
     await apiSdk.forRole("owner").security.setWebItemSecurity({
-      webItemSecurityRequestsDto: { id, enabled: true, subjects: [targetId] },
+      webItemSecurityRequestDto: { id, enabled: true, subjects: [targetId] },
     });
 
     const { api: userApi } = await apiSdk.addAuthenticatedMember(
@@ -256,7 +256,7 @@ test.describe("PUT /api/2.0/settings/security/security - Set a web item's securi
     const { data, status } = await apiSdk
       .forRole("owner")
       .security.setWebItemSecurity({
-        webItemSecurityRequestsDto: { id, enabled: false },
+        webItemSecurityRequestDto: { id, enabled: false },
       });
 
     expect(status).toBe(200);
@@ -280,7 +280,7 @@ test.describe("PUT /api/2.0/settings/security/security - Set a web item's securi
     const id = crypto.randomUUID();
 
     const { data, status } = await adminApi.security.setWebItemSecurity({
-      webItemSecurityRequestsDto: { id, enabled: false },
+      webItemSecurityRequestDto: { id, enabled: false },
     });
 
     expect(status).toBe(200);
@@ -297,7 +297,7 @@ test.describe("PUT /api/2.0/settings/security/access - Bulk-set access to web it
     const { data, status } = await apiSdk
       .forRole("owner")
       .security.setAccessToWebItems({
-        webItemsSecurityRequestsDto: {
+        webItemsSecurityRequestDto: {
           items: [
             { key: firstId, value: false },
             { key: secondId, value: true },
@@ -332,7 +332,7 @@ test.describe("Malformed web-item ids return a validation error", () => {
     const { status } = await apiSdk
       .forRole("owner")
       .security.setWebItemSecurity({
-        webItemSecurityRequestsDto: { id: "not-a-guid", enabled: false },
+        webItemSecurityRequestDto: { id: "not-a-guid", enabled: false },
       });
 
     expect(status).toBe(400);
@@ -344,7 +344,7 @@ test.describe("Malformed web-item ids return a validation error", () => {
     const { status } = await apiSdk
       .forRole("owner")
       .security.setAccessToWebItems({
-        webItemsSecurityRequestsDto: {
+        webItemsSecurityRequestDto: {
           items: [{ key: "not-a-guid", value: true }],
         },
       });
@@ -381,7 +381,7 @@ test.describe("GET /api/2.0/settings/security/administrator/{productid} - Get pr
 
     const { data, status } = await apiSdk
       .forRole("owner")
-      .security.getProductAdministrators({ productid: PRODUCT_ID_ALL });
+      .security.getProductAdministrators({ productId: PRODUCT_ID_ALL });
 
     expect(status).toBe(200);
     expect(data.response?.map((e) => e.id)).toEqual([ownerId]);
@@ -394,7 +394,7 @@ test.describe("GET /api/2.0/settings/security/administrator/{productid} - Get pr
     const promotedId = promoted.response!.id!;
 
     await apiSdk.forRole("owner").security.setProductAdministrator({
-      securityRequestsDto: {
+      securityRequestDto: {
         productId: PRODUCT_ID_ALL,
         userId: promotedId,
         administrator: true,
@@ -403,7 +403,7 @@ test.describe("GET /api/2.0/settings/security/administrator/{productid} - Get pr
 
     const { data, status } = await apiSdk
       .forRole("owner")
-      .security.getProductAdministrators({ productid: PRODUCT_ID_ALL });
+      .security.getProductAdministrators({ productId: PRODUCT_ID_ALL });
 
     expect(status).toBe(200);
     expect(data.response?.map((e) => e.id)).toContain(promotedId);
@@ -422,8 +422,8 @@ test.describe("GET /api/2.0/settings/security/administrator - Check a product ad
     const { data, status } = await apiSdk
       .forRole("owner")
       .security.getIsProductAdministrator({
-        productid: PRODUCT_ID_ALL,
-        userid: ownerId,
+        productId: PRODUCT_ID_ALL,
+        userId: ownerId,
       });
 
     expect(status).toBe(200);
@@ -438,8 +438,8 @@ test.describe("GET /api/2.0/settings/security/administrator - Check a product ad
     const { data, status } = await apiSdk
       .forRole("owner")
       .security.getIsProductAdministrator({
-        productid: PRODUCT_ID_ALL,
-        userid: created.response!.id!,
+        productId: PRODUCT_ID_ALL,
+        userId: created.response!.id!,
       });
 
     expect(status).toBe(200);
@@ -453,7 +453,7 @@ test.describe("GET /api/2.0/settings/security/administrator - Check a product ad
     const promotedId = promoted.response!.id!;
 
     await apiSdk.forRole("owner").security.setProductAdministrator({
-      securityRequestsDto: {
+      securityRequestDto: {
         productId: PRODUCT_ID_ALL,
         userId: promotedId,
         administrator: true,
@@ -463,8 +463,8 @@ test.describe("GET /api/2.0/settings/security/administrator - Check a product ad
     const { data, status } = await apiSdk
       .forRole("owner")
       .security.getIsProductAdministrator({
-        productid: PRODUCT_ID_ALL,
-        userid: promotedId,
+        productId: PRODUCT_ID_ALL,
+        userId: promotedId,
       });
 
     expect(status).toBe(200);

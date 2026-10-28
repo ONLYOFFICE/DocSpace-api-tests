@@ -57,7 +57,7 @@ test.describe("/api/2.0/apps - permissions by role", () => {
         await test.step(`setEnabled is ${canWrite ? "allowed" : "denied"}`, async () => {
           const { data, status } = await member.apps.setEnabled({
             id,
-            setAppEnabledBody: { enabled: flipped },
+            setAppEnabledRequest: { enabled: flipped },
           });
 
           expect(status).toBe(canWrite ? 200 : 403);
@@ -73,7 +73,7 @@ test.describe("/api/2.0/apps - permissions by role", () => {
           const written = { savedBy: type };
           const { data, status } = await member.apps.setSettings({
             id,
-            setAppSettingsBody: { settings: written },
+            setAppSettingsRequest: { settings: written },
           });
 
           expect(status).toBe(canWrite ? 200 : 403);
@@ -88,7 +88,7 @@ test.describe("/api/2.0/apps - permissions by role", () => {
         await test.step(`resetting the settings is ${canWrite ? "allowed" : "denied"}`, async () => {
           const { status } = await member.apps.setSettings({
             id,
-            setAppSettingsBody: { settings: null },
+            setAppSettingsRequest: { settings: null },
           });
 
           expect(status).toBe(canWrite ? 200 : 403);
@@ -114,16 +114,16 @@ test.describe("/api/2.0/apps - permissions by role", () => {
       const user = apiSdk.forRole("user");
 
       for (const enabled of [true, false]) {
-        await owner.apps.setEnabled({ id, setAppEnabledBody: { enabled } });
+        await owner.apps.setEnabled({ id, setAppEnabledRequest: { enabled } });
         const before = await snapshot(owner, id);
 
         const toggle = await user.apps.setEnabled({
           id,
-          setAppEnabledBody: { enabled: !enabled },
+          setAppEnabledRequest: { enabled: !enabled },
         });
         const save = await user.apps.setSettings({
           id,
-          setAppSettingsBody: { settings: { nope: true } },
+          setAppSettingsRequest: { settings: { nope: true } },
         });
 
         expect(toggle.status, `setEnabled while enabled=${enabled}`).toBe(403);
@@ -141,11 +141,11 @@ test.describe("/api/2.0/apps - permissions by role", () => {
 
     const toggle = await user.apps.setEnabled({
       id: "no-such-app",
-      setAppEnabledBody: { enabled: false },
+      setAppEnabledRequest: { enabled: false },
     });
     const save = await user.apps.setSettings({
       id: "no-such-app",
-      setAppSettingsBody: { settings: {} },
+      setAppSettingsRequest: { settings: {} },
     });
 
     expect(toggle.status).toBe(403);
@@ -193,7 +193,7 @@ test.describe("/api/2.0/apps - anonymous", () => {
 
       const { status } = await apiSdk.forAnonymous().apps.setEnabled({
         id,
-        setAppEnabledBody: { enabled: !before.enabled },
+        setAppEnabledRequest: { enabled: !before.enabled },
       });
 
       expect(status).toBe(401);
@@ -213,7 +213,7 @@ test.describe("/api/2.0/apps - anonymous", () => {
 
       const { status } = await apiSdk.forAnonymous().apps.setSettings({
         id,
-        setAppSettingsBody: { settings: { survives: false } },
+        setAppSettingsRequest: { settings: { survives: false } },
       });
 
       expect(status).toBe(401);

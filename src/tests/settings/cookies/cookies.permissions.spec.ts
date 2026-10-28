@@ -57,7 +57,7 @@ test.describe("PUT /api/2.0/settings/cookiesettings - permissions", () => {
     const { status } = await apiSdk
       .forAnonymous()
       .cookies.updateCookieSettings({
-        cookieSettingsRequestsDto: { lifeTime: 720, enabled: true },
+        cookieSettingsRequestDto: { lifeTime: 720, enabled: true },
       });
 
     expect(status).toBe(401);
@@ -71,7 +71,7 @@ test.describe("PUT /api/2.0/settings/cookiesettings - permissions", () => {
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
       .cookies.updateCookieSettings({
-        cookieSettingsRequestsDto: { lifeTime: 720, enabled: true },
+        cookieSettingsRequestDto: { lifeTime: 720, enabled: true },
       });
 
     expect(status).toBe(403);
@@ -86,7 +86,7 @@ test.describe("PUT /api/2.0/settings/cookiesettings - permissions", () => {
     const { data, status } = await apiSdk
       .forRole("user")
       .cookies.updateCookieSettings({
-        cookieSettingsRequestsDto: { lifeTime: 720, enabled: true },
+        cookieSettingsRequestDto: { lifeTime: 720, enabled: true },
       });
 
     expect(status).toBe(403);
@@ -101,7 +101,7 @@ test.describe("PUT /api/2.0/settings/cookiesettings - permissions", () => {
     const { data, status } = await apiSdk
       .forRole("guest")
       .cookies.updateCookieSettings({
-        cookieSettingsRequestsDto: { lifeTime: 720, enabled: true },
+        cookieSettingsRequestDto: { lifeTime: 720, enabled: true },
       });
 
     expect(status).toBe(403);
@@ -117,7 +117,7 @@ test.describe("PUT /api/2.0/settings/cookiesettings - validation", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .cookies.updateCookieSettings({
-        cookieSettingsRequestsDto: { lifeTime: 100000, enabled: true },
+        cookieSettingsRequestDto: { lifeTime: 100000, enabled: true },
       });
 
     expect(status).toBe(200);

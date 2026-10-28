@@ -172,7 +172,7 @@ test.describe("PUT /people/type - Start user type update (permissions)", () => {
     let progress: any;
     await expect(async () => {
       const { data } = await ownerApi.userType.getUserTypeUpdateProgress({
-        userid: userId,
+        userId: userId,
       });
       progress = (data as any).response;
       expect(progress?.isCompleted).toBe(true);
@@ -206,7 +206,7 @@ test.describe("PUT /people/type - Start user type update (permissions)", () => {
 
     await expect(async () => {
       const { data: profileData } = await ownerApi.profiles.getProfileByUserId({
-        userid: guestId,
+        userId: guestId,
       });
       expect(profileData.response!.isCollaborator).toBe(true);
     }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
@@ -240,7 +240,7 @@ test.describe("GET /people/type/progress/{userid} - Get user type update progres
     // Room admin tries to check progress
     const { data: progressData, status } =
       await roomAdminApi.userType.getUserTypeUpdateProgress({
-        userid: adminId,
+        userId: adminId,
       });
     expect(status).toBe(403);
     expect(progressData.statusCode).toBe(403);
@@ -272,7 +272,7 @@ test.describe("GET /people/type/progress/{userid} - Get user type update progres
 
     // User tries to check progress
     const { data: progressData, status } =
-      await userApi.userType.getUserTypeUpdateProgress({ userid: adminId });
+      await userApi.userType.getUserTypeUpdateProgress({ userId: adminId });
     expect(status).toBe(403);
     expect(progressData.statusCode).toBe(403);
     expect((progressData as any).error.message).toBe("Access denied");
@@ -303,7 +303,7 @@ test.describe("GET /people/type/progress/{userid} - Get user type update progres
 
     // Guest tries to check progress
     const { data: progressData, status } =
-      await guestApi.userType.getUserTypeUpdateProgress({ userid: adminId });
+      await guestApi.userType.getUserTypeUpdateProgress({ userId: adminId });
     expect(status).toBe(403);
     expect(progressData.statusCode).toBe(403);
     expect((progressData as any).error.message).toBe("Access denied");

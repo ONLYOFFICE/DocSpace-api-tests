@@ -85,7 +85,7 @@ async function setupSkillsRoom(
   const { data: aiFolder, status: aiFolderStatus } =
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: ".ai" },
+      createFolderRequest: { title: ".ai" },
     });
   if (aiFolderStatus !== 200 || !aiFolder.response?.id) {
     throw new Error(

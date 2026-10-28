@@ -58,7 +58,7 @@ test.describe("/api/2.0/apps - Owner permissions", () => {
       await test.step("setEnabled changes the stored state", async () => {
         const { data, status } = await owner.apps.setEnabled({
           id,
-          setAppEnabledBody: { enabled: !before.enabled },
+          setAppEnabledRequest: { enabled: !before.enabled },
         });
         expect(status).toBe(200);
         expect(data.response?.enabled).toBe(!before.enabled);
@@ -68,7 +68,7 @@ test.describe("/api/2.0/apps - Owner permissions", () => {
       await test.step("setSettings changes the stored document", async () => {
         const { data, status } = await owner.apps.setSettings({
           id,
-          setAppSettingsBody: { settings: doc },
+          setAppSettingsRequest: { settings: doc },
         });
         expect(status).toBe(200);
         expect(data.response?.settings).toEqual(doc);
@@ -125,7 +125,7 @@ test.describe("/api/2.0/apps - permissions while the application is disabled", (
           const written = { disabledMarker: "rewritten", by: type };
           const { status } = await member.apps.setSettings({
             id,
-            setAppSettingsBody: { settings: written },
+            setAppSettingsRequest: { settings: written },
           });
 
           expect(status).toBe(canWrite ? 200 : 403);
@@ -137,7 +137,7 @@ test.describe("/api/2.0/apps - permissions while the application is disabled", (
         await test.step(`setEnabled is ${canWrite ? "allowed" : "denied"}`, async () => {
           const { status } = await member.apps.setEnabled({
             id,
-            setAppEnabledBody: { enabled: true },
+            setAppEnabledRequest: { enabled: true },
           });
 
           expect(status).toBe(canWrite ? 200 : 403);
@@ -229,11 +229,11 @@ test.describe("/api/2.0/apps - permission is checked before the id, after body b
           await test.step("an unknown id is 403, never 404", async () => {
             const toggle = await member.apps.setEnabled({
               id: "no-such-app",
-              setAppEnabledBody: { enabled: false },
+              setAppEnabledRequest: { enabled: false },
             });
             const save = await member.apps.setSettings({
               id: "no-such-app",
-              setAppSettingsBody: { settings: {} },
+              setAppSettingsRequest: { settings: {} },
             });
 
             expect(toggle.status).toBe(403);
@@ -244,11 +244,11 @@ test.describe("/api/2.0/apps - permission is checked before the id, after body b
         await test.step("the refusal does not reveal whether the application exists", async () => {
           const real = await member.apps.setEnabled({
             id,
-            setAppEnabledBody: { enabled: !before.enabled },
+            setAppEnabledRequest: { enabled: !before.enabled },
           });
           const unknown = await member.apps.setEnabled({
             id: "no-such-app",
-            setAppEnabledBody: { enabled: !before.enabled },
+            setAppEnabledRequest: { enabled: !before.enabled },
           });
 
           expect(real.status).toBe(403);

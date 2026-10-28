@@ -1297,7 +1297,7 @@ test.describe("GET /api/2.0/group/user/{userid} - Get user groups", () => {
     const groupId = created.response!.id!;
 
     const { data, status } = await ownerApi.groupApi.getGroupByUserId({
-      userid: memberId,
+      userId: memberId,
     });
 
     expect(status).toBe(200);
@@ -1328,7 +1328,7 @@ test.describe("GET /api/2.0/group/user/{userid} - Get user groups", () => {
     }
 
     const { data, status } = await ownerApi.groupApi.getGroupByUserId({
-      userid: memberId,
+      userId: memberId,
     });
 
     expect(status).toBe(200);
@@ -1346,7 +1346,7 @@ test.describe("GET /api/2.0/group/user/{userid} - Get user groups", () => {
 
     const { data, status } = await apiSdk
       .forRole("owner")
-      .groupApi.getGroupByUserId({ userid: memberId });
+      .groupApi.getGroupByUserId({ userId: memberId });
 
     expect(status).toBe(200);
     expect(data.response).toEqual([]);
@@ -1373,7 +1373,7 @@ test.describe("GET /api/2.0/group/user/{userid} - Get user groups", () => {
     const groupId = created.response!.id!;
 
     const { data, status } = await ownerApi.groupApi.getGroupByUserId({
-      userid: memberId,
+      userId: memberId,
     });
 
     expect(status).toBe(200);
@@ -1402,7 +1402,7 @@ test.describe("GET /api/2.0/group/user/{userid} - Get user groups", () => {
     const groupId = created.response!.id!;
 
     const { data: before } = await ownerApi.groupApi.getGroupByUserId({
-      userid: memberId,
+      userId: memberId,
     });
     expect(before.response?.map((g) => g.id)).not.toContain(groupId);
 
@@ -1412,7 +1412,7 @@ test.describe("GET /api/2.0/group/user/{userid} - Get user groups", () => {
     });
 
     const { data: after, status } = await ownerApi.groupApi.getGroupByUserId({
-      userid: memberId,
+      userId: memberId,
     });
     expect(status).toBe(200);
     expect(after.response?.map((g) => g.id)).toContain(groupId);
@@ -1438,7 +1438,7 @@ test.describe("GET /api/2.0/group/user/{userid} - Get user groups", () => {
     const groupId = created.response!.id!;
 
     const { data: before } = await ownerApi.groupApi.getGroupByUserId({
-      userid: memberId,
+      userId: memberId,
     });
     expect(before.response?.map((g) => g.id)).toContain(groupId);
 
@@ -1448,7 +1448,7 @@ test.describe("GET /api/2.0/group/user/{userid} - Get user groups", () => {
     });
 
     const { data: after, status } = await ownerApi.groupApi.getGroupByUserId({
-      userid: memberId,
+      userId: memberId,
     });
     expect(status).toBe(200);
     expect(after.response?.map((g) => g.id)).not.toContain(groupId);
@@ -1475,7 +1475,7 @@ test.describe("GET /api/2.0/group/user/{userid} - Get user groups", () => {
     }
 
     const { data: byUser } = await ownerApi.groupApi.getGroupByUserId({
-      userid: memberId,
+      userId: memberId,
     });
     const { data: filtered } = await ownerApi.groupApi.getGroups({
       userId: memberId,
@@ -2267,7 +2267,7 @@ test.describe("DELETE /api/2.0/group/{id}/members - Remove group members", () =>
     });
 
     const { data: profile, status } =
-      await ownerApi.profiles.getProfileByUserId({ userid: memberId });
+      await ownerApi.profiles.getProfileByUserId({ userId: memberId });
     expect(status).toBe(200);
     expect(profile.response?.id).toBe(memberId);
   });
@@ -2403,7 +2403,7 @@ test.describe("DELETE /api/2.0/group/{id}/members - Remove group members", () =>
     const groupId = created.response!.id!;
 
     const { data: before } = await ownerApi.groupApi.getGroupByUserId({
-      userid: memberId,
+      userId: memberId,
     });
     expect(before.response?.map((g) => g.id) ?? []).toContain(groupId);
 
@@ -2413,7 +2413,7 @@ test.describe("DELETE /api/2.0/group/{id}/members - Remove group members", () =>
     });
 
     const { data: after, status } = await ownerApi.groupApi.getGroupByUserId({
-      userid: memberId,
+      userId: memberId,
     });
     expect(status).toBe(200);
     expect(after.response?.map((g) => g.id) ?? []).not.toContain(groupId);
@@ -3331,7 +3331,7 @@ test.describe("POST /api/2.0/group/{id}/members - Replace group members", () => 
     });
 
     const { data: profile, status } =
-      await ownerApi.profiles.getProfileByUserId({ userid: oldMemberId });
+      await ownerApi.profiles.getProfileByUserId({ userId: oldMemberId });
     expect(status).toBe(200);
     expect(profile.response?.id).toBe(oldMemberId);
   });

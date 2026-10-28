@@ -1360,7 +1360,7 @@ test.describe("POST /api/2.0/portal/payment/request - permissions", () => {
   }) => {
     const { status } = await apiSdk
       .forAnonymous()
-      .payment.sendPaymentRequest({ salesRequestsDto: SALES_REQUEST });
+      .payment.sendPaymentRequest({ salesRequestDto: SALES_REQUEST });
 
     expect(status).toBe(401);
   });
@@ -1372,7 +1372,7 @@ test.describe("POST /api/2.0/portal/payment/request - permissions", () => {
 
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
-      .payment.sendPaymentRequest({ salesRequestsDto: SALES_REQUEST });
+      .payment.sendPaymentRequest({ salesRequestDto: SALES_REQUEST });
 
     expect(status).toBe(403);
     expect((data as any)?.error?.message).toBe("Access denied");
@@ -1385,7 +1385,7 @@ test.describe("POST /api/2.0/portal/payment/request - permissions", () => {
 
     const { data, status } = await apiSdk
       .forRole("user")
-      .payment.sendPaymentRequest({ salesRequestsDto: SALES_REQUEST });
+      .payment.sendPaymentRequest({ salesRequestDto: SALES_REQUEST });
 
     expect(status).toBe(403);
     expect((data as any)?.error?.message).toBe("Access denied");
@@ -1398,7 +1398,7 @@ test.describe("POST /api/2.0/portal/payment/request - permissions", () => {
 
     const { data, status } = await apiSdk
       .forRole("guest")
-      .payment.sendPaymentRequest({ salesRequestsDto: SALES_REQUEST });
+      .payment.sendPaymentRequest({ salesRequestDto: SALES_REQUEST });
 
     expect(status).toBe(403);
     expect((data as any)?.error?.message).toBe("Access denied");
@@ -1412,7 +1412,7 @@ test.describe("POST /api/2.0/portal/payment/request - string length validation",
     const { data, status } = await apiSdk
       .forRole("owner")
       .payment.sendPaymentRequest({
-        salesRequestsDto: {
+        salesRequestDto: {
           userName: "a".repeat(256),
           email: "nct@email.com",
           message: "autoTest",
@@ -1431,7 +1431,7 @@ test.describe("POST /api/2.0/portal/payment/request - string length validation",
     const { data, status } = await apiSdk
       .forRole("owner")
       .payment.sendPaymentRequest({
-        salesRequestsDto: {
+        salesRequestDto: {
           userName: "nctTest",
           email: "a".repeat(55) + "@email.com",
           message: "autoTest",
@@ -1450,7 +1450,7 @@ test.describe("POST /api/2.0/portal/payment/request - string length validation",
     const { data, status } = await apiSdk
       .forRole("owner")
       .payment.sendPaymentRequest({
-        salesRequestsDto: {
+        salesRequestDto: {
           userName: "nctTest",
           email: "nct@email.com",
           message: "a".repeat(256),
@@ -1471,7 +1471,7 @@ test.describe("POST /api/2.0/portal/payment/request - empty field validation", (
     const { data, status } = await apiSdk
       .forRole("owner")
       .payment.sendPaymentRequest({
-        salesRequestsDto: {
+        salesRequestDto: {
           userName: "",
           email: "nct@email.com",
           message: "autoTest",
@@ -1490,7 +1490,7 @@ test.describe("POST /api/2.0/portal/payment/request - empty field validation", (
     const { data, status } = await apiSdk
       .forRole("owner")
       .payment.sendPaymentRequest({
-        salesRequestsDto: {
+        salesRequestDto: {
           userName: "nctTest",
           email: "",
           message: "autoTest",
@@ -1507,7 +1507,7 @@ test.describe("POST /api/2.0/portal/payment/request - empty field validation", (
     const { data, status } = await apiSdk
       .forRole("owner")
       .payment.sendPaymentRequest({
-        salesRequestsDto: {
+        salesRequestDto: {
           userName: "nctTest",
           email: "nct@email.com",
           message: "",
@@ -1687,7 +1687,7 @@ test.describe("POST /api/2.0/portal/payment/topupsettings - permissions", () => 
     const { status } = await apiSdk
       .forAnonymous()
       .payment.setTenantWalletSettings({
-        tenantWalletSettingsWrapper: { settings: SETTINGS },
+        tenantWalletSettingsRequestDto: { settings: SETTINGS },
       });
 
     expect(status).toBe(401);
@@ -1703,7 +1703,7 @@ test.describe("POST /api/2.0/portal/payment/topupsettings - permissions", () => 
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
       .payment.setTenantWalletSettings({
-        tenantWalletSettingsWrapper: { settings: SETTINGS },
+        tenantWalletSettingsRequestDto: { settings: SETTINGS },
       });
 
     expect(status).toBe(403);
@@ -1720,7 +1720,7 @@ test.describe("POST /api/2.0/portal/payment/topupsettings - permissions", () => 
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
       .payment.setTenantWalletSettings({
-        tenantWalletSettingsWrapper: { settings: SETTINGS },
+        tenantWalletSettingsRequestDto: { settings: SETTINGS },
       });
 
     expect(status).toBe(403);
@@ -1737,7 +1737,7 @@ test.describe("POST /api/2.0/portal/payment/topupsettings - permissions", () => 
     const { data, status } = await apiSdk
       .forRole("user")
       .payment.setTenantWalletSettings({
-        tenantWalletSettingsWrapper: { settings: SETTINGS },
+        tenantWalletSettingsRequestDto: { settings: SETTINGS },
       });
 
     expect(status).toBe(403);
@@ -1754,7 +1754,7 @@ test.describe("POST /api/2.0/portal/payment/topupsettings - permissions", () => 
     const { data, status } = await apiSdk
       .forRole("guest")
       .payment.setTenantWalletSettings({
-        tenantWalletSettingsWrapper: { settings: SETTINGS },
+        tenantWalletSettingsRequestDto: { settings: SETTINGS },
       });
 
     expect(status).toBe(403);

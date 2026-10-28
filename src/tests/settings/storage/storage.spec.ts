@@ -124,7 +124,7 @@ test.describe("PUT /api/2.0/settings/storage/cdn - Update the CDN storage", () =
     apiSdk,
   }) => {
     const { status } = await apiSdk.forRole("owner").storage.updateCdnStorage({
-      storageRequestsDto: {
+      storageRequestDto: {
         module: "s3",
         props: [{ key: "acesskey", value: "x" }],
       },
@@ -158,7 +158,7 @@ test.describe("PUT /api/2.0/settings/storage - Switch the portal storage", () =>
     apiSdk,
   }) => {
     const { status } = await apiSdk.forRole("owner").storage.updateStorage({
-      storageRequestsDto: {
+      storageRequestDto: {
         module: "s3",
         props: [{ key: "acesskey", value: "x" }],
       },

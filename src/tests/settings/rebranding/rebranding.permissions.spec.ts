@@ -169,7 +169,7 @@ test.describe("POST /api/2.0/settings/whitelabel/logotext/save - access control"
     );
 
     const { status } = await userApi.rebranding.saveWhiteLabelLogoText({
-      whiteLabelRequestsDto: { logoText: "Autotest Brand" },
+      whiteLabelRequestDto: { logoText: "Autotest Brand" },
     });
     expect(status).toBe(403);
   });
@@ -199,7 +199,7 @@ test.describe("POST /api/2.0/settings/whitelabel/logos/save - access control", (
     );
 
     const { status } = await userApi.rebranding.saveWhiteLabelSettings({
-      whiteLabelRequestsDto: { logo: [] },
+      whiteLabelRequestDto: { logo: [] },
     });
     expect(status).toBe(403);
   });
@@ -230,7 +230,7 @@ test.describe("POST /api/2.0/settings/rebranding/company - access control", () =
     );
 
     const { status } = await userApi.rebranding.saveCompanyWhiteLabelSettings({
-      companyWhiteLabelSettingsWrapper: {
+      companyWhiteLabelSettingsRequestDto: {
         settings: {
           companyName: "Autotest Co",
           site: "https://example.com",
@@ -255,7 +255,7 @@ test.describe("POST /api/2.0/settings/rebranding/additional - access control", (
 
     const { status } =
       await userApi.rebranding.saveAdditionalWhiteLabelSettings({
-        additionalWhiteLabelSettingsWrapper: {
+        additionalWhiteLabelSettingsRequestDto: {
           settings: {
             startDocsEnabled: false,
             helpCenterEnabled: false,
@@ -311,12 +311,12 @@ test.describe("Mutating rebranding endpoints - Anonymous access control", () => 
     const anon = apiSdk.forAnonymous();
 
     const saveLogoText = await anon.rebranding.saveWhiteLabelLogoText({
-      whiteLabelRequestsDto: { logoText: "x" },
+      whiteLabelRequestDto: { logoText: "x" },
     });
     expect(saveLogoText.status).toBe(401);
 
     const saveLogos = await anon.rebranding.saveWhiteLabelSettings({
-      whiteLabelRequestsDto: { logo: [] },
+      whiteLabelRequestDto: { logo: [] },
     });
     expect(saveLogos.status).toBe(401);
 
@@ -331,7 +331,7 @@ test.describe("Mutating rebranding endpoints - Anonymous access control", () => 
     expect(restoreLogos.status).toBe(401);
 
     const saveCompany = await anon.rebranding.saveCompanyWhiteLabelSettings({
-      companyWhiteLabelSettingsWrapper: {
+      companyWhiteLabelSettingsRequestDto: {
         settings: {
           companyName: "x",
           site: "https://example.com",
@@ -345,7 +345,7 @@ test.describe("Mutating rebranding endpoints - Anonymous access control", () => 
 
     const saveAdditional =
       await anon.rebranding.saveAdditionalWhiteLabelSettings({
-        additionalWhiteLabelSettingsWrapper: {
+        additionalWhiteLabelSettingsRequestDto: {
           settings: {
             startDocsEnabled: false,
             helpCenterEnabled: false,

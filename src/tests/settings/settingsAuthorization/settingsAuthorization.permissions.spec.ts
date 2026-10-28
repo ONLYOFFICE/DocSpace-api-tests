@@ -63,7 +63,7 @@ test.describe("POST /api/2.0/settings/authservice - permissions", () => {
     const { status } = await apiSdk
       .forAnonymous()
       .settingsAuthorization.saveAuthKeys({
-        authServiceRequestsDto: s3AuthServiceDto,
+        saveAuthKeysRequestDto: s3AuthServiceDto,
       });
 
     expect(status).toBe(401);
@@ -77,7 +77,7 @@ test.describe("POST /api/2.0/settings/authservice - permissions", () => {
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
       .settingsAuthorization.saveAuthKeys({
-        authServiceRequestsDto: s3AuthServiceDto,
+        saveAuthKeysRequestDto: s3AuthServiceDto,
       });
 
     expect(status).toBe(403);
@@ -92,7 +92,7 @@ test.describe("POST /api/2.0/settings/authservice - permissions", () => {
     const { data, status } = await apiSdk
       .forRole("user")
       .settingsAuthorization.saveAuthKeys({
-        authServiceRequestsDto: s3AuthServiceDto,
+        saveAuthKeysRequestDto: s3AuthServiceDto,
       });
 
     expect(status).toBe(403);
@@ -107,7 +107,7 @@ test.describe("POST /api/2.0/settings/authservice - permissions", () => {
     const { data, status } = await apiSdk
       .forRole("guest")
       .settingsAuthorization.saveAuthKeys({
-        authServiceRequestsDto: s3AuthServiceDto,
+        saveAuthKeysRequestDto: s3AuthServiceDto,
       });
 
     expect(status).toBe(403);
@@ -122,7 +122,7 @@ test.describe("POST /api/2.0/settings/authservice/externaldb/test - permissions"
     const { status } = await apiSdk
       .forAnonymous()
       .settingsAuthorization.testExternalDatabaseConnection({
-        externalDatabaseSettings: invalidMysqlSettings,
+        externalDatabaseConnectionRequestDto: invalidMysqlSettings,
       });
 
     expect(status).toBe(401);
@@ -136,7 +136,7 @@ test.describe("POST /api/2.0/settings/authservice/externaldb/test - permissions"
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
       .settingsAuthorization.testExternalDatabaseConnection({
-        externalDatabaseSettings: invalidMysqlSettings,
+        externalDatabaseConnectionRequestDto: invalidMysqlSettings,
       });
 
     expect(status).toBe(403);
@@ -151,7 +151,7 @@ test.describe("POST /api/2.0/settings/authservice/externaldb/test - permissions"
     const { data, status } = await apiSdk
       .forRole("user")
       .settingsAuthorization.testExternalDatabaseConnection({
-        externalDatabaseSettings: invalidMysqlSettings,
+        externalDatabaseConnectionRequestDto: invalidMysqlSettings,
       });
 
     expect(status).toBe(403);
@@ -166,7 +166,7 @@ test.describe("POST /api/2.0/settings/authservice/externaldb/test - permissions"
     const { data, status } = await apiSdk
       .forRole("guest")
       .settingsAuthorization.testExternalDatabaseConnection({
-        externalDatabaseSettings: invalidMysqlSettings,
+        externalDatabaseConnectionRequestDto: invalidMysqlSettings,
       });
 
     expect(status).toBe(403);

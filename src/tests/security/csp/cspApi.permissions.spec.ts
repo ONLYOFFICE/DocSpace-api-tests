@@ -7,7 +7,7 @@ test.describe("POST /api/2.0/security/csp - permissions", () => {
     apiSdk,
   }) => {
     const { status } = await apiSdk.forAnonymous().csp.configureCsp({
-      cspRequestsDto: { domains: [faker.internet.url()] },
+      cspRequestDto: { domains: [faker.internet.url()] },
     });
 
     expect(status).toBe(401);
@@ -21,7 +21,7 @@ test.describe("POST /api/2.0/security/csp - permissions", () => {
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
       .csp.configureCsp({
-        cspRequestsDto: { domains: [faker.internet.url()] },
+        cspRequestDto: { domains: [faker.internet.url()] },
       });
 
     expect(status).toBe(403);
@@ -34,7 +34,7 @@ test.describe("POST /api/2.0/security/csp - permissions", () => {
     await apiSdk.addAuthenticatedMember("owner", "User");
 
     const { data, status } = await apiSdk.forRole("user").csp.configureCsp({
-      cspRequestsDto: { domains: [faker.internet.url()] },
+      cspRequestDto: { domains: [faker.internet.url()] },
     });
 
     expect(status).toBe(403);
@@ -47,7 +47,7 @@ test.describe("POST /api/2.0/security/csp - permissions", () => {
     await apiSdk.addAuthenticatedMember("owner", "Guest");
 
     const { data, status } = await apiSdk.forRole("guest").csp.configureCsp({
-      cspRequestsDto: { domains: [faker.internet.url()] },
+      cspRequestDto: { domains: [faker.internet.url()] },
     });
 
     expect(status).toBe(403);

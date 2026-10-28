@@ -10,7 +10,7 @@ test.describe("Portal Guests — Sharing Link", () => {
 
     const { data, status } = await apiSdk
       .forRole("owner")
-      .portalGuests.getGuestSharingLink({ userid: guestId });
+      .portalGuests.getGuestSharingLink({ userId: guestId });
 
     expect(status).toBe(200);
     expect(data.response).toBeDefined();
@@ -31,7 +31,7 @@ test.describe("Portal Guests — Sharing Link", () => {
 
     const { data, status } = await apiSdk
       .forRole("owner")
-      .portalGuests.getGuestSharingLink({ userid: guestId });
+      .portalGuests.getGuestSharingLink({ userId: guestId });
 
     expect(status).toBe(200);
     expect(data.response).toBeDefined();
@@ -51,7 +51,7 @@ test.describe("Portal Guests — Sharing Link", () => {
     const guestId = guestData.response!.id!;
 
     const { data, status } = await adminApi.portalGuests.getGuestSharingLink({
-      userid: guestId,
+      userId: guestId,
     });
 
     expect(status).toBe(200);
@@ -75,7 +75,7 @@ test.describe("Portal Guests — Sharing Link", () => {
     const guestId = guestData.response!.id!;
 
     const { data, status } = await adminApi.portalGuests.getGuestSharingLink({
-      userid: guestId,
+      userId: guestId,
     });
 
     expect(status).toBe(200);
@@ -97,7 +97,7 @@ test.describe("Portal Guests — Sharing Link", () => {
 
     const { data, status } =
       await roomAdminApi.portalGuests.getGuestSharingLink({
-        userid: guestId,
+        userId: guestId,
       });
 
     expect(status).toBe(200);

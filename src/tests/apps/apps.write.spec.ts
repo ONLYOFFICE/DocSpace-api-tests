@@ -23,7 +23,7 @@ test.describe("PUT /api/2.0/apps/{id}/enabled", () => {
 
       const { data, status } = await owner.apps.setEnabled({
         id,
-        setAppEnabledBody: { enabled: !before.enabled },
+        setAppEnabledRequest: { enabled: !before.enabled },
       });
 
       expect(status).toBe(200);
@@ -50,7 +50,7 @@ test.describe("PUT /api/2.0/apps/{id}/enabled", () => {
 
         const { data, status } = await owner.apps.setEnabled({
           id,
-          setAppEnabledBody: { enabled },
+          setAppEnabledRequest: { enabled },
         });
 
         expect(status, `repeat enabled=${enabled}`).toBe(200);
@@ -135,7 +135,7 @@ test.describe("PUT /api/2.0/apps/{id}/enabled", () => {
 
     const { status } = await owner.apps.setEnabled({
       id: "no-such-app",
-      setAppEnabledBody: { enabled: false },
+      setAppEnabledRequest: { enabled: false },
     });
 
     expect(status).toBe(404);
@@ -233,7 +233,7 @@ test.describe("PUT /api/2.0/apps/{id}/settings", () => {
 
       const { data, status } = await owner.apps.setSettings({
         id,
-        setAppSettingsBody: { settings: doc },
+        setAppSettingsRequest: { settings: doc },
       });
 
       expect(status).toBe(200);
@@ -260,7 +260,7 @@ test.describe("PUT /api/2.0/apps/{id}/settings", () => {
 
       const { data, status } = await owner.apps.setSettings({
         id,
-        setAppSettingsBody: { settings: doc },
+        setAppSettingsRequest: { settings: doc },
       });
 
       expect(status).toBe(200);
@@ -281,7 +281,7 @@ test.describe("PUT /api/2.0/apps/{id}/settings", () => {
 
         const { data } = await owner.apps.setSettings({
           id,
-          setAppSettingsBody: { settings: { enabledWas: enabled } },
+          setAppSettingsRequest: { settings: { enabledWas: enabled } },
         });
 
         expect(data.response?.enabled).toBe(enabled);
@@ -390,7 +390,7 @@ test.describe("PUT /api/2.0/apps/{id}/settings", () => {
       for (const attempt of [1, 2]) {
         const { data, status } = await owner.apps.setSettings({
           id,
-          setAppSettingsBody: { settings: null },
+          setAppSettingsRequest: { settings: null },
         });
 
         expect(status, `reset #${attempt}`).toBe(200);
@@ -419,7 +419,7 @@ test.describe("PUT /api/2.0/apps/{id}/settings", () => {
 
     const { status } = await owner.apps.setSettings({
       id: "no-such-app",
-      setAppSettingsBody: { settings: { a: 1 } },
+      setAppSettingsRequest: { settings: { a: 1 } },
     });
 
     expect(status).toBe(404);

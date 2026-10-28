@@ -38,7 +38,7 @@ async function createSources(apiSdk: ApiSDK) {
   return {
     html: await id(
       api.files.createHtmlFileInMyDocuments({
-        createTextOrHtmlFile: {
+        createTextOrHtmlFileRequest: {
           title: "Autotest Source",
           content: HTML_MARKUP,
         },
@@ -46,7 +46,7 @@ async function createSources(apiSdk: ApiSDK) {
     ),
     txt: await id(
       api.files.createTextFileInMyDocuments({
-        createTextOrHtmlFile: {
+        createTextOrHtmlFileRequest: {
           title: "Autotest Source",
           content: "plain text",
         },
@@ -54,17 +54,17 @@ async function createSources(apiSdk: ApiSDK) {
     ),
     docx: await id(
       api.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest Source.docx" },
+        createFileRequest: { title: "Autotest Source.docx" },
       }),
     ),
     xlsx: await id(
       api.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest Source.xlsx" },
+        createFileRequest: { title: "Autotest Source.xlsx" },
       }),
     ),
     pptx: await id(
       api.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest Source.pptx" },
+        createFileRequest: { title: "Autotest Source.pptx" },
       }),
     ),
   };
@@ -92,7 +92,7 @@ test.describe("POST /files/file/:fileId/copyas - copy and convert", () => {
 
       const { data, status } = await ownerApi.files.copyFileAs({
         fileId: sources.html,
-        copyAsJsonElement: { destTitle: "Copy.html", destFolderId: roomId },
+        copyAsRequest: { destTitle: "Copy.html", destFolderId: roomId },
       });
 
       expect(status).toBe(200);
@@ -129,7 +129,7 @@ test.describe("POST /files/file/:fileId/copyas - copy and convert", () => {
 
       const { data, status } = await ownerApi.files.copyFileAs({
         fileId: sources[from],
-        copyAsJsonElement: {
+        copyAsRequest: {
           destTitle: `Converted.${to}`,
           destFolderId: roomId,
         },
@@ -160,7 +160,7 @@ test.describe("POST /files/file/:fileId/copyas - copy and convert", () => {
     );
     const { data: created } = await ownerApi.files.createHtmlFile({
       folderId: roomId,
-      createTextOrHtmlFile: {
+      createTextOrHtmlFileRequest: {
         title: "Autotest Room File",
         content: HTML_MARKUP,
       },
@@ -169,7 +169,7 @@ test.describe("POST /files/file/:fileId/copyas - copy and convert", () => {
 
     const { data, status } = await ownerApi.files.copyFileAs({
       fileId: created.response!.id!,
-      copyAsJsonElement: { destTitle: "Copy.html", destFolderId: myDocs },
+      copyAsRequest: { destTitle: "Copy.html", destFolderId: myDocs },
     });
 
     expect(status).toBe(200);
@@ -188,14 +188,14 @@ test.describe("POST /files/file/:fileId/copyas - copy and convert", () => {
     );
     const { data: copied } = await ownerApi.files.copyFileAs({
       fileId: sources.html,
-      copyAsJsonElement: { destTitle: "Copy.html", destFolderId: roomId },
+      copyAsRequest: { destTitle: "Copy.html", destFolderId: roomId },
     });
     const copyId = asFile(copied.response).id;
 
     await test.step("Editing the source leaves the copy unchanged", async () => {
       const { data: updated } =
         await ownerApi.files.createHtmlFileInMyDocuments({
-          createTextOrHtmlFile: {
+          createTextOrHtmlFileRequest: {
             title: "Autotest Source",
             content: "<p>changed</p>",
             createNewIfExist: true,
@@ -214,7 +214,7 @@ test.describe("POST /files/file/:fileId/copyas - copy and convert", () => {
     await test.step("Deleting the source leaves the copy readable", async () => {
       await ownerApi.files.deleteFile({
         fileId: sources.html,
-        _delete: { immediately: true },
+        deleteFileRequest: { immediately: true },
       });
       await waitForOperation(ownerApi.operations);
       const { status } = await ownerApi.files.getFileInfo({
@@ -243,7 +243,7 @@ test.describe("POST /files/file/:fileId/copyas - copy and convert", () => {
 
     await ownerApi.files.copyFileAs({
       fileId: sources.docx,
-      copyAsJsonElement: { destTitle: "Converted.pdf", destFolderId: roomId },
+      copyAsRequest: { destTitle: "Converted.pdf", destFolderId: roomId },
     });
 
     const { data: after } = await ownerApi.files.getFileInfo({
@@ -268,7 +268,7 @@ test.describe("POST /files/file/:fileId/copyas - copy and convert", () => {
     const copy = () =>
       ownerApi.files.copyFileAs({
         fileId: sources.html,
-        copyAsJsonElement: { destTitle: "Copy.html", destFolderId: roomId },
+        copyAsRequest: { destTitle: "Copy.html", destFolderId: roomId },
       });
 
     const first = await copy();
@@ -293,7 +293,7 @@ test.describe("POST /files/file/:fileId/copyas - copy and convert", () => {
 
     const { status } = await apiSdk.forRole("owner").files.copyFileAs({
       fileId: 999999999,
-      copyAsJsonElement: { destTitle: "Copy.docx", destFolderId: roomId },
+      copyAsRequest: { destTitle: "Copy.docx", destFolderId: roomId },
     });
 
     expect(status).toBe(404);
@@ -308,7 +308,7 @@ test.describe("POST /files/file/:fileId/copyas - copy and convert", () => {
 
       const { status } = await apiSdk.forRole("owner").files.copyFileAs({
         fileId: sources.docx,
-        copyAsJsonElement: { destTitle: "Copy.docx", destFolderId: 999999999 },
+        copyAsRequest: { destTitle: "Copy.docx", destFolderId: 999999999 },
       });
 
       expect(status).toBe(404);
@@ -337,7 +337,7 @@ test.describe("POST /files/file/:fileId/copyas - copy and convert", () => {
 
         const { status } = await ownerApi.files.copyFileAs({
           fileId: sources[from],
-          copyAsJsonElement: {
+          copyAsRequest: {
             destTitle: `Converted.${to}`,
             destFolderId: roomId,
           },
@@ -363,7 +363,7 @@ test.describe("POST /files/file/:fileId/copyas - copy and convert", () => {
 
     const { status } = await ownerApi.files.copyFileAs({
       fileId: sources.docx,
-      copyAsJsonElement: { destTitle: "Copy.docx", destFolderId: roomId },
+      copyAsRequest: { destTitle: "Copy.docx", destFolderId: roomId },
     });
 
     expect(status).toBe(403);
@@ -381,14 +381,17 @@ test.describe("POST /files/file/:fileId/copyas - copy and convert", () => {
     );
     const { data: created } = await ownerApi.files.createHtmlFile({
       folderId: archivedRoom,
-      createTextOrHtmlFile: { title: "Archived File", content: HTML_MARKUP },
+      createTextOrHtmlFileRequest: {
+        title: "Archived File",
+        content: HTML_MARKUP,
+      },
     });
     await archiveRoomAndWait(apiSdk, archivedRoom);
     const myDocs = await getMyDocsFolderId(ownerApi);
 
     const { status } = await ownerApi.files.copyFileAs({
       fileId: created.response!.id!,
-      copyAsJsonElement: { destTitle: "Out.html", destFolderId: myDocs },
+      copyAsRequest: { destTitle: "Out.html", destFolderId: myDocs },
     });
 
     expect(status).toBe(200);
@@ -410,7 +413,7 @@ test.describe("POST /files/file/:id/saveaspdf - save a file as PDF", () => {
 
       const { data, status } = await ownerApi.files.saveFileAsPdf({
         id: sources.docx,
-        saveAsPdf: { folderId: roomId, title: "Result" },
+        saveAsPdfRequest: { folderId: roomId, title: "Result" },
       });
 
       expect(status).toBe(200);
@@ -436,7 +439,7 @@ test.describe("POST /files/file/:id/saveaspdf - save a file as PDF", () => {
 
       const { data, status } = await ownerApi.files.saveFileAsPdf({
         id: sources[source],
-        saveAsPdf: { folderId: myDocs, title: `From ${source}` },
+        saveAsPdfRequest: { folderId: myDocs, title: `From ${source}` },
       });
 
       expect(status).toBe(200);
@@ -463,7 +466,7 @@ test.describe("POST /files/file/:id/saveaspdf - save a file as PDF", () => {
 
     const { data, status } = await ownerApi.files.saveFileAsPdf({
       id: sources.docx,
-      saveAsPdf: { folderId: roomId, title: "Result" },
+      saveAsPdfRequest: { folderId: roomId, title: "Result" },
     });
 
     expect(status).toBe(200);
@@ -480,7 +483,7 @@ test.describe("POST /files/file/:id/saveaspdf - save a file as PDF", () => {
 
     const { data } = await ownerApi.files.saveFileAsPdf({
       id: sources.docx,
-      saveAsPdf: { folderId: myDocs, title: "Named.pdf" },
+      saveAsPdfRequest: { folderId: myDocs, title: "Named.pdf" },
     });
 
     expect(asFile(data.response).title).toBe("Named.pdf.pdf");
@@ -501,7 +504,7 @@ test.describe("POST /files/file/:id/saveaspdf - save a file as PDF", () => {
 
       const { data, status } = await ownerApi.files.saveFileAsPdf({
         id: sources.docx,
-        saveAsPdf: { folderId: roomId, title },
+        saveAsPdfRequest: { folderId: roomId, title },
       });
 
       expect(status).toBe(200);
@@ -522,7 +525,7 @@ test.describe("POST /files/file/:id/saveaspdf - save a file as PDF", () => {
 
     const { data } = await ownerApi.files.saveFileAsPdf({
       id: sources.docx,
-      saveAsPdf: { folderId: myDocs, title: "Side by side" },
+      saveAsPdfRequest: { folderId: myDocs, title: "Side by side" },
     });
 
     const { data: after } = await ownerApi.files.getFileInfo({
@@ -547,7 +550,7 @@ test.describe("POST /files/file/:id/saveaspdf - save a file as PDF", () => {
     const save = () =>
       ownerApi.files.saveFileAsPdf({
         id: sources.docx,
-        saveAsPdf: { folderId: roomId, title: "Again" },
+        saveAsPdfRequest: { folderId: roomId, title: "Again" },
       });
 
     const first = await save();
@@ -575,7 +578,7 @@ test.describe("POST /files/file/:id/saveaspdf - save a file as PDF", () => {
       const save = () =>
         ownerApi.files.saveFileAsPdf({
           id: sources.docx,
-          saveAsPdf: { folderId: roomId, title: "Same" },
+          saveAsPdfRequest: { folderId: roomId, title: "Same" },
         });
 
       const first = await save();
@@ -598,7 +601,7 @@ test.describe("POST /files/file/:id/saveaspdf - save a file as PDF", () => {
 
     const { status } = await apiSdk.forRole("owner").files.saveFileAsPdf({
       id: 999999999,
-      saveAsPdf: { folderId: roomId, title: "X" },
+      saveAsPdfRequest: { folderId: roomId, title: "X" },
     });
 
     expect(status).toBe(404);
@@ -612,7 +615,7 @@ test.describe("POST /files/file/:id/saveaspdf - save a file as PDF", () => {
 
     const { status } = await apiSdk.forRole("owner").files.saveFileAsPdf({
       id: sources.docx,
-      saveAsPdf: { folderId: 999999999, title: "X" },
+      saveAsPdfRequest: { folderId: 999999999, title: "X" },
     });
 
     expect(status).toBe(404);
@@ -631,7 +634,7 @@ test.describe("POST /files/file/:id/saveaspdf - save a file as PDF", () => {
 
     const { status } = await apiSdk.forRole("owner").files.saveFileAsPdf({
       id: sources.docx,
-      saveAsPdf: { folderId: roomId, title: "X" },
+      saveAsPdfRequest: { folderId: roomId, title: "X" },
     });
 
     expect(status).toBe(403);

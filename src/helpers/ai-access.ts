@@ -31,7 +31,7 @@ export async function setPortalAiAccess(
 ): Promise<AiAccessResult> {
   const { status: writeStatus } =
     await api.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled },
+      tenantAiAccessSettingsRequestDto: { enabled },
     });
 
   const { status: readStatus, data } =

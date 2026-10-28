@@ -124,7 +124,7 @@ test.describe("PUT /api/2.0/settings/colortheme - access control", () => {
     const { status } = await apiSdk
       .forAnonymous()
       .commonSettings.savePortalColorTheme({
-        customColorThemesSettingsRequestsDto: {
+        customColorThemesSettingsRequestDto: {
           theme: {
             name: "Theme",
             main: { accent: "#000000", buttons: "#000000" },
@@ -145,7 +145,7 @@ test.describe("PUT /api/2.0/settings/colortheme - access control", () => {
 
     const { data, status } =
       await roomAdminApi.commonSettings.savePortalColorTheme({
-        customColorThemesSettingsRequestsDto: {
+        customColorThemesSettingsRequestDto: {
           theme: {
             name: "Theme",
             main: { accent: "#000000", buttons: "#000000" },
@@ -166,7 +166,7 @@ test.describe("PUT /api/2.0/settings/colortheme - access control", () => {
     );
 
     const { data, status } = await userApi.commonSettings.savePortalColorTheme({
-      customColorThemesSettingsRequestsDto: {
+      customColorThemesSettingsRequestDto: {
         theme: {
           name: "Theme",
           main: { accent: "#000000", buttons: "#000000" },
@@ -188,7 +188,7 @@ test.describe("PUT /api/2.0/settings/colortheme - access control", () => {
 
     const { data, status } = await guestApi.commonSettings.savePortalColorTheme(
       {
-        customColorThemesSettingsRequestsDto: {
+        customColorThemesSettingsRequestDto: {
           theme: {
             name: "Theme",
             main: { accent: "#000000", buttons: "#000000" },
@@ -264,7 +264,7 @@ test.describe("POST /api/2.0/settings/deeplink - access control", () => {
     const { status } = await apiSdk
       .forAnonymous()
       .commonSettings.configureDeepLink({
-        deepLinkConfigurationRequestsDto: {
+        deepLinkConfigurationRequestDto: {
           deepLinkSettings: { handlingMode: 1 },
         },
       });
@@ -282,7 +282,7 @@ test.describe("POST /api/2.0/settings/deeplink - access control", () => {
 
     const { data, status } =
       await roomAdminApi.commonSettings.configureDeepLink({
-        deepLinkConfigurationRequestsDto: {
+        deepLinkConfigurationRequestDto: {
           deepLinkSettings: { handlingMode: 1 },
         },
       });
@@ -300,7 +300,7 @@ test.describe("POST /api/2.0/settings/deeplink - access control", () => {
     );
 
     const { data, status } = await userApi.commonSettings.configureDeepLink({
-      deepLinkConfigurationRequestsDto: {
+      deepLinkConfigurationRequestDto: {
         deepLinkSettings: { handlingMode: 1 },
       },
     });
@@ -318,7 +318,7 @@ test.describe("POST /api/2.0/settings/deeplink - access control", () => {
     );
 
     const { data, status } = await guestApi.commonSettings.configureDeepLink({
-      deepLinkConfigurationRequestsDto: {
+      deepLinkConfigurationRequestDto: {
         deepLinkSettings: { handlingMode: 1 },
       },
     });

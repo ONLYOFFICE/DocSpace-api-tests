@@ -386,7 +386,7 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
     await configureAiToolsAsUnpaid(ownerApi);
     await paymentsApi.setupPayment();
     await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1048576 },
+      quotaSettingsRequestDto: { enableQuota: true, defaultQuota: 1048576 },
     });
 
     const profiles = await aiChat.listProfiles("owner");

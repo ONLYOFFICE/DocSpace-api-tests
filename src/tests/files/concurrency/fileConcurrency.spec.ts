@@ -39,7 +39,7 @@ const html = async (
     (
       await apiSdk.forRole("owner").files.createHtmlFile({
         folderId,
-        createTextOrHtmlFile: { title, content },
+        createTextOrHtmlFileRequest: { title, content },
       })
     ).data.response as { id: number }
   ).id;
@@ -59,7 +59,10 @@ test.describe("Concurrent file mutations", () => {
       Array.from({ length: 5 }, (_, i) =>
         ownerApi.files.createHtmlFile({
           folderId: roomId,
-          createTextOrHtmlFile: { title: "Race", content: `<p>${i}</p>` },
+          createTextOrHtmlFileRequest: {
+            title: "Race",
+            content: `<p>${i}</p>`,
+          },
         }),
       ),
     );
@@ -106,7 +109,7 @@ test.describe("Concurrent file mutations", () => {
       Array.from({ length: 3 }, () =>
         ownerApi.files.copyFileAs({
           fileId: sourceId,
-          copyAsJsonElement: { destTitle: "Copy.html", destFolderId: roomId },
+          copyAsRequest: { destTitle: "Copy.html", destFolderId: roomId },
         }),
       ),
     );
@@ -128,7 +131,7 @@ test.describe("Concurrent file mutations", () => {
 
     const results = await Promise.all(
       titles.map((title) =>
-        ownerApi.files.updateFile({ fileId, updateFile: { title } }),
+        ownerApi.files.updateFile({ fileId, updateFileRequest: { title } }),
       ),
     );
 
@@ -150,7 +153,7 @@ test.describe("Concurrent file mutations", () => {
       Array.from({ length: 4 }, () =>
         ownerApi.files.lockFile({
           fileId,
-          lockFileParameters: { lockFile: true },
+          lockFileRequest: { lockFile: true },
         }),
       ),
     );
@@ -173,7 +176,7 @@ test.describe("Concurrent file mutations", () => {
       Array.from({ length: 3 }, () =>
         ownerApi.files.deleteFile({
           fileId: target,
-          _delete: { immediately: true },
+          deleteFileRequest: { immediately: true },
         }),
       ),
     );
@@ -227,7 +230,7 @@ test.describe("Concurrent file mutations", () => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Favorite Race.docx" },
+      createFileRequest: { title: "Autotest Favorite Race.docx" },
     });
     const fileId = created.response!.id!;
     const results = await Promise.all(
@@ -341,11 +344,11 @@ test.describe("Concurrent file mutations", () => {
     const results = await Promise.all([
       ownerApi.files.startEditFile({
         fileId,
-        startEdit: { editingAlone: true },
+        startEditRequest: { editingAlone: true },
       }),
       memberApi.files.startEditFile({
         fileId,
-        startEdit: { editingAlone: true },
+        startEditRequest: { editingAlone: true },
       }),
     ]);
 

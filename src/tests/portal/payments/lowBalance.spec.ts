@@ -195,7 +195,7 @@ test.describe("GET /api/2.0/portal/payment/customerinfo - the payer behind the b
 test.describe("POST /api/2.0/portal/payment/topupsettings - auto top-up bounds", () => {
   // Auto top-up is the API side of "prevent interruption of paid services": it is
   // what keeps a portal from ever reaching the balance the banner warns about.
-  // Only the happy value (100/1000) was covered; `TenantWalletSettings` documents
+  // Only the happy value (100/1000) was covered; `TenantWalletSettingsDto` documents
   // minBalance as 5..1000 and upToBalance as 6..5000, and a limit nobody checks is
   // a limit the client can be talked out of.
   test("POST /api/2.0/portal/payment/topupsettings - Owner sets the documented minimum trigger", async ({
@@ -206,7 +206,7 @@ test.describe("POST /api/2.0/portal/payment/topupsettings - auto top-up bounds",
     const ownerApi = apiSdk.forRole("owner");
 
     const { status } = await ownerApi.payment.setTenantWalletSettings({
-      tenantWalletSettingsWrapper: {
+      tenantWalletSettingsRequestDto: {
         settings: { enabled: true, minBalance: 5, upToBalance: 6 },
       },
     });
@@ -226,7 +226,7 @@ test.describe("POST /api/2.0/portal/payment/topupsettings - auto top-up bounds",
     const ownerApi = apiSdk.forRole("owner");
 
     const { status } = await ownerApi.payment.setTenantWalletSettings({
-      tenantWalletSettingsWrapper: {
+      tenantWalletSettingsRequestDto: {
         settings: { enabled: true, minBalance: 1000, upToBalance: 5000 },
       },
     });
@@ -247,13 +247,13 @@ test.describe("POST /api/2.0/portal/payment/topupsettings - auto top-up bounds",
     // A known-good value first, so the read-back below proves the rejected call
     // changed nothing rather than merely finding an empty setting.
     await ownerApi.payment.setTenantWalletSettings({
-      tenantWalletSettingsWrapper: {
+      tenantWalletSettingsRequestDto: {
         settings: { enabled: true, minBalance: 100, upToBalance: 1000 },
       },
     });
 
     const { status } = await ownerApi.payment.setTenantWalletSettings({
-      tenantWalletSettingsWrapper: {
+      tenantWalletSettingsRequestDto: {
         settings: { enabled: true, minBalance: 4, upToBalance: 1000 },
       },
     });
@@ -276,13 +276,13 @@ test.describe("POST /api/2.0/portal/payment/topupsettings - auto top-up bounds",
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.payment.setTenantWalletSettings({
-      tenantWalletSettingsWrapper: {
+      tenantWalletSettingsRequestDto: {
         settings: { enabled: true, minBalance: 100, upToBalance: 1000 },
       },
     });
 
     const { status } = await ownerApi.payment.setTenantWalletSettings({
-      tenantWalletSettingsWrapper: {
+      tenantWalletSettingsRequestDto: {
         settings: { enabled: true, minBalance: 100, upToBalance: 50 },
       },
     });
@@ -306,7 +306,7 @@ test.describe("POST /api/2.0/portal/payment/topupsettings - auto top-up bounds",
     await fundWalletBelowThreshold(paymentsApi, ownerApi.payment, LOW_AMOUNT);
 
     const { status } = await ownerApi.payment.setTenantWalletSettings({
-      tenantWalletSettingsWrapper: {
+      tenantWalletSettingsRequestDto: {
         settings: { enabled: true, minBalance: 5, upToBalance: 20 },
       },
     });
@@ -329,14 +329,14 @@ test.describe("POST /api/2.0/portal/payment/topupsettings - auto top-up bounds",
     apiSdk,
     paymentsApi,
   }) => {
-    // `minBalance`/`upToBalance` are amounts of money, and `TenantWalletSettings`
+    // `minBalance`/`upToBalance` are amounts of money, and `TenantWalletSettingsDto`
     // carries a `currency` for them. Two portals with different wallet currencies
     // would otherwise be told to refill at "5" of nothing in particular.
     await paymentsApi.makeWalletTopUp();
     const ownerApi = apiSdk.forRole("owner");
 
     const { status } = await ownerApi.payment.setTenantWalletSettings({
-      tenantWalletSettingsWrapper: {
+      tenantWalletSettingsRequestDto: {
         settings: {
           enabled: true,
           minBalance: 5,

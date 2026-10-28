@@ -81,13 +81,13 @@ export async function createOoForm(
   const myDocsFolderId = myDocsData.response!.current!.id!;
 
   const { data: docxData } = await api.files.createFileInMyDocuments({
-    createFileJsonElement: { title: "Autotest OO Form Source.docx" },
+    createFileRequest: { title: "Autotest OO Form Source.docx" },
   });
   const docxId = docxData.response!.id!;
 
   const { data: docxfData } = await api.files.copyFileAs({
     fileId: docxId,
-    copyAsJsonElement: {
+    copyAsRequest: {
       destTitle: "Autotest OO Form Template.docxf",
       destFolderId: myDocsFolderId,
       toForm: true,
@@ -97,7 +97,7 @@ export async function createOoForm(
 
   const { data: pdfFormData } = await api.files.copyFileAs({
     fileId: docxfId,
-    copyAsJsonElement: {
+    copyAsRequest: {
       destTitle: "Autotest OO Form.pdf",
       destFolderId: folderId,
       toForm: true,

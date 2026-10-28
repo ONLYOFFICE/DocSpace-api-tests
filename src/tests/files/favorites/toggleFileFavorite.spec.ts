@@ -36,7 +36,7 @@ async function roomFile(apiSdk: ApiSDK, roomType: RoomType, title: string) {
   // carry the favorite flag.
   const { data } = await ownerApi.files.createFile({
     folderId: roomId,
-    createFileJsonElement: { title: "Autotest Favorite.docx" },
+    createFileRequest: { title: "Autotest Favorite.docx" },
   });
   return { ownerApi, roomId, fileId: data.response!.id! };
 }

@@ -153,7 +153,7 @@ test.describe("POST /api/2.0/settings/sendjoininvite - Send join invite mail", (
 
     await test.step("Enable trusted mail domains (any domain)", async () => {
       const { status } = await ownerApi.commonSettings.saveMailDomainSettings({
-        mailDomainSettingsRequestsDto: {
+        mailDomainSettingsRequestDto: {
           type: TenantTrustedDomainsType.All,
           domains: [],
           inviteUsersAsVisitors: true,
@@ -167,7 +167,7 @@ test.describe("POST /api/2.0/settings/sendjoininvite - Send join invite mail", (
 
     const { data, status } = await ownerApi.settingsMessages.sendJoinInviteMail(
       {
-        adminMessageBaseSettingsRequestsDto: { email: existingEmail },
+        adminMessageBaseSettingsRequestDto: { email: existingEmail },
       },
     );
 
@@ -185,7 +185,7 @@ test.describe("POST /api/2.0/settings/sendjoininvite - Send join invite mail", (
 
       const { data, status } =
         await ownerApi.settingsMessages.sendJoinInviteMail({
-          adminMessageBaseSettingsRequestsDto: { email },
+          adminMessageBaseSettingsRequestDto: { email },
         });
 
       expect(status).toBe(200);
@@ -203,7 +203,7 @@ test.describe("POST /api/2.0/settings/sendjoininvite - Send join invite mail", (
 
       const { data, status } =
         await ownerApi.settingsMessages.sendJoinInviteMail({
-          adminMessageBaseSettingsRequestsDto: { email, culture: "en-US" },
+          adminMessageBaseSettingsRequestDto: { email, culture: "en-US" },
         });
 
       expect(status).toBe(200);
@@ -224,7 +224,7 @@ test.describe("POST /api/2.0/settings/sendjoininvite - Send join invite mail", (
 
       const { data, status } =
         await adminApi.settingsMessages.sendJoinInviteMail({
-          adminMessageBaseSettingsRequestsDto: { email },
+          adminMessageBaseSettingsRequestDto: { email },
         });
 
       expect(status).toBe(200);

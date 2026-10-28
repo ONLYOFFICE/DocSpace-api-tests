@@ -94,14 +94,14 @@ async function setup(apiSdk: ApiSDK, level: (typeof levels)[number]) {
     (
       await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title },
+        createFileRequest: { title },
       })
     ).data.response!.id!;
   const docId = await create("Autotest Permissions Doc.docx");
   const sheetId = await create("Autotest Permissions Sheet.xlsx");
   const { data: html } = await ownerApi.files.createHtmlFile({
     folderId: roomId,
-    createTextOrHtmlFile: {
+    createTextOrHtmlFileRequest: {
       title: "Autotest Permissions Html",
       content: "<p>original</p>",
     },
@@ -156,7 +156,7 @@ test.describe("Editing endpoints - access level matrix in a Custom room", () => 
       const { data: started, status: startStatus } =
         await api.files.startEditFile({
           fileId: docId,
-          startEdit: { editingAlone: true },
+          startEditRequest: { editingAlone: true },
         });
       expect(startStatus).toBe(level.canEdit ? 200 : 403);
 
@@ -192,7 +192,7 @@ test.describe("Editing endpoints - access level matrix in a Custom room", () => 
         // refused; and whatever the reader sends, the owner session stays.
         const { data: ownerStart } = await ownerApi.files.startEditFile({
           fileId: docId,
-          startEdit: { editingAlone: true },
+          startEditRequest: { editingAlone: true },
         });
         const { status } = await api.files.trackEditFile({
           fileId: docId,
@@ -238,7 +238,7 @@ test.describe("Editing endpoints - access level matrix in a Custom room", () => 
       const { data: other } = await apiSdk
         .forRole("owner")
         .files.createFileInMyDocuments({
-          createFileJsonElement: { title: "Autotest Replacement.docx" },
+          createFileRequest: { title: "Autotest Replacement.docx" },
         });
       const replacement = (
         await downloadFile(apiSdk, "owner", other.response!.id!)
@@ -269,7 +269,7 @@ test.describe("Editing endpoints - access level matrix in a Custom room", () => 
 
       const { status } = await api.files.setCustomFilterTag({
         fileId: sheetId,
-        customFilterParameters: { enabled: true },
+        customFilterRequest: { enabled: true },
       });
 
       if (level.canCustomFilter === null) {
@@ -294,11 +294,11 @@ test.describe("Editing endpoints - access level matrix in a Custom room", () => 
     const open = await anonymousApi.files.openEditFile({ fileId: docId });
     const start = await anonymousApi.files.startEditFile({
       fileId: docId,
-      startEdit: { editingAlone: true },
+      startEditRequest: { editingAlone: true },
     });
     const filter = await anonymousApi.files.setCustomFilterTag({
       fileId: sheetId,
-      customFilterParameters: { enabled: true },
+      customFilterRequest: { enabled: true },
     });
 
     // The SDK names no status for an anonymous openedit (it only says an anonymous
@@ -330,7 +330,7 @@ test.describe("POST /files/file/referencedata - cross-room isolation", () => {
       (
         await ownerApi.files.createFile({
           folderId,
-          createFileJsonElement: { title },
+          createFileRequest: { title },
         })
       ).data.response!.id!;
     const sourceInA = await create(roomA, "Autotest Reference Source.xlsx");

@@ -156,18 +156,23 @@ const OPERATIONS: Operation[] = [
   {
     route: "DELETE /api/2.0/ai/threads/delete-message",
     act: (client, { messageId }) =>
-      client.aiThreadsDeleteMessage({ body: messageId }),
+      client.aiThreadsDeleteMessage({
+        aiThreadsDeleteMessageRequest: messageId,
+      }),
   },
   {
     route: "DELETE /api/2.0/ai/threads/clear-messages",
     act: (client, { threadId }) =>
-      client.aiThreadsClearMessages({ body: threadId }),
+      client.aiThreadsClearMessages({
+        aiThreadsClearMessagesRequest: threadId,
+      }),
   },
   {
     // Last: if it ever succeeded the other refusals would be reported against a
     // thread that no longer exists.
     route: "DELETE /api/2.0/ai/threads/delete",
-    act: (client, { threadId }) => client.aiThreadsDelete({ body: threadId }),
+    act: (client, { threadId }) =>
+      client.aiThreadsDelete({ aiThreadsDeleteRequest: threadId }),
   },
 ];
 

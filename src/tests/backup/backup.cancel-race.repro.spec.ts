@@ -3,7 +3,7 @@ import path from "node:path";
 import { test } from "@/src/fixtures/index";
 import {
   BackupApi,
-  BackupProgress,
+  BackupProgressDto,
   BackupStorageType,
   DistributedTaskStatus,
 } from "@onlyoffice/docspace-api-sdk";
@@ -59,7 +59,7 @@ function record(entry: Record<string, unknown>) {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function describe(job: BackupProgress | undefined, taskId: string): string {
+function describe(job: BackupProgressDto | undefined, taskId: string): string {
   if (!job) return "none";
   const who = job.taskId === taskId ? "ours" : "other";
   return `${who}:done=${job.isCompleted}:status=${job.status}`;
@@ -123,7 +123,7 @@ async function observe(
 }
 
 function classify(
-  final: BackupProgress | undefined,
+  final: BackupProgressDto | undefined,
   taskId: string,
   archived: boolean,
   timedOut: boolean,
@@ -164,7 +164,7 @@ test.describe("Backup cancel race - reproducer (BACKUP_RACE_REPRO=1)", () => {
 
         const startSent = at();
         const { data: started } = await backup.startBackup({
-          backupDto: dataStore,
+          startBackupRequestDto: dataStore,
         });
         const startAnswered = at();
         const taskId = started.response!.taskId!;
@@ -183,8 +183,8 @@ test.describe("Backup cancel race - reproducer (BACKUP_RACE_REPRO=1)", () => {
         if (variant === "afterVisible" || variant === "afterRunning") {
           const wanted =
             variant === "afterVisible"
-              ? (job?: BackupProgress) => job?.taskId === taskId
-              : (job?: BackupProgress) =>
+              ? (job?: BackupProgressDto) => job?.taskId === taskId
+              : (job?: BackupProgressDto) =>
                   job?.taskId === taskId &&
                   job.status === DistributedTaskStatus.Running;
           const deadline = Date.now() + 30_000;
@@ -307,7 +307,7 @@ test.describe("Backup cancel race - reproducer (BACKUP_RACE_REPRO=1)", () => {
 
       const t0 = Date.now();
       const { data: started } = await backup.startBackup({
-        backupDto: dataStore,
+        startBackupRequestDto: dataStore,
       });
       const taskId = started.response!.taskId!;
       const { data: cancelled } = await backup.cancelBackup();
@@ -357,7 +357,7 @@ test.describe("Backup cancel race - reproducer (BACKUP_RACE_REPRO=1)", () => {
 
       const t0 = Date.now();
       const { data: started } = await backup.startBackup({
-        backupDto: dataStore,
+        startBackupRequestDto: dataStore,
       });
       const taskId = started.response!.taskId!;
       const { data: cancelled } = await backup.cancelBackup();
@@ -400,7 +400,7 @@ test.describe("Backup cancel race - reproducer (BACKUP_RACE_REPRO=1)", () => {
 
       const t0 = Date.now();
       const { data: started } = await backup.startBackup({
-        backupDto: dataStore,
+        startBackupRequestDto: dataStore,
       });
       const taskId = started.response!.taskId!;
 

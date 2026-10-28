@@ -9,7 +9,7 @@ test.describe("POST /api/2.0/security/csp", () => {
     const domain = faker.internet.url();
 
     const { data, status } = await apiSdk.forRole("owner").csp.configureCsp({
-      cspRequestsDto: { domains: [domain] },
+      cspRequestDto: { domains: [domain] },
     });
 
     expect(status).toBe(200);
@@ -28,7 +28,7 @@ test.describe("POST /api/2.0/security/csp", () => {
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
       .csp.configureCsp({
-        cspRequestsDto: { domains: [domain] },
+        cspRequestDto: { domains: [domain] },
       });
 
     expect(status).toBe(200);
@@ -44,7 +44,7 @@ test.describe("GET /api/2.0/security/csp", () => {
   }) => {
     const domain = faker.internet.url();
     await apiSdk.forRole("owner").csp.configureCsp({
-      cspRequestsDto: { domains: [domain] },
+      cspRequestDto: { domains: [domain] },
     });
 
     const { data, status } = await apiSdk.forRole("owner").csp.getCspSettings();
@@ -62,7 +62,7 @@ test.describe("GET /api/2.0/security/csp", () => {
 
     const domain = faker.internet.url();
     await apiSdk.forRole("owner").csp.configureCsp({
-      cspRequestsDto: { domains: [domain] },
+      cspRequestDto: { domains: [domain] },
     });
 
     const { data, status } = await apiSdk
@@ -82,7 +82,7 @@ test.describe("GET /api/2.0/security/csp", () => {
 
     const domain = faker.internet.url();
     await apiSdk.forRole("owner").csp.configureCsp({
-      cspRequestsDto: { domains: [domain] },
+      cspRequestDto: { domains: [domain] },
     });
 
     const { data, status } = await apiSdk
@@ -102,7 +102,7 @@ test.describe("GET /api/2.0/security/csp", () => {
 
     const domain = faker.internet.url();
     await apiSdk.forRole("owner").csp.configureCsp({
-      cspRequestsDto: { domains: [domain] },
+      cspRequestDto: { domains: [domain] },
     });
 
     const { data, status } = await apiSdk.forRole("user").csp.getCspSettings();
@@ -120,7 +120,7 @@ test.describe("GET /api/2.0/security/csp", () => {
 
     const domain = faker.internet.url();
     await apiSdk.forRole("owner").csp.configureCsp({
-      cspRequestsDto: { domains: [domain] },
+      cspRequestDto: { domains: [domain] },
     });
 
     const { data, status } = await apiSdk.forRole("guest").csp.getCspSettings();
@@ -136,7 +136,7 @@ test.describe("GET /api/2.0/security/csp", () => {
   }) => {
     const domain = faker.internet.url();
     await apiSdk.forRole("owner").csp.configureCsp({
-      cspRequestsDto: { domains: [domain] },
+      cspRequestDto: { domains: [domain] },
     });
 
     const { data, status } = await apiSdk.forAnonymous().csp.getCspSettings();

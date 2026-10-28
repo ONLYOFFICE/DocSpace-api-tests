@@ -15,7 +15,7 @@ test.describe("GET /api/2.0/group/file/{id} - Get groups with file sharing setti
     const ownerId = ownerProfile.response!.id!;
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: apiSdk.faker.generateString(15) },
+      createFileRequest: { title: apiSdk.faker.generateString(15) },
     });
     const fileId = fileData.response!.id!;
 
@@ -52,7 +52,7 @@ test.describe("GET /api/2.0/group/file/{id} - Get groups with file sharing setti
     const ownerId = ownerProfile.response!.id!;
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: apiSdk.faker.generateString(15) },
+      createFileRequest: { title: apiSdk.faker.generateString(15) },
     });
     const fileId = fileData.response!.id!;
 
@@ -102,7 +102,7 @@ test.describe("GET /api/2.0/group/file/{id} - Get groups with file sharing setti
     const ownerId = ownerProfile.response!.id!;
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: apiSdk.faker.generateString(15) },
+      createFileRequest: { title: apiSdk.faker.generateString(15) },
     });
     const fileId = fileData.response!.id!;
 
@@ -138,7 +138,7 @@ test.describe("GET /api/2.0/group/file/{id} - Get groups with file sharing setti
     const ownerId = ownerProfile.response!.id!;
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: apiSdk.faker.generateString(15) },
+      createFileRequest: { title: apiSdk.faker.generateString(15) },
     });
     const fileId = fileData.response!.id!;
 
@@ -182,7 +182,7 @@ test.describe("GET /api/2.0/group/file/{id} - Get groups with file sharing setti
     const ownerId = ownerProfile.response!.id!;
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: apiSdk.faker.generateString(15) },
+      createFileRequest: { title: apiSdk.faker.generateString(15) },
     });
     const fileId = fileData.response!.id!;
 
@@ -228,7 +228,7 @@ test.describe("GET /api/2.0/group/file/{id} - Get groups with file sharing setti
     const ownerId = ownerProfile.response!.id!;
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: apiSdk.faker.generateString(15) },
+      createFileRequest: { title: apiSdk.faker.generateString(15) },
     });
     const fileId = fileData.response!.id!;
 
@@ -255,7 +255,7 @@ test.describe("GET /api/2.0/group/file/{id} - Get groups with file sharing setti
     const ownerId = ownerProfile.response!.id!;
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: apiSdk.faker.generateString(15) },
+      createFileRequest: { title: apiSdk.faker.generateString(15) },
     });
     const fileId = fileData.response!.id!;
 
@@ -299,7 +299,7 @@ test.describe("GET /api/2.0/group/file/{id} - Get groups with file sharing setti
     const ownerId = ownerProfile.response!.id!;
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: apiSdk.faker.generateString(15) },
+      createFileRequest: { title: apiSdk.faker.generateString(15) },
     });
     const fileId = fileData.response!.id!;
 
@@ -344,7 +344,7 @@ test.describe("GET /api/2.0/group/file/{id} - Get groups with file sharing setti
     const ownerId = ownerProfile.response!.id!;
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: apiSdk.faker.generateString(15) },
+      createFileRequest: { title: apiSdk.faker.generateString(15) },
     });
     const fileId = fileData.response!.id!;
 
@@ -450,7 +450,7 @@ test.describe("GET /api/2.0/group/file/{id} - validation and edge cases", () => 
     const ownerId = ownerProfile.response!.id!;
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: apiSdk.faker.generateString(15) },
+      createFileRequest: { title: apiSdk.faker.generateString(15) },
     });
     const fileId = fileData.response!.id!;
 
@@ -489,7 +489,7 @@ test.describe("GET /api/2.0/group/file/{id} - validation and edge cases", () => 
     const memberId = memberData.response!.id!;
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: apiSdk.faker.generateString(15) },
+      createFileRequest: { title: apiSdk.faker.generateString(15) },
     });
     const fileId = fileData.response!.id!;
 
@@ -531,7 +531,7 @@ test.describe("GET /api/2.0/group/file/{id} - validation and edge cases", () => 
     const ownerId = ownerProfile.response!.id!;
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: apiSdk.faker.generateString(15) },
+      createFileRequest: { title: apiSdk.faker.generateString(15) },
     });
     const fileId = fileData.response!.id!;
 
@@ -581,7 +581,7 @@ test.describe("GET /api/2.0/group/folder/{id} - Get groups with folder sharing s
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 
@@ -622,7 +622,7 @@ test.describe("GET /api/2.0/group/folder/{id} - Get groups with folder sharing s
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 
@@ -676,7 +676,7 @@ test.describe("GET /api/2.0/group/folder/{id} - Get groups with folder sharing s
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 
@@ -724,7 +724,7 @@ test.describe("GET /api/2.0/group/folder/{id} - Get groups with folder sharing s
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 
@@ -774,7 +774,7 @@ test.describe("GET /api/2.0/group/folder/{id} - Get groups with folder sharing s
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 
@@ -805,7 +805,7 @@ test.describe("GET /api/2.0/group/folder/{id} - Get groups with folder sharing s
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 
@@ -853,7 +853,7 @@ test.describe("GET /api/2.0/group/folder/{id} - Get groups with folder sharing s
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 
@@ -902,7 +902,7 @@ test.describe("GET /api/2.0/group/folder/{id} - Get groups with folder sharing s
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 
@@ -954,7 +954,7 @@ test.describe("GET /api/2.0/group/folder/{id} - Get groups with folder sharing s
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 
@@ -1000,7 +1000,7 @@ test.describe("GET /api/2.0/group/folder/{id} - Get groups with folder sharing s
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 
@@ -1026,7 +1026,7 @@ test.describe("GET /api/2.0/group/folder/{id} - Get groups with folder sharing s
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 
@@ -1061,7 +1061,7 @@ test.describe("GET /api/2.0/group/folder/{id} - Get groups with folder sharing s
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 
@@ -1102,7 +1102,7 @@ test.describe("GET /api/2.0/group/folder/{id} - Get groups with folder sharing s
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 
@@ -1177,13 +1177,13 @@ test.describe("GET /api/2.0/group/folder/{id} - validation and edge cases", () =
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 
     await ownerApi.folders.deleteFolder({
       folderId,
-      deleteFolder: { deleteAfter: true, immediately: true },
+      deleteFolderRequest: { deleteAfter: true, immediately: true },
     });
 
     await expect(async () => {
@@ -1232,7 +1232,7 @@ test.describe("GET /api/2.0/group/folder/{id} - validation and edge cases", () =
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 
@@ -1275,7 +1275,7 @@ test.describe("GET /api/2.0/group/folder/{id} - validation and edge cases", () =
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 
@@ -1321,7 +1321,7 @@ test.describe("GET /api/2.0/group/folder/{id} - validation and edge cases", () =
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 
@@ -1369,7 +1369,7 @@ test.describe("GET /api/2.0/group/folder/{id} - validation and edge cases", () =
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: apiSdk.faker.generateString(15) },
+      createFolderRequest: { title: apiSdk.faker.generateString(15) },
     });
     const folderId = folderData.response!.id!;
 

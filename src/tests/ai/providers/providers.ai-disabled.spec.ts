@@ -25,7 +25,7 @@ test.describe.skip("AI Providers - AI Disabled", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
+      tenantAiAccessSettingsRequestDto: { enabled: false },
     });
 
     const { status } = await ownerApi.providers.aiProfilesCreate({
@@ -47,11 +47,11 @@ test.describe.skip("AI Providers - AI Disabled", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
+      tenantAiAccessSettingsRequestDto: { enabled: false },
     });
 
     const { status } = await ownerApi.providers.aiProfilesDelete({
-      body: String(fakeProviderId),
+      aiProfilesDeleteRequest: String(fakeProviderId),
     });
 
     expect(status).toBe(403);
@@ -63,7 +63,7 @@ test.describe.skip("AI Providers - AI Disabled", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
+      tenantAiAccessSettingsRequestDto: { enabled: false },
     });
 
     const { status } = await ownerApi.providers.aiProfilesList();
@@ -77,7 +77,7 @@ test.describe.skip("AI Providers - AI Disabled", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
+      tenantAiAccessSettingsRequestDto: { enabled: false },
     });
 
     const { status } = await ownerApi.providers.aiProfilesList();
@@ -91,7 +91,7 @@ test.describe.skip("AI Providers - AI Disabled", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
+      tenantAiAccessSettingsRequestDto: { enabled: false },
     });
 
     const { status } = await ownerApi.providers.aiProfilesList();
@@ -105,7 +105,7 @@ test.describe.skip("AI Providers - AI Disabled", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
+      tenantAiAccessSettingsRequestDto: { enabled: false },
     });
 
     const { status } = await ownerApi.providers.aiProfilesListModels({
@@ -121,7 +121,7 @@ test.describe.skip("AI Providers - AI Disabled", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
+      tenantAiAccessSettingsRequestDto: { enabled: false },
     });
 
     const { status } = await ownerApi.providers.aiProfilesListProviderModels({
@@ -141,7 +141,7 @@ test.describe.skip("AI Providers - AI Disabled", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
+      tenantAiAccessSettingsRequestDto: { enabled: false },
     });
 
     const { status } = await ownerApi.providers.aiProfilesUpdate({
@@ -163,7 +163,7 @@ test.describe.skip("AI Providers - AI Disabled", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
+      tenantAiAccessSettingsRequestDto: { enabled: false },
     });
 
     const { status } = await ownerApi.providers.aiProfilesUpdate({
@@ -186,7 +186,7 @@ test.describe.skip("AI Providers - AI Disabled", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
+      tenantAiAccessSettingsRequestDto: { enabled: false },
     });
 
     // With AI disabled the proxy must refuse before touching any provider. Sent

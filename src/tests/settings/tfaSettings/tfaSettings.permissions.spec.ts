@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { TfaRequestsDtoType } from "@onlyoffice/docspace-api-sdk";
+import { TfaType } from "@onlyoffice/docspace-api-sdk";
 import { linkTfaApp, resetTfaAfterTest } from "@/src/helpers/tfa";
 
 // See tfaSettings.spec.ts for why this is needed: enabling TFA App can
@@ -17,7 +17,7 @@ test.describe("PUT /api/2.0/settings/tfaapp - access control", () => {
     const { status } = await apiSdk
       .forAnonymous()
       .tfaSettings.updateTfaSettings({
-        tfaRequestsDto: { type: TfaRequestsDtoType.App },
+        tfaRequestDto: { type: TfaType.App },
       });
 
     expect(status).toBe(401);
@@ -31,7 +31,7 @@ test.describe("PUT /api/2.0/settings/tfaapp - access control", () => {
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
       .tfaSettings.updateTfaSettings({
-        tfaRequestsDto: { type: TfaRequestsDtoType.App },
+        tfaRequestDto: { type: TfaType.App },
       });
 
     expect(status).toBe(403);
@@ -46,7 +46,7 @@ test.describe("PUT /api/2.0/settings/tfaapp - access control", () => {
     const { data, status } = await apiSdk
       .forRole("user")
       .tfaSettings.updateTfaSettings({
-        tfaRequestsDto: { type: TfaRequestsDtoType.App },
+        tfaRequestDto: { type: TfaType.App },
       });
 
     expect(status).toBe(403);
@@ -61,7 +61,7 @@ test.describe("PUT /api/2.0/settings/tfaapp - access control", () => {
     const { data, status } = await apiSdk
       .forRole("guest")
       .tfaSettings.updateTfaSettings({
-        tfaRequestsDto: { type: TfaRequestsDtoType.App },
+        tfaRequestDto: { type: TfaType.App },
       });
 
     expect(status).toBe(403);
@@ -86,7 +86,7 @@ test.describe("PUT /api/2.0/settings/tfaappwithlink - access control", () => {
     const { status } = await apiSdk
       .forAnonymous()
       .tfaSettings.updateTfaSettingsLink({
-        tfaRequestsDto: { type: TfaRequestsDtoType.App },
+        tfaRequestDto: { type: TfaType.App },
       });
 
     expect(status).toBe(401);
@@ -100,7 +100,7 @@ test.describe("PUT /api/2.0/settings/tfaappwithlink - access control", () => {
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
       .tfaSettings.updateTfaSettingsLink({
-        tfaRequestsDto: { type: TfaRequestsDtoType.App },
+        tfaRequestDto: { type: TfaType.App },
       });
 
     expect(status).toBe(403);
@@ -115,7 +115,7 @@ test.describe("PUT /api/2.0/settings/tfaappwithlink - access control", () => {
     const { data, status } = await apiSdk
       .forRole("user")
       .tfaSettings.updateTfaSettingsLink({
-        tfaRequestsDto: { type: TfaRequestsDtoType.App },
+        tfaRequestDto: { type: TfaType.App },
       });
 
     expect(status).toBe(403);
@@ -130,7 +130,7 @@ test.describe("PUT /api/2.0/settings/tfaappwithlink - access control", () => {
     const { data, status } = await apiSdk
       .forRole("guest")
       .tfaSettings.updateTfaSettingsLink({
-        tfaRequestsDto: { type: TfaRequestsDtoType.App },
+        tfaRequestDto: { type: TfaType.App },
       });
 
     expect(status).toBe(403);
@@ -157,7 +157,7 @@ test.describe("POST /api/2.0/settings/tfaapp/validate - access control", () => {
     const { status } = await apiSdk
       .forAnonymous()
       .tfaSettings.tfaValidateAuthCode({
-        tfaValidateRequestsDto: { code: "000000" },
+        tfaValidateRequestDto: { code: "000000" },
       });
 
     expect(status).toBe(401);
@@ -204,7 +204,7 @@ test.describe("PUT /api/2.0/settings/tfaappnewapp - access control", () => {
   }) => {
     const { status } = await apiSdk
       .forAnonymous()
-      .tfaSettings.unlinkTfaApp({ tfaRequestsDto: {} });
+      .tfaSettings.unlinkTfaApp({ tfaRequestDto: {} });
 
     expect(status).toBe(401);
   });
@@ -229,7 +229,7 @@ test.describe("PUT /api/2.0/settings/tfaappnewapp - access control", () => {
 
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
-      .tfaSettings.unlinkTfaApp({ tfaRequestsDto: { id: targetId } });
+      .tfaSettings.unlinkTfaApp({ tfaRequestDto: { id: targetId } });
 
     expect(status).toBe(403);
     expect((data as any).error?.message).toBe(
@@ -256,7 +256,7 @@ test.describe("PUT /api/2.0/settings/tfaappnewapp - access control", () => {
 
     const { data, status } = await apiSdk
       .forRole("user")
-      .tfaSettings.unlinkTfaApp({ tfaRequestsDto: { id: targetId } });
+      .tfaSettings.unlinkTfaApp({ tfaRequestDto: { id: targetId } });
 
     expect(status).toBe(403);
     expect((data as any).error?.message).toBe(
@@ -280,7 +280,7 @@ test.describe("PUT /api/2.0/settings/tfaappnewapp - access control", () => {
 
     const { data, status } = await apiSdk
       .forRole("guest")
-      .tfaSettings.unlinkTfaApp({ tfaRequestsDto: { id: targetId } });
+      .tfaSettings.unlinkTfaApp({ tfaRequestDto: { id: targetId } });
 
     expect(status).toBe(403);
     expect((data as any).error?.message).toBe(
@@ -307,7 +307,7 @@ test.describe("PUT /api/2.0/settings/tfaappnewapp - access control", () => {
 
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
-      .tfaSettings.unlinkTfaApp({ tfaRequestsDto: { id: targetId } });
+      .tfaSettings.unlinkTfaApp({ tfaRequestDto: { id: targetId } });
 
     expect(status).toBe(403);
     expect((data as any).error?.message).toBe(

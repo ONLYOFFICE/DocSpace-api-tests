@@ -1623,7 +1623,7 @@ test.describe("GET /files/recent - the Forms section", () => {
     const formFileId = await createOoForm(ownerApi, ffrId);
     const { data: docx } = await ownerApi.files.createFile({
       folderId: customId,
-      createFileJsonElement: { title: "recent-in-custom.docx" },
+      createFileRequest: { title: "recent-in-custom.docx" },
     });
     const docxId = docx.response!.id!;
 
@@ -3147,19 +3147,19 @@ test.describe("GET /api/2.0/files/:folderId - Shared with me: PDF filters (BUG 8
     const userId = userData.response!.id!;
 
     const { data: docxData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Shared PdfForm Filter Doc" },
+      createFileRequest: { title: "Autotest Shared PdfForm Filter Doc" },
     });
     const docxTitle = docxData.response!.title!;
 
     const { data: pdfSourceData } =
       await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: {
+        createFileRequest: {
           title: "Autotest Shared PdfForm Filter Pdf Source",
         },
       });
     const { data: pdfData } = await ownerApi.files.saveFileAsPdf({
       id: pdfSourceData.response!.id!,
-      saveAsPdf: {
+      saveAsPdfRequest: {
         folderId: myDocsFolderId,
         title: "Autotest Shared PdfForm Filter Pdf",
       },
@@ -3215,19 +3215,19 @@ test.describe("GET /api/2.0/files/:folderId - Shared with me: PDF filters (BUG 8
     const userId = userData.response!.id!;
 
     const { data: docxData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Shared Pdf Filter Doc" },
+      createFileRequest: { title: "Autotest Shared Pdf Filter Doc" },
     });
     const docxTitle = docxData.response!.title!;
 
     const { data: pdfSourceData } =
       await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: {
+        createFileRequest: {
           title: "Autotest Shared Pdf Filter Pdf Source",
         },
       });
     const { data: pdfData } = await ownerApi.files.saveFileAsPdf({
       id: pdfSourceData.response!.id!,
-      saveAsPdf: {
+      saveAsPdfRequest: {
         folderId: myDocsFolderId,
         title: "Autotest Shared Pdf Filter Pdf",
       },
@@ -3283,14 +3283,16 @@ test.describe("GET /api/2.0/files/:folderId - Shared with me: PDF filters (BUG 8
     const userId = userData.response!.id!;
 
     const { data: docxData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Shared FoldersOnly Filter Doc",
       },
     });
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Shared FoldersOnly Filter Folder" },
+      createFolderRequest: {
+        title: "Autotest Shared FoldersOnly Filter Folder",
+      },
     });
     const folderTitle = folderData.response!.title!;
 

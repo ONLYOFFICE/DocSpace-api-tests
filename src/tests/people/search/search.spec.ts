@@ -34,7 +34,7 @@ test.describe("GET /accounts/file/:id/search - Search accounts for file sharing"
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Search File",
       },
     });
@@ -89,7 +89,7 @@ test.describe("GET /accounts/file/:id/search - Search accounts for file sharing"
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Search File",
       },
     });
@@ -144,7 +144,7 @@ test.describe("GET /accounts/file/:id/search - Search accounts for file sharing"
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Search File",
       },
     });
@@ -191,7 +191,7 @@ test.describe("GET /people/file/:id - Search users for file sharing", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Users File",
       },
     });
@@ -239,7 +239,7 @@ test.describe("GET /people/file/:id - Search users for file sharing", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Users File",
       },
     });
@@ -294,7 +294,7 @@ test.describe("GET /people/file/:id - Search users for file sharing", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Users File",
       },
     });
@@ -352,7 +352,7 @@ test.describe("GET /people/file/:id - Search users for file sharing", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Users File",
       },
     });
@@ -400,7 +400,7 @@ test.describe("GET /accounts/folder/:id/search - Search accounts for folder shar
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: {
+      createFolderRequest: {
         title: "Autotest Search Folder",
       },
     });
@@ -457,7 +457,7 @@ test.describe("GET /accounts/folder/:id/search - Search accounts for folder shar
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: {
+      createFolderRequest: {
         title: "Autotest Search Folder",
       },
     });
@@ -512,7 +512,7 @@ test.describe("GET /accounts/folder/:id/search - Search accounts for folder shar
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: {
+      createFolderRequest: {
         title: "Autotest Search Folder",
       },
     });
@@ -559,7 +559,7 @@ test.describe("GET /people/folder/:id - Search users for folder sharing", () => 
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: {
+      createFolderRequest: {
         title: "Autotest Users Folder",
       },
     });
@@ -608,7 +608,7 @@ test.describe("GET /people/folder/:id - Search users for folder sharing", () => 
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: {
+      createFolderRequest: {
         title: "Autotest Users Folder",
       },
     });
@@ -663,7 +663,7 @@ test.describe("GET /people/folder/:id - Search users for folder sharing", () => 
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: {
+      createFolderRequest: {
         title: "Autotest Users Folder",
       },
     });
@@ -721,7 +721,7 @@ test.describe("GET /people/folder/:id - Search users for folder sharing", () => 
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: {
+      createFolderRequest: {
         title: "Autotest Users Folder",
       },
     });

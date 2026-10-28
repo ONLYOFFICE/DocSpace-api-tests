@@ -769,7 +769,7 @@ test.describe("GET /api/2.0/portal/users/:userID - Get user by ID", () => {
     const userId = userData.response!.id!;
 
     const { data, status } = await ownerApi.users.getUserById({
-      userID: userId,
+      userId: userId,
     });
 
     expect(status).toBe(200);
@@ -798,7 +798,7 @@ test.describe("GET /api/2.0/portal/users/:userID - Get user by ID", () => {
     );
 
     const { data, status } = await adminApi.users.getUserById({
-      userID: userId,
+      userId: userId,
     });
 
     expect(status).toBe(200);
@@ -827,7 +827,7 @@ test.describe("GET /api/2.0/portal/users/:userID - Get user by ID", () => {
     );
 
     const { data, status } = await roomAdminApi.users.getUserById({
-      userID: userId,
+      userId: userId,
     });
 
     expect(status).toBe(200);

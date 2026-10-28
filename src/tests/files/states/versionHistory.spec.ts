@@ -95,7 +95,7 @@ async function threeVersions(
   for (const n of [1, 2, 3]) {
     const { data } = await ownerApi.files.createHtmlFile({
       folderId,
-      createTextOrHtmlFile: {
+      createTextOrHtmlFileRequest: {
         title,
         content: `v${n}`,
         createNewIfExist: true,
@@ -160,7 +160,7 @@ test.describe("Version history - room type and access level matrix", () => {
         const changeId = await threeVersions(ownerApi, roomId, "Change me");
         const { data: logFile } = await ownerApi.files.createFile({
           folderId: roomId,
-          createFileJsonElement: { title: "Autotest Log.docx" },
+          createFileRequest: { title: "Autotest Log.docx" },
         });
         const logId = logFile.response!.id!;
         const api = await invite(apiSdk, roomId, level.type, level.access);
@@ -216,7 +216,7 @@ test.describe("Version history - room type and access level matrix", () => {
           const before = await versionCount(ownerApi, changeId);
           const { status } = await api.files.changeVersionHistory({
             fileId: changeId,
-            changeHistory: { version: 2, continueVersion: true },
+            changeHistoryRequest: { version: 2, continueVersion: true },
           });
           expect(status).toBe(canEditHistory ? 200 : 403);
           if (!canEditHistory) {
@@ -293,20 +293,20 @@ test.describe("restoreFileVersion and changeVersionHistory - file states", () =>
     );
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest History State.docx" },
+      createFileRequest: { title: "Autotest History State.docx" },
     });
     const fileId = created.response!.id!;
     const api = await invite(apiSdk, roomId, "User", FileShare.ContentCreator);
     if (state === "locked") {
       const { status } = await ownerApi.files.lockFile({
         fileId,
-        lockFileParameters: { lockFile: true },
+        lockFileRequest: { lockFile: true },
       });
       expect(status).toBe(200);
     } else {
       const { status } = await ownerApi.files.startEditFile({
         fileId,
-        startEdit: { editingAlone: true },
+        startEditRequest: { editingAlone: true },
       });
       expect(status).toBe(200);
     }
@@ -329,7 +329,7 @@ test.describe("restoreFileVersion and changeVersionHistory - file states", () =>
 
       await api.files.changeVersionHistory({
         fileId,
-        changeHistory: { version: 0, continueVersion: false },
+        changeHistoryRequest: { version: 0, continueVersion: false },
       });
 
       expect(await versionCount(ownerApi, fileId)).toBe(before);
@@ -345,7 +345,7 @@ test.describe("restoreFileVersion and changeVersionHistory - file states", () =>
 
       const { status } = await api.files.changeVersionHistory({
         fileId,
-        changeHistory: { version: 0, continueVersion: false },
+        changeHistoryRequest: { version: 0, continueVersion: false },
       });
 
       expect(status).not.toBe(500);
@@ -364,7 +364,7 @@ test.describe("restoreFileVersion and changeVersionHistory - file states", () =>
 
       const { status } = await api.files.changeVersionHistory({
         fileId,
-        changeHistory: { version: 0, continueVersion: false },
+        changeHistoryRequest: { version: 0, continueVersion: false },
       });
 
       expect(await versionCount(ownerApi, fileId)).toBe(before);
@@ -387,7 +387,7 @@ test.describe("restoreFileVersion and changeVersionHistory - file states", () =>
 
     const { data, status } = await ownerApi.files.changeVersionHistory({
       fileId,
-      changeHistory: { version: 0, continueVersion: false },
+      changeHistoryRequest: { version: 0, continueVersion: false },
     });
 
     expect(status).toBe(200);
@@ -431,16 +431,16 @@ test.describe("restoreFileVersion and changeVersionHistory - file states", () =>
     );
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Log Order.docx" },
+      createFileRequest: { title: "Autotest Log Order.docx" },
     });
     const fileId = created.response!.id!;
     await ownerApi.files.updateFile({
       fileId,
-      updateFile: { title: "Renamed once" },
+      updateFileRequest: { title: "Renamed once" },
     });
     await ownerApi.files.updateFile({
       fileId,
-      updateFile: { title: "Renamed twice" },
+      updateFileRequest: { title: "Renamed twice" },
     });
 
     const { data } = await ownerApi.files.getFileHistory({ fileId });
@@ -474,7 +474,10 @@ test.describe("restoreFileVersion and changeVersionHistory - file states", () =>
       );
       const { data } = await ownerApi.files.createHtmlFile({
         folderId: roomId,
-        createTextOrHtmlFile: { title: "Autotest Log Html", content: "<p/>" },
+        createTextOrHtmlFileRequest: {
+          title: "Autotest Log Html",
+          content: "<p/>",
+        },
       });
       const fileId = (data.response as { id: number }).id;
 

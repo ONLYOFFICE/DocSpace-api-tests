@@ -36,7 +36,7 @@ test.describe("PUT /api/2.0/settings/cookiesettings", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .cookies.updateCookieSettings({
-        cookieSettingsRequestsDto: { lifeTime: 720, enabled: true },
+        cookieSettingsRequestDto: { lifeTime: 720, enabled: true },
       });
 
     expect(status).toBe(200);
@@ -54,7 +54,7 @@ test.describe("PUT /api/2.0/settings/cookiesettings", () => {
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
       .cookies.updateCookieSettings({
-        cookieSettingsRequestsDto: { lifeTime: 720, enabled: true },
+        cookieSettingsRequestDto: { lifeTime: 720, enabled: true },
       });
 
     expect(status).toBe(200);

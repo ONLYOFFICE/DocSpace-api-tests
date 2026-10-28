@@ -95,13 +95,13 @@ test.describe("/api/2.0/apps - scenarios", () => {
       setEnabled: (
         await owner.apps.setEnabled({
           id,
-          setAppEnabledBody: { enabled: true },
+          setAppEnabledRequest: { enabled: true },
         })
       ).status,
       setSettings: (
         await owner.apps.setSettings({
           id,
-          setAppSettingsBody: { settings: { a: 1 } },
+          setAppSettingsRequest: { settings: { a: 1 } },
         })
       ).status,
     };

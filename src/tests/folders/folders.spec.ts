@@ -46,7 +46,7 @@ test.describe("POST /files/folder/:folderId - Create folder", () => {
 
     const { data, status } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder" },
+      createFolderRequest: { title: "Autotest Folder" },
     });
 
     expect(status).toBe(200);
@@ -65,7 +65,7 @@ test.describe("POST /files/folder/:folderId - Create folder", () => {
 
     const { data, status } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder In My Docs" },
+      createFolderRequest: { title: "Autotest Folder In My Docs" },
     });
 
     expect(status).toBe(200);
@@ -86,7 +86,7 @@ test.describe("PUT /files/folder/:folderId/order - Set folder order", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder For Order" },
+      createFolderRequest: { title: "Autotest Folder For Order" },
     });
     const folderId = folderData.response!.id!;
 
@@ -110,14 +110,14 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder To Delete Immediately" },
+      createFolderRequest: { title: "Autotest Folder To Delete Immediately" },
     });
     const folderId = folderData.response!.id!;
 
     await test.step("DELETE folder (immediately: true)  -  operation is created", async () => {
       const { data, status } = await ownerApi.folders.deleteFolder({
         folderId,
-        deleteFolder: { deleteAfter: true, immediately: true },
+        deleteFolderRequest: { deleteAfter: true, immediately: true },
       });
 
       expect(status).toBe(200);
@@ -153,14 +153,14 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
     const folderTitle = "Autotest Folder To Trash";
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: folderTitle },
+      createFolderRequest: { title: folderTitle },
     });
     const folderId = folderData.response!.id!;
 
     await test.step("DELETE folder (immediately: false)  -  operation is created", async () => {
       const { data, status } = await ownerApi.folders.deleteFolder({
         folderId,
-        deleteFolder: { deleteAfter: true, immediately: false },
+        deleteFolderRequest: { deleteAfter: true, immediately: false },
       });
 
       expect(status).toBe(200);
@@ -215,14 +215,16 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
 
     const { data: folderData } = await adminApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder Created By DocSpaceAdmin" },
+      createFolderRequest: {
+        title: "Autotest Folder Created By DocSpaceAdmin",
+      },
     });
     const folderId = folderData.response!.id!;
 
     await test.step("Owner deletes DocSpaceAdmin's folder  -  operation is created", async () => {
       const { data, status } = await ownerApi.folders.deleteFolder({
         folderId,
-        deleteFolder: { deleteAfter: true, immediately: true },
+        deleteFolderRequest: { deleteAfter: true, immediately: true },
       });
 
       expect(status).toBe(200);
@@ -262,14 +264,14 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder In Room" },
+      createFolderRequest: { title: "Autotest Folder In Room" },
     });
     const folderId = folderData.response!.id!;
 
     await test.step("DELETE folder in room  -  operation is created", async () => {
       const { data, status } = await ownerApi.folders.deleteFolder({
         folderId,
-        deleteFolder: { deleteAfter: true, immediately: true },
+        deleteFolderRequest: { deleteAfter: true, immediately: true },
       });
 
       expect(status).toBe(200);
@@ -304,20 +306,20 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
 
     const { data: parentData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Parent Folder" },
+      createFolderRequest: { title: "Autotest Parent Folder" },
     });
     const parentId = parentData.response!.id!;
 
     const { data: childData } = await ownerApi.folders.createFolder({
       folderId: parentId,
-      createFolder: { title: "Autotest Child Folder" },
+      createFolderRequest: { title: "Autotest Child Folder" },
     });
     const childId = childData.response!.id!;
 
     await test.step("DELETE parent folder  -  operation is created", async () => {
       const { data, status } = await ownerApi.folders.deleteFolder({
         folderId: parentId,
-        deleteFolder: { deleteAfter: true, immediately: true },
+        deleteFolderRequest: { deleteAfter: true, immediately: true },
       });
 
       expect(status).toBe(200);
@@ -356,19 +358,19 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder With Files" },
+      createFolderRequest: { title: "Autotest Folder With Files" },
     });
     const folderId = folderData.response!.id!;
 
     await ownerApi.files.createFile({
       folderId,
-      createFileJsonElement: { title: "Autotest File Inside Folder" },
+      createFileRequest: { title: "Autotest File Inside Folder" },
     });
 
     await test.step("DELETE folder with files  -  operation is created", async () => {
       const { data, status } = await ownerApi.folders.deleteFolder({
         folderId,
-        deleteFolder: { deleteAfter: true, immediately: true },
+        deleteFolderRequest: { deleteAfter: true, immediately: true },
       });
 
       expect(status).toBe(200);
@@ -403,13 +405,13 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder For Double Delete" },
+      createFolderRequest: { title: "Autotest Folder For Double Delete" },
     });
     const folderId = folderData.response!.id!;
 
     await ownerApi.folders.deleteFolder({
       folderId,
-      deleteFolder: { deleteAfter: true, immediately: true },
+      deleteFolderRequest: { deleteAfter: true, immediately: true },
     });
 
     await expect(async () => {
@@ -421,7 +423,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
 
     const { status } = await ownerApi.folders.deleteFolder({
       folderId,
-      deleteFolder: { deleteAfter: true, immediately: true },
+      deleteFolderRequest: { deleteAfter: true, immediately: true },
     });
 
     expect(status).toBe(404);
@@ -435,7 +437,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
 
     const { status } = await ownerApi.folders.deleteFolder({
       folderId: nonExistentFolderId,
-      deleteFolder: { deleteAfter: true, immediately: true },
+      deleteFolderRequest: { deleteAfter: true, immediately: true },
     });
 
     expect(status).toBe(404);
@@ -485,7 +487,7 @@ test.describe("POST /files/{folderId}/upload/check - Check file uploads", () => 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId,
-      createFileJsonElement: { title: "Autotest Existing File.docx" },
+      createFileRequest: { title: "Autotest Existing File.docx" },
     });
     const existingTitle = fileData.response!.title!;
 
@@ -516,7 +518,7 @@ test.describe("POST /files/{folderId}/upload/check - Check file uploads", () => 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId,
-      createFileJsonElement: { title: "Autotest Conflicting File.docx" },
+      createFileRequest: { title: "Autotest Conflicting File.docx" },
     });
     const existingTitle = fileData.response!.title!;
     const newTitle = "Brand New Non-Conflicting File.docx";
@@ -550,11 +552,11 @@ test.describe("POST /files/{folderId}/upload/check - Check file uploads", () => 
 
     const { data: file1Data } = await ownerApi.files.createFile({
       folderId,
-      createFileJsonElement: { title: "Autotest File One.docx" },
+      createFileRequest: { title: "Autotest File One.docx" },
     });
     const { data: file2Data } = await ownerApi.files.createFile({
       folderId,
-      createFileJsonElement: { title: "Autotest File Two.docx" },
+      createFileRequest: { title: "Autotest File Two.docx" },
     });
     const title1 = file1Data.response!.title!;
     const title2 = file2Data.response!.title!;
@@ -635,13 +637,13 @@ test.describe("POST /files/{folderId}/upload/check - Check file uploads", () => 
 
     const { data: subfolderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder For Check" },
+      createFolderRequest: { title: "Autotest Subfolder For Check" },
     });
     const subfolderId = subfolderData.response!.id!;
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: subfolderId,
-      createFileJsonElement: { title: "Autotest File In Subfolder.docx" },
+      createFileRequest: { title: "Autotest File In Subfolder.docx" },
     });
     const existingTitle = fileData.response!.title!;
 
@@ -667,7 +669,7 @@ test.describe("POST /files/{folderId}/upload/check - Check file uploads", () => 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId,
-      createFileJsonElement: { title: "Autotest Dup File.docx" },
+      createFileRequest: { title: "Autotest Dup File.docx" },
     });
     const existingTitle = fileData.response!.title!;
 
@@ -699,7 +701,7 @@ test.describe("POST /files/{folderId}/upload/check - Check file uploads", () => 
 
     await ownerApi.files.createFile({
       folderId,
-      createFileJsonElement: { title: "Autotest Case File.docx" },
+      createFileRequest: { title: "Autotest Case File.docx" },
     });
 
     const { data, status } = await ownerApi.folders.checkUpload({
@@ -760,7 +762,7 @@ test.describe("POST /files/{folderId}/upload/check - Check file uploads", () => 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId,
-      createFileJsonElement: { title: "Autotest My Docs File.docx" },
+      createFileRequest: { title: "Autotest My Docs File.docx" },
     });
     const existingTitle = fileData.response!.title!;
 
@@ -792,7 +794,7 @@ test.describe("GET /files/:folderId/formfilter - Get folder form filter", () => 
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Empty Folder For Filter" },
+      createFolderRequest: { title: "Autotest Empty Folder For Filter" },
     });
     const folderId = folderData.response!.id!;
 
@@ -813,17 +815,17 @@ test.describe("GET /files/:folderId/formfilter - Get folder form filter", () => 
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder With Uploaded Files" },
+      createFolderRequest: { title: "Autotest Folder With Uploaded Files" },
     });
     const folderId = folderData.response!.id!;
 
     await ownerApi.files.createFile({
       folderId,
-      createFileJsonElement: { title: "Autotest Uploaded Doc" },
+      createFileRequest: { title: "Autotest Uploaded Doc" },
     });
     await ownerApi.files.createFile({
       folderId,
-      createFileJsonElement: { title: "Autotest Uploaded Doc 2" },
+      createFileRequest: { title: "Autotest Uploaded Doc 2" },
     });
 
     const { data, status } = await ownerApi.folders.getFolder({ folderId });
@@ -848,14 +850,14 @@ test.describe("GET /files/:folderId/formfilter - Get folder form filter", () => 
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Busy Folder" },
+      createFolderRequest: { title: "Autotest Busy Folder" },
     });
     const folderId = folderData.response!.id!;
 
     for (let i = 1; i <= 10; i++) {
       await ownerApi.files.createFile({
         folderId,
-        createFileJsonElement: { title: `Autotest File ${i}` },
+        createFileRequest: { title: `Autotest File ${i}` },
       });
     }
 
@@ -888,13 +890,13 @@ test.describe("GET /files/:folderId/formfilter - Get folder form filter", () => 
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder For Filter After Delete" },
+      createFolderRequest: { title: "Autotest Folder For Filter After Delete" },
     });
     const folderId = folderData.response!.id!;
 
     await ownerApi.folders.deleteFolder({
       folderId,
-      deleteFolder: { deleteAfter: true, immediately: true },
+      deleteFolderRequest: { deleteAfter: true, immediately: true },
     });
 
     await expect(async () => {
@@ -956,7 +958,7 @@ test.describe("GET /api/2.0/files/folder/:folderId - Get folder information", ()
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder For Info" },
+      createFolderRequest: { title: "Autotest Folder For Info" },
     });
     const folderId = folderData.response!.id!;
 
@@ -982,7 +984,7 @@ test.describe("GET /api/2.0/files/folder/:folderId - Get folder information", ()
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder Parent Check" },
+      createFolderRequest: { title: "Autotest Folder Parent Check" },
     });
     const folderId = folderData.response!.id!;
 
@@ -1006,21 +1008,21 @@ test.describe("GET /api/2.0/files/folder/:folderId - Get folder information", ()
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder Count Check" },
+      createFolderRequest: { title: "Autotest Folder Count Check" },
     });
     const folderId = folderData.response!.id!;
 
     await ownerApi.files.createFile({
       folderId,
-      createFileJsonElement: { title: "Autotest File 1" },
+      createFileRequest: { title: "Autotest File 1" },
     });
     await ownerApi.files.createFile({
       folderId,
-      createFileJsonElement: { title: "Autotest File 2" },
+      createFileRequest: { title: "Autotest File 2" },
     });
     await ownerApi.folders.createFolder({
       folderId,
-      createFolder: { title: "Autotest Subfolder" },
+      createFolderRequest: { title: "Autotest Subfolder" },
     });
 
     const { data, status } = await ownerApi.folders.getFolderInfo({ folderId });
@@ -1044,7 +1046,7 @@ test.describe("GET /api/2.0/files/folder/:folderId - Get folder information", ()
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Empty Folder Info" },
+      createFolderRequest: { title: "Autotest Empty Folder Info" },
     });
     const folderId = folderData.response!.id!;
 
@@ -1096,13 +1098,13 @@ test.describe("GET /api/2.0/files/folder/:folderId - Get folder information", ()
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder For Info After Delete" },
+      createFolderRequest: { title: "Autotest Folder For Info After Delete" },
     });
     const folderId = folderData.response!.id!;
 
     await ownerApi.folders.deleteFolder({
       folderId,
-      deleteFolder: { deleteAfter: true, immediately: true },
+      deleteFolderRequest: { deleteAfter: true, immediately: true },
     });
 
     await expect(async () => {
@@ -1191,14 +1193,14 @@ test.describe("GET /api/2.0/files/folder/:folderId - Get folder information", ()
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder Many Files" },
+      createFolderRequest: { title: "Autotest Folder Many Files" },
     });
     const folderId = folderData.response!.id!;
 
     for (let i = 1; i <= 10; i++) {
       await ownerApi.files.createFile({
         folderId,
-        createFileJsonElement: { title: `Autotest File ${i}` },
+        createFileRequest: { title: `Autotest File ${i}` },
       });
     }
 
@@ -1217,17 +1219,17 @@ test.describe("GET /api/2.0/files/folder/:folderId - Get folder information", ()
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder Uploaded Files Info" },
+      createFolderRequest: { title: "Autotest Folder Uploaded Files Info" },
     });
     const folderId = folderData.response!.id!;
 
     await ownerApi.files.createFile({
       folderId,
-      createFileJsonElement: { title: "Autotest Uploaded Doc 1" },
+      createFileRequest: { title: "Autotest Uploaded Doc 1" },
     });
     await ownerApi.files.createFile({
       folderId,
-      createFileJsonElement: { title: "Autotest Uploaded Doc 2" },
+      createFileRequest: { title: "Autotest Uploaded Doc 2" },
     });
 
     const { data, status } = await ownerApi.folders.getFolderInfo({ folderId });
@@ -1255,11 +1257,11 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - Get subfolders", () => 
     const title2 = "Autotest Subfolder Beta";
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: title1 },
+      createFolderRequest: { title: title1 },
     });
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: title2 },
+      createFolderRequest: { title: title2 },
     });
 
     const { data, status } = await ownerApi.folders.getFolders({
@@ -1286,7 +1288,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - Get subfolders", () => 
     for (let i = 1; i <= 3; i++) {
       await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: `Autotest Subfolder Count ${i}` },
+        createFolderRequest: { title: `Autotest Subfolder Count ${i}` },
       });
     }
 
@@ -1306,12 +1308,12 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - Get subfolders", () => 
     const myDocsFolderId = myDocsData.response!.current!.id!;
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder Files Only Subfolders" },
+      createFolderRequest: { title: "Autotest Folder Files Only Subfolders" },
     });
     const folderId = folderData.response!.id!;
     await ownerApi.files.createFile({
       folderId,
-      createFileJsonElement: { title: "Autotest File Only" },
+      createFileRequest: { title: "Autotest File Only" },
     });
 
     const { data, status } = await ownerApi.folders.getFolders({ folderId });
@@ -1334,7 +1336,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - Get subfolders", () => 
     for (let i = 1; i <= 10; i++) {
       await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: `Autotest Subfolder ${i}` },
+        createFolderRequest: { title: `Autotest Subfolder ${i}` },
       });
     }
 
@@ -1359,12 +1361,12 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - Get subfolders", () => 
     const roomId = roomData.response!.id!;
     const { data: directData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Direct Subfolder" },
+      createFolderRequest: { title: "Autotest Direct Subfolder" },
     });
     const directId = directData.response!.id!;
     await ownerApi.folders.createFolder({
       folderId: directId,
-      createFolder: { title: "Autotest Nested Subfolder" },
+      createFolderRequest: { title: "Autotest Nested Subfolder" },
     });
 
     const { data, status } = await ownerApi.folders.getFolders({
@@ -1448,13 +1450,15 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - Get subfolders", () => 
     const myDocsFolderId = myDocsData.response!.current!.id!;
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder For Subfolders After Delete" },
+      createFolderRequest: {
+        title: "Autotest Folder For Subfolders After Delete",
+      },
     });
     const folderId = folderData.response!.id!;
 
     await ownerApi.folders.deleteFolder({
       folderId,
-      deleteFolder: { deleteAfter: true, immediately: true },
+      deleteFolderRequest: { deleteAfter: true, immediately: true },
     });
     await expect(async () => {
       const { status } = await ownerApi.folders.getFolderByFolderId({
@@ -1481,7 +1485,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - Get subfolders", () => 
     const roomId = roomData.response!.id!;
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder In Custom Room" },
+      createFolderRequest: { title: "Autotest Subfolder In Custom Room" },
     });
 
     const { data, status } = await ownerApi.folders.getFolders({
@@ -1505,7 +1509,9 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - Get subfolders", () => 
     const roomId = roomData.response!.id!;
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder In Filling Forms Room" },
+      createFolderRequest: {
+        title: "Autotest Subfolder In Filling Forms Room",
+      },
     });
 
     const { data, status } = await ownerApi.folders.getFolders({
@@ -1529,7 +1535,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - Get subfolders", () => 
     const roomId = roomData.response!.id!;
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder In Editing Room" },
+      createFolderRequest: { title: "Autotest Subfolder In Editing Room" },
     });
 
     const { data, status } = await ownerApi.folders.getFolders({
@@ -1553,7 +1559,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - Get subfolders", () => 
     const roomId = roomData.response!.id!;
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder In Public Room" },
+      createFolderRequest: { title: "Autotest Subfolder In Public Room" },
     });
 
     const { data, status } = await ownerApi.folders.getFolders({
@@ -1577,7 +1583,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - Get subfolders", () => 
     const roomId = roomData.response!.id!;
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder In VDR" },
+      createFolderRequest: { title: "Autotest Subfolder In VDR" },
     });
 
     const { data, status } = await ownerApi.folders.getFolders({
@@ -1601,7 +1607,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - Get subfolders", () => 
     const roomId = roomData.response!.id!;
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder In AI Room" },
+      createFolderRequest: { title: "Autotest Subfolder In AI Room" },
     });
 
     const { data, status } = await ownerApi.folders.getFolders({
@@ -1625,7 +1631,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - Get subfolders", () => 
     const roomId = roomData.response!.id!;
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder In Archived Room" },
+      createFolderRequest: { title: "Autotest Subfolder In Archived Room" },
     });
 
     await ownerApi.rooms.archiveRoom({
@@ -1656,7 +1662,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - Get subfolders", () => 
     for (let i = 1; i <= 30; i++) {
       await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: `Autotest Subfolder Paged ${i}` },
+        createFolderRequest: { title: `Autotest Subfolder Paged ${i}` },
       });
     }
 
@@ -1685,13 +1691,13 @@ test.describe("GET /files/folder/:folderId/subfolders - Get folders list", () =>
 
     const { data: folderAData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder A" },
+      createFolderRequest: { title: "Autotest Folder A" },
     });
     const folderA = folderAData.response!;
 
     const { data: folderBData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder B" },
+      createFolderRequest: { title: "Autotest Folder B" },
     });
     const folderB = folderBData.response!;
 
@@ -1804,11 +1810,11 @@ test.describe("GET /api/2.0/files/@root - Get root folders", () => {
 
     await ownerApi.files.createFile({
       folderId: myDocsId,
-      createFileJsonElement: { title: "Autotest File FoldersOnly Root" },
+      createFileRequest: { title: "Autotest File FoldersOnly Root" },
     });
     await ownerApi.folders.createFolder({
       folderId: myDocsId,
-      createFolder: { title: "Autotest Subfolder FoldersOnly Root" },
+      createFolderRequest: { title: "Autotest Subfolder FoldersOnly Root" },
     });
 
     const { data, status } = await ownerApi.folders.getRootFolders({
@@ -1835,11 +1841,11 @@ test.describe("GET /api/2.0/files/@root - Get root folders", () => {
 
     await ownerApi.files.createFile({
       folderId: myDocsId,
-      createFileJsonElement: { title: "Autotest File FilesOnly Root" },
+      createFileRequest: { title: "Autotest File FilesOnly Root" },
     });
     await ownerApi.folders.createFolder({
       folderId: myDocsId,
-      createFolder: { title: "Autotest Subfolder FilesOnly Root" },
+      createFolderRequest: { title: "Autotest Subfolder FilesOnly Root" },
     });
 
     const { data, status } = await ownerApi.folders.getRootFolders({
@@ -1968,7 +1974,7 @@ test.describe("GET /api/2.0/files/@root - Get root folders", () => {
     for (let i = 1; i <= 3; i++) {
       await ownerApi.files.createFile({
         folderId: myDocsId,
-        createFileJsonElement: { title: `Autotest File Root Count ${i}` },
+        createFileRequest: { title: `Autotest File Root Count ${i}` },
       });
     }
 
@@ -2004,11 +2010,11 @@ test.describe("GET /api/2.0/files/@root - Get root folders", () => {
 
     await ownerApi.files.createFile({
       folderId: myDocsId,
-      createFileJsonElement: { title: uniqueTitle },
+      createFileRequest: { title: uniqueTitle },
     });
     await ownerApi.files.createFile({
       folderId: myDocsId,
-      createFileJsonElement: { title: "Autotest FilterValue Other Root" },
+      createFileRequest: { title: "Autotest FilterValue Other Root" },
     });
 
     const { data, status } = await ownerApi.folders.getRootFolders({
@@ -2057,7 +2063,7 @@ test.describe("GET /api/2.0/files/folder/:folderId/path - Get folder path", () =
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder For Breadcrumb" },
+      createFolderRequest: { title: "Autotest Folder For Breadcrumb" },
     });
     const folderId = folderData.response!.id!;
 
@@ -2087,13 +2093,13 @@ test.describe("GET /api/2.0/files/folder/:folderId/path - Get folder path", () =
 
     const { data: parentData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Parent Folder Path Order" },
+      createFolderRequest: { title: "Autotest Parent Folder Path Order" },
     });
     const parentId = parentData.response!.id!;
 
     const { data: childData } = await ownerApi.folders.createFolder({
       folderId: parentId,
-      createFolder: { title: "Autotest Child Folder Path Order" },
+      createFolderRequest: { title: "Autotest Child Folder Path Order" },
     });
     const childId = childData.response!.id!;
 
@@ -2125,7 +2131,7 @@ test.describe("GET /api/2.0/files/folder/:folderId/path - Get folder path", () =
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder Path Titles Check" },
+      createFolderRequest: { title: "Autotest Folder Path Titles Check" },
     });
     const folderId = folderData.response!.id!;
 
@@ -2172,7 +2178,7 @@ test.describe("GET /api/2.0/files/folder/:folderId/path - Get folder path", () =
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder MyDocs Path Check" },
+      createFolderRequest: { title: "Autotest Folder MyDocs Path Check" },
     });
     const folderId = folderData.response!.id!;
 
@@ -2202,7 +2208,7 @@ test.describe("GET /api/2.0/files/folder/:folderId/path - Get folder path", () =
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder In Archived Room Path" },
+      createFolderRequest: { title: "Autotest Folder In Archived Room Path" },
     });
     const folderId = folderData.response!.id!;
 
@@ -2303,7 +2309,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder by file type
 
     const { data: fileData } = await ownerApi.files.createTextFile({
       folderId: myDocsFolderId,
-      createTextOrHtmlFile: {
+      createTextOrHtmlFileRequest: {
         title: "Autotest Favorites Text File.txt",
         content: "hello",
         createNewIfExist: true,
@@ -2330,7 +2336,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder by file type
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest Favorites Document.docx" },
+      createFileRequest: { title: "Autotest Favorites Document.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2360,7 +2366,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder by file type
     const { data: fileData, status: createStatus } =
       await ownerApi.files.createHtmlFile({
         folderId: myDocsFolderId,
-        createTextOrHtmlFile: {
+        createTextOrHtmlFileRequest: {
           title: "Autotest Favorites HTML File.html",
           content: "<p>test</p>",
           createNewIfExist: true,
@@ -2395,7 +2401,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder by file type
 
     const { data: txtData } = await ownerApi.files.createTextFile({
       folderId: myDocsFolderId,
-      createTextOrHtmlFile: {
+      createTextOrHtmlFileRequest: {
         title: "Autotest Favorites Mixed Text.txt",
         content: "a",
         createNewIfExist: true,
@@ -2408,7 +2414,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder by file type
 
     const { data: docxData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest Favorites Mixed Doc.docx" },
+      createFileRequest: { title: "Autotest Favorites Mixed Doc.docx" },
     });
     await ownerApi.files.toggleFileFavorite({
       fileId: docxData.response!.id!,
@@ -2436,7 +2442,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder by file type
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest Favorites Removed Doc.docx" },
+      createFileRequest: { title: "Autotest Favorites Removed Doc.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2492,7 +2498,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Favorites isFavorite Check.docx",
       },
     });
@@ -2520,7 +2526,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Favorites Folder Target" },
+      createFolderRequest: { title: "Autotest Favorites Folder Target" },
     });
     const folderId = folderData.response!.id!;
 
@@ -2545,7 +2551,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Favorites FolderOnly File.docx",
       },
     });
@@ -2556,7 +2562,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Favorites FolderOnly Folder" },
+      createFolderRequest: { title: "Autotest Favorites FolderOnly Folder" },
     });
     await ownerApi.operations.addFavorites({
       baseBatchRequestDto: { folderIds: [folderData.response!.id!] },
@@ -2585,7 +2591,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
     ]) {
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title },
+        createFileRequest: { title },
       });
       await ownerApi.files.toggleFileFavorite({
         fileId: fileData.response!.id!,
@@ -2618,7 +2624,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
     ]) {
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title },
+        createFileRequest: { title },
       });
       await ownerApi.files.toggleFileFavorite({
         fileId: fileData.response!.id!,
@@ -2652,7 +2658,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
 
     const { data: matchFile } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Favorites FilterVal UNIQUE.docx",
       },
     });
@@ -2663,7 +2669,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
 
     const { data: otherFile } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Favorites FilterVal Other.docx",
       },
     });
@@ -2691,7 +2697,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: "Autotest Favorites Deleted File.docx" },
+      createFileRequest: { title: "Autotest Favorites Deleted File.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2699,7 +2705,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
 
     await ownerApi.files.deleteFile({
       fileId,
-      _delete: { immediately: false },
+      deleteFileRequest: { immediately: false },
     });
     await waitForOperation(ownerApi.operations);
 
@@ -2731,7 +2737,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Favorites StartIndex Beyond.docx",
       },
     });
@@ -2764,7 +2770,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Favorites Room File.docx",
       },
     });
@@ -2795,7 +2801,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
 
     const { data: docxData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Favorites DocOnly Doc.docx",
       },
     });
@@ -2806,7 +2812,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
 
     const { data: txtData } = await ownerApi.files.createTextFile({
       folderId: myDocsFolderId,
-      createTextOrHtmlFile: {
+      createTextOrHtmlFileRequest: {
         title: "Autotest Favorites DocOnly Text.txt",
         content: "test",
         createNewIfExist: true,
@@ -2837,7 +2843,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Favorites isFavorite Folder" },
+      createFolderRequest: { title: "Autotest Favorites isFavorite Folder" },
     });
     const folderId = folderData.response!.id!;
 
@@ -2865,7 +2871,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Favorites Remove Folder" },
+      createFolderRequest: { title: "Autotest Favorites Remove Folder" },
     });
     const folderId = folderData.response!.id!;
 
@@ -2893,7 +2899,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Favorites FilterVal NoMatch.docx",
       },
     });
@@ -2922,13 +2928,13 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder Before Rename" },
+      createFolderRequest: { title: "Autotest Folder Before Rename" },
     });
     const folderId = folderData.response!.id!;
 
     const { data, status } = await ownerApi.folders.renameFolder({
       folderId,
-      createFolder: { title: "Autotest Folder After Rename" },
+      createFolderRequest: { title: "Autotest Folder After Rename" },
     });
 
     expect(status).toBe(200);
@@ -2952,13 +2958,13 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Room Folder Before Rename" },
+      createFolderRequest: { title: "Autotest Room Folder Before Rename" },
     });
     const folderId = folderData.response!.id!;
 
     const { data, status } = await ownerApi.folders.renameFolder({
       folderId,
-      createFolder: { title: "Autotest Room Folder After Rename" },
+      createFolderRequest: { title: "Autotest Room Folder After Rename" },
     });
 
     expect(status).toBe(200);
@@ -2981,13 +2987,13 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
 
     const { data: folderData } = await userApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest User Folder Before Rename" },
+      createFolderRequest: { title: "Autotest User Folder Before Rename" },
     });
     const folderId = folderData.response!.id!;
 
     const { data, status } = await userApi.folders.renameFolder({
       folderId,
-      createFolder: { title: "Autotest User Folder After Rename" },
+      createFolderRequest: { title: "Autotest User Folder After Rename" },
     });
 
     expect(status).toBe(200);
@@ -3006,14 +3012,14 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder ParentId Check" },
+      createFolderRequest: { title: "Autotest Folder ParentId Check" },
     });
     const folderId = folderData.response!.id!;
     const parentIdBefore = folderData.response!.parentId!;
 
     const { data, status } = await ownerApi.folders.renameFolder({
       folderId,
-      createFolder: { title: "Autotest Folder ParentId Check Renamed" },
+      createFolderRequest: { title: "Autotest Folder ParentId Check Renamed" },
     });
 
     expect(status).toBe(200);
@@ -3030,13 +3036,13 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder Id Integrity Check" },
+      createFolderRequest: { title: "Autotest Folder Id Integrity Check" },
     });
     const folderId = folderData.response!.id!;
 
     const { data, status } = await ownerApi.folders.renameFolder({
       folderId,
-      createFolder: { title: "Autotest Folder Id Integrity Renamed" },
+      createFolderRequest: { title: "Autotest Folder Id Integrity Renamed" },
     });
 
     expect(status).toBe(200);
@@ -3053,7 +3059,7 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
 
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: "Autotest Folder Special Chars" },
+        createFolderRequest: { title: "Autotest Folder Special Chars" },
       });
       const folderId = folderData.response!.id!;
 
@@ -3061,7 +3067,7 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
 
       const { data, status } = await ownerApi.folders.renameFolder({
         folderId,
-        createFolder: { title: specialTitle },
+        createFolderRequest: { title: specialTitle },
       });
 
       expect(status).toBe(200);
@@ -3079,13 +3085,13 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
     const sameTitle = "Autotest Folder Same Title Rename";
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: sameTitle },
+      createFolderRequest: { title: sameTitle },
     });
     const folderId = folderData.response!.id!;
 
     const { data, status } = await ownerApi.folders.renameFolder({
       folderId,
-      createFolder: { title: sameTitle },
+      createFolderRequest: { title: sameTitle },
     });
 
     expect(status).toBe(200);
@@ -3104,13 +3110,13 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: oldTitle },
+      createFolderRequest: { title: oldTitle },
     });
     const folderId = folderData.response!.id!;
 
     await ownerApi.folders.renameFolder({
       folderId,
-      createFolder: { title: newTitle },
+      createFolderRequest: { title: newTitle },
     });
 
     const { data, status } = await ownerApi.folders.getFolderInfo({ folderId });
@@ -3133,13 +3139,13 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
 
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: oldTitle },
+        createFolderRequest: { title: oldTitle },
       });
       const folderId = folderData.response!.id!;
 
       await ownerApi.folders.renameFolder({
         folderId,
-        createFolder: { title: newTitle },
+        createFolderRequest: { title: newTitle },
       });
 
       const { data, status } = await ownerApi.folders.getFolderByFolderId({
@@ -3164,7 +3170,7 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
 
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: "Autotest Folder Fields Before Rename" },
+        createFolderRequest: { title: "Autotest Folder Fields Before Rename" },
       });
       const folderId = folderData.response!.id!;
 
@@ -3177,7 +3183,7 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
 
       const { data, status } = await ownerApi.folders.renameFolder({
         folderId,
-        createFolder: { title: "Autotest Folder Fields After Rename" },
+        createFolderRequest: { title: "Autotest Folder Fields After Rename" },
       });
 
       const after = {
@@ -3203,7 +3209,7 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
 
     const { status } = await ownerApi.folders.renameFolder({
       folderId: nonExistentFolderId,
-      createFolder: { title: "Autotest Rename Non-Existent Folder" },
+      createFolderRequest: { title: "Autotest Rename Non-Existent Folder" },
     });
 
     expect(status).toBe(404);
@@ -3218,13 +3224,13 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder Empty Title Check" },
+      createFolderRequest: { title: "Autotest Folder Empty Title Check" },
     });
     const folderId = folderData.response!.id!;
 
     const { status } = await ownerApi.folders.renameFolder({
       folderId,
-      createFolder: { title: "" },
+      createFolderRequest: { title: "" },
     });
 
     expect(status).toBe(400);
@@ -3237,7 +3243,7 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
 
     const { status } = await ownerApi.folders.renameFolder({
       folderId: 0,
-      createFolder: { title: "Autotest Rename FolderId Zero" },
+      createFolderRequest: { title: "Autotest Rename FolderId Zero" },
     });
 
     expect(status).toBe(404);
@@ -3316,7 +3322,7 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
     const userApi = await apiSdk.authenticateMember(userCredentials, "User");
     await userApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest News File By User.docx" },
+      createFileRequest: { title: "Autotest News File By User.docx" },
     });
 
     const { data, status } = await ownerApi.folders.getNewFolderItems({
@@ -3358,7 +3364,7 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
 
     await userApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest News Subfolder By User" },
+      createFolderRequest: { title: "Autotest News Subfolder By User" },
     });
 
     const { data, status } = await ownerApi.folders.getNewFolderItems({
@@ -3400,11 +3406,11 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
 
     await userApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest News Count File 1.docx" },
+      createFileRequest: { title: "Autotest News Count File 1.docx" },
     });
     await userApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest News Count File 2.docx" },
+      createFileRequest: { title: "Autotest News Count File 2.docx" },
     });
 
     let titles: (string | null | undefined)[] = [];
@@ -3447,7 +3453,7 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
 
     await userApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest News Fields File.docx" },
+      createFileRequest: { title: "Autotest News Fields File.docx" },
     });
 
     const { data, status } = await ownerApi.folders.getNewFolderItems({
@@ -3501,13 +3507,13 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
     const user1Api = await apiSdk.authenticateMember(user1Credentials, "User");
     await user1Api.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest News File By User1.docx" },
+      createFileRequest: { title: "Autotest News File By User1.docx" },
     });
 
     const user2Api = await apiSdk.authenticateMember(user2Credentials, "User");
     await user2Api.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest News File By User2.docx" },
+      createFileRequest: { title: "Autotest News File By User2.docx" },
     });
 
     const { data, status } = await ownerApi.folders.getNewFolderItems({
@@ -3547,7 +3553,7 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
     // user creates file BEFORE owner visits
     await userApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Pre-Visit File.docx" },
+      createFileRequest: { title: "Autotest Pre-Visit File.docx" },
     });
 
     // owner visits — establishes baseline after file was already created
@@ -3590,7 +3596,7 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
 
     await userApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Re-Visit File.docx" },
+      createFileRequest: { title: "Autotest Re-Visit File.docx" },
     });
 
     // owner re-visits — marks all new items as read
@@ -3620,7 +3626,7 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
 
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Owner Own File.docx" },
+      createFileRequest: { title: "Autotest Owner Own File.docx" },
     });
 
     const { data, status } = await ownerApi.folders.getNewFolderItems({
@@ -3956,7 +3962,7 @@ test.describe("POST /api/2.0/files/{folderId}/upload - Upload file", () => {
 
     const { data: subfolderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder" },
+      createFolderRequest: { title: "Autotest Subfolder" },
     });
     const subfolderId = subfolderData.response!.id!;
 
@@ -5181,7 +5187,7 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder Link My Docs Subfolder" },
+      createFolderRequest: { title: "Autotest Folder Link My Docs Subfolder" },
     });
     const folderId = folderData.response!.id!;
 
@@ -5610,7 +5616,7 @@ test.describe("GET /api/2.0/files/folder/{id}/links - Get folder links", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder For Links" },
+      createFolderRequest: { title: "Autotest Subfolder For Links" },
     });
     const folderId = folderData.response!.id!;
 
@@ -5954,7 +5960,7 @@ test.describe("POST /api/2.0/files/folder/{id}/link - Set folder primary externa
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder Link Delete" },
+      createFolderRequest: { title: "Autotest Subfolder Link Delete" },
     });
     const folderId = folderData.response!.id!;
 
@@ -6240,7 +6246,7 @@ test.describe("POST /api/2.0/files/folder/{id}/link - Set folder primary externa
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder Set Link" },
+      createFolderRequest: { title: "Autotest Subfolder Set Link" },
     });
     const folderId = folderData.response!.id!;
 
@@ -6324,7 +6330,7 @@ test.describe("GET /api/2.0/files/folder/{id}/link - Get folder primary external
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Get Folder Link Subfolder" },
+      createFolderRequest: { title: "Autotest Get Folder Link Subfolder" },
     });
     const folderId = folderData.response!.id!;
 
@@ -6897,7 +6903,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder History MyDocs" },
+      createFolderRequest: { title: "Autotest Folder History MyDocs" },
     });
     const folderId = folderData.response!.id!;
 
@@ -6935,7 +6941,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "New Subfolder In Room" },
+      createFolderRequest: { title: "New Subfolder In Room" },
     });
 
     const { data, status } = await ownerApi.folders.getFolderHistory({
@@ -7242,7 +7248,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Subfolder To Trash" },
+      createFolderRequest: { title: "Subfolder To Trash" },
     });
     const subFolderId = folderData.response!.id!;
 
@@ -7255,7 +7261,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     await ownerApi.folders.deleteFolder({
       folderId: subFolderId,
-      deleteFolder: { deleteAfter: false, immediately: false },
+      deleteFolderRequest: { deleteAfter: false, immediately: false },
     });
     await waitForOperation(ownerApi.operations);
 
@@ -7284,7 +7290,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Subfolder Permanently Deleted" },
+      createFolderRequest: { title: "Subfolder Permanently Deleted" },
     });
     const subFolderId = folderData.response!.id!;
 
@@ -7297,7 +7303,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     await ownerApi.folders.deleteFolder({
       folderId: subFolderId,
-      deleteFolder: { deleteAfter: false, immediately: true },
+      deleteFolderRequest: { deleteAfter: false, immediately: true },
     });
     await waitForOperation(ownerApi.operations);
 
@@ -7326,7 +7332,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "File To Trash" },
+      createFileRequest: { title: "File To Trash" },
     });
     const fileId = fileData.response!.id!;
 
@@ -7339,7 +7345,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     await ownerApi.files.deleteFile({
       fileId,
-      _delete: { immediately: false },
+      deleteFileRequest: { immediately: false },
     });
     await waitForOperation(ownerApi.operations);
 
@@ -7373,7 +7379,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: sourceRoomId,
-      createFolder: { title: "Subfolder To Move" },
+      createFolderRequest: { title: "Subfolder To Move" },
     });
     const subFolderId = folderData.response!.id!;
 
@@ -7423,7 +7429,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: sourceRoomId,
-      createFolder: { title: "Subfolder To Copy" },
+      createFolderRequest: { title: "Subfolder To Copy" },
     });
     const subFolderId = folderData.response!.id!;
 
@@ -7473,7 +7479,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: sourceRoomId,
-      createFileJsonElement: { title: "File To Move" },
+      createFileRequest: { title: "File To Move" },
     });
     const fileId = fileData.response!.id!;
 
@@ -7523,7 +7529,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: sourceRoomId,
-      createFileJsonElement: { title: "File To Copy" },
+      createFileRequest: { title: "File To Copy" },
     });
     const fileId = fileData.response!.id!;
 
@@ -7605,7 +7611,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Subfolder Before Rename" },
+      createFolderRequest: { title: "Subfolder Before Rename" },
     });
     const subFolderId = folderData.response!.id!;
 
@@ -7618,7 +7624,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     await ownerApi.folders.renameFolder({
       folderId: subFolderId,
-      createFolder: { title: "Subfolder After Rename" },
+      createFolderRequest: { title: "Subfolder After Rename" },
     });
 
     const { data, status } = await ownerApi.folders.getFolderHistory({
@@ -7653,7 +7659,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "New File In Room" },
+      createFileRequest: { title: "New File In Room" },
     });
 
     const { data, status } = await ownerApi.folders.getFolderHistory({
@@ -8773,7 +8779,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "File Before Rename" },
+      createFileRequest: { title: "File Before Rename" },
     });
     const fileId = fileData.response!.id!;
 
@@ -8786,7 +8792,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     await ownerApi.files.updateFile({
       fileId,
-      updateFile: { title: "File After Rename" },
+      updateFileRequest: { title: "File After Rename" },
     });
 
     let fileEntry: any;
@@ -8819,7 +8825,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "File To Delete Permanently" },
+      createFileRequest: { title: "File To Delete Permanently" },
     });
     const fileId = fileData.response!.id!;
 
@@ -8832,7 +8838,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     await ownerApi.files.deleteFile({
       fileId,
-      _delete: { immediately: true },
+      deleteFileRequest: { immediately: true },
     });
     await waitForOperation(ownerApi.operations);
 
@@ -8864,7 +8870,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "File To Lock" },
+      createFileRequest: { title: "File To Lock" },
     });
     const fileId = fileData.response!.id!;
 
@@ -8877,7 +8883,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     await ownerApi.files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: true },
+      lockFileRequest: { lockFile: true },
     });
 
     const { data, status } = await ownerApi.folders.getFolderHistory({
@@ -8908,13 +8914,13 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "File To Unlock" },
+      createFileRequest: { title: "File To Unlock" },
     });
     const fileId = fileData.response!.id!;
 
     await ownerApi.files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: true },
+      lockFileRequest: { lockFile: true },
     });
 
     const { data: beforeData } = await ownerApi.folders.getFolderHistory({
@@ -8926,7 +8932,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     await ownerApi.files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: false },
+      lockFileRequest: { lockFile: false },
     });
 
     const { data, status } = await ownerApi.folders.getFolderHistory({
@@ -8958,7 +8964,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "File To Reorder" },
+      createFileRequest: { title: "File To Reorder" },
     });
     const fileId = fileData.response!.id!;
 
@@ -9003,7 +9009,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Subfolder To Reorder" },
+      createFolderRequest: { title: "Subfolder To Reorder" },
     });
     const subfolderId = folderData.response!.id!;
 
@@ -9285,7 +9291,7 @@ test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report 
 
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Report Rich History File" },
+      createFileRequest: { title: "Report Rich History File" },
     });
 
     const { data, status } = await ownerApi.folders.createReportFolderHistory({
@@ -9380,7 +9386,7 @@ test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report 
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Report Subfolder Child" },
+      createFolderRequest: { title: "Autotest Report Subfolder Child" },
     });
     const subFolderId = folderData.response!.id!;
 
@@ -9465,7 +9471,7 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
 
     await test.step("initialize space sections", async () => {
       await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest Structure Init" },
+        createFileRequest: { title: "Autotest Structure Init" },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -9509,7 +9515,7 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
 
     await test.step("initialize space sections", async () => {
       await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest NonNeg Init" },
+        createFileRequest: { title: "Autotest NonNeg Init" },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -9543,14 +9549,14 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest UsedSpace Init" },
+      createFileRequest: { title: "Autotest UsedSpace Init" },
     });
 
     const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
     const spaceBefore = beforeData.response!.myDocumentsUsedSpace!.usedSpace!;
 
     await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest UsedSpace Check" },
+      createFileRequest: { title: "Autotest UsedSpace Check" },
     });
 
     const { data: afterData, status } =
@@ -9569,7 +9575,7 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Trash UsedSpace" },
+      createFileRequest: { title: "Autotest Trash UsedSpace" },
     });
     const fileId = fileData.response!.id!;
 
@@ -9578,7 +9584,7 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
 
     await ownerApi.files.deleteFile({
       fileId,
-      _delete: { immediately: false },
+      deleteFileRequest: { immediately: false },
     });
     await waitForOperation(ownerApi.operations);
 
@@ -9611,7 +9617,7 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
 
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Room Space File" },
+      createFileRequest: { title: "Autotest Room Space File" },
     });
 
     const { data: afterData, status } =
@@ -9641,7 +9647,7 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
 
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Archive Space File" },
+      createFileRequest: { title: "Autotest Archive Space File" },
     });
 
     const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
@@ -9720,11 +9726,11 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Hard Delete Warmup" },
+      createFileRequest: { title: "Autotest Hard Delete Warmup" },
     });
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Hard Delete Target" },
+      createFileRequest: { title: "Autotest Hard Delete Target" },
     });
     const fileId = fileData.response!.id!;
     const fileSize = fileData.response!.pureContentLength!;
@@ -9751,7 +9757,7 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
 
     await ownerApi.files.deleteFile({
       fileId,
-      _delete: { immediately: true },
+      deleteFileRequest: { immediately: true },
     });
     await waitForOperation(ownerApi.operations);
 
@@ -9771,7 +9777,7 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Metadata Read" },
+      createFileRequest: { title: "Autotest Metadata Read" },
     });
     const fileId = fileData.response!.id!;
 
@@ -9806,26 +9812,26 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Multi Warmup" },
+      createFileRequest: { title: "Autotest Multi Warmup" },
     });
 
     const { data: s0Data } = await ownerApi.folders.getFilesUsedSpace();
     const s0 = s0Data.response!.myDocumentsUsedSpace!.usedSpace!;
 
     await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Multi File 1" },
+      createFileRequest: { title: "Autotest Multi File 1" },
     });
     const { data: s1Data } = await ownerApi.folders.getFilesUsedSpace();
     const s1 = s1Data.response!.myDocumentsUsedSpace!.usedSpace!;
 
     await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Multi File 2" },
+      createFileRequest: { title: "Autotest Multi File 2" },
     });
     const { data: s2Data } = await ownerApi.folders.getFilesUsedSpace();
     const s2 = s2Data.response!.myDocumentsUsedSpace!.usedSpace!;
 
     await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Multi File 3" },
+      createFileRequest: { title: "Autotest Multi File 3" },
     });
     const { data: s3Data, status } = await ownerApi.folders.getFilesUsedSpace();
     const s3 = s3Data.response!.myDocumentsUsedSpace!.usedSpace!;
@@ -9845,7 +9851,7 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Rename Before" },
+      createFileRequest: { title: "Autotest Rename Before" },
     });
     const fileId = fileData.response!.id!;
 
@@ -9866,7 +9872,7 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
 
     await ownerApi.files.updateFile({
       fileId,
-      updateFile: { title: "Autotest Rename After" },
+      updateFileRequest: { title: "Autotest Rename After" },
     });
 
     const { data: afterData, status } =
@@ -9888,7 +9894,7 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Stable Init" },
+      createFileRequest: { title: "Autotest Stable Init" },
     });
 
     const { data: call1 } = await ownerApi.folders.getFilesUsedSpace();
@@ -9914,7 +9920,7 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
 
     await test.step("initialize all sections", async () => {
       await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest Types Init" },
+        createFileRequest: { title: "Autotest Types Init" },
       });
       const { data: roomData } = await ownerApi.rooms.createRoom({
         createRoomRequestDto: {
@@ -9962,23 +9968,23 @@ test.describe("GET /api/2.0/files/filesusedspace - Soft delete conservation chec
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Conservation Warmup Create" },
+      createFileRequest: { title: "Autotest Conservation Warmup Create" },
     });
 
     const { data: warmupDeleteData } =
       await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: {
+        createFileRequest: {
           title: "Autotest Conservation Warmup Delete",
         },
       });
     await ownerApi.files.deleteFile({
       fileId: warmupDeleteData.response!.id!,
-      _delete: { immediately: false },
+      deleteFileRequest: { immediately: false },
     });
     await waitForOperation(ownerApi.operations);
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Conservation Target" },
+      createFileRequest: { title: "Autotest Conservation Target" },
     });
     const fileId = fileData.response!.id!;
 
@@ -9989,7 +9995,7 @@ test.describe("GET /api/2.0/files/filesusedspace - Soft delete conservation chec
 
     await ownerApi.files.deleteFile({
       fileId,
-      _delete: { immediately: false },
+      deleteFileRequest: { immediately: false },
     });
     await waitForOperation(ownerApi.operations);
 
@@ -10052,7 +10058,7 @@ test.describe("POST /api/2.0/files/{folderId}/insert - Insert file into a folder
     const { data: folderData, status: folderStatus } =
       await ownerApi.folders.createFolder({
         folderId: myData.response!.current!.id!,
-        createFolder: { title: `Autotest Insert ${randomUUID()}` },
+        createFolderRequest: { title: `Autotest Insert ${randomUUID()}` },
       });
     expect(folderStatus).toBe(200);
     const folderId = folderData.response!.id!;

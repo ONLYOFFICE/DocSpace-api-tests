@@ -311,7 +311,7 @@ test.describe("Vectorization - startTask input validation", () => {
     const myId = myFolder.response!.current!.id!;
     const { data: sub } = await ownerApi.folders.createFolder({
       folderId: myId,
-      createFolder: { title: "Autotest Vectorization Subfolder" },
+      createFolderRequest: { title: "Autotest Vectorization Subfolder" },
     });
     const { data: room } = await ownerApi.rooms.createRoom({
       createRoomRequestDto: {
@@ -329,7 +329,7 @@ test.describe("Vectorization - startTask input validation", () => {
       const { data: created, status: createStatus } =
         await ownerApi.files.createFile({
           folderId,
-          createFileJsonElement: { title: "Autotest Outside Knowledge.docx" },
+          createFileRequest: { title: "Autotest Outside Knowledge.docx" },
         });
       expect(createStatus, `creating a file in ${label}`).toBe(200);
       const fileId = created.response!.id!;
