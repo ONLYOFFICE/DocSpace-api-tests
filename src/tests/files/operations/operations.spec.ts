@@ -9201,7 +9201,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
         (
           await ownerApi.folders.createFolder({
             folderId: roomId,
-            createFolder: { title },
+            createFolderRequest: { title },
           })
         ).data.response!.id!;
 
@@ -9217,18 +9217,18 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: withOpenFile,
-        createFileJsonElement: {
+        createFileRequest: {
           title: "Autotest MoveBatch Open In Editor.docx",
         },
       });
       await ownerApi.files.createFile({
         folderId: untouched,
-        createFileJsonElement: { title: "Autotest MoveBatch Untouched.docx" },
+        createFileRequest: { title: "Autotest MoveBatch Untouched.docx" },
       });
 
       const { status: editStatus } = await ownerApi.files.startEditFile({
         fileId: fileData.response!.id!,
-        startEdit: { editingAlone: true },
+        startEditRequest: { editingAlone: true },
       });
       expect(editStatus, "setup: the file is opened in the editor").toBe(200);
 
