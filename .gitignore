@@ -6,3 +6,4 @@ test-output/
 
 .env
 .vscode/
+final.log
