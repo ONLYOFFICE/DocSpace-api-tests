@@ -6931,7 +6931,7 @@ test.describe("PUT /files/file/:fileId/customfilter - Set custom filter tag perm
     const roomId = roomData.response!.id!;
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest CustomFilter.xlsx" },
+      createFileRequest: { title: "Autotest CustomFilter.xlsx" },
     });
     const fileId = fileData.response!.id!;
     return { ownerApi, roomId, fileId };
@@ -7036,7 +7036,7 @@ test.describe("GET /files/file/:fileId/presigneduri - Get presigned URI permissi
     const roomId = roomData.response!.id!;
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest PresignedUri.txt" },
+      createFileRequest: { title: "Autotest PresignedUri.txt" },
     });
     const fileId = fileData.response!.id!;
     return { ownerApi, roomId, fileId };

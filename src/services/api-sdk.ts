@@ -80,6 +80,8 @@ import { RebrandingApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/re
 import { StorageApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/storage-api";
 import { SSOApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/ssoapi";
 import { TelegramApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/telegram-api";
+import { StatisticsApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/statistics-api";
+import { ThirdPartyApi } from "@onlyoffice/docspace-api-sdk/dist/api/third-party/third-party-api";
 import { createPlaywrightAdapter } from "../utils/playwright-axios-adapter";
 import { parseResponse } from "../utils/parse-response";
 import config from "../../config";
@@ -295,6 +297,8 @@ export class ApiSDK {
       storage: new StorageApi(config, undefined, axiosInstance),
       sso: new SSOApi(config, undefined, axiosInstance),
       telegram: new TelegramApi(config, undefined, axiosInstance),
+      statistics: new StatisticsApi(config, undefined, axiosInstance),
+      thirdPartyOAuth: new ThirdPartyApi(config, undefined, axiosInstance),
     };
   }
 
@@ -426,6 +430,8 @@ export class ApiSDK {
       storage: new StorageApi(config, undefined, axiosInstance),
       sso: new SSOApi(config, undefined, axiosInstance),
       telegram: new TelegramApi(config, undefined, axiosInstance),
+      statistics: new StatisticsApi(config, undefined, axiosInstance),
+      thirdPartyOAuth: new ThirdPartyApi(config, undefined, axiosInstance),
     };
   }
 
