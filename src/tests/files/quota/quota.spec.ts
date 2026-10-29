@@ -9,7 +9,7 @@ const DEFAULT_QUOTA_ROOM_BYTES = 524288000; // 500 MB
 
 async function enableRoomQuota(apiSdk: any) {
   await apiSdk.forRole("owner").settingsQuota.saveRoomQuotaSettings({
-    quotaSettingsRequestsDto: {
+    quotaSettingsRequestDto: {
       enableQuota: true,
       defaultQuota: DEFAULT_QUOTA_ROOM_BYTES,
     },
