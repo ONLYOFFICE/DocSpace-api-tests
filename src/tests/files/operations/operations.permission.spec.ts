@@ -982,281 +982,292 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems - Per
 
   // BUG 84727: the SDK drops `destFolderId` from the query string (a
   // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Expectations are unchanged.
-  test("GET /api/2.0/files/fileops/move - Owner can check move of own file returns 200", async ({
-    apiSdk,
-  }) => {
-    // Catches: owner incorrectly denied access to check move of own files
-    const ownerApi = apiSdk.forRole("owner");
-    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-    const myDocsFolderId = myDocsData.response!.current!.id!;
+  // answers 400. Marked test.fail until the SDK is fixed; the
+  // assertions of the test are unchanged.
+  test.fail(
+    "GET /api/2.0/files/fileops/move - Owner can check move of own file returns 200",
+    async ({ apiSdk }) => {
+      // Catches: owner incorrectly denied access to check move of own files
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
 
-    const { data: fileData } = await ownerApi.files.createFile({
-      folderId: myDocsFolderId,
-      createFileRequest: { title: "Autotest CheckMove Perm Owner.docx" },
-    });
-    const fileId = fileData.response!.id!;
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileRequest: { title: "Autotest CheckMove Perm Owner.docx" },
+      });
+      const fileId = fileData.response!.id!;
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest CheckMove Perm Owner Room",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const destFolderId = roomData.response!.id!;
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CheckMove Perm Owner Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
 
-    const { data, status } =
-      await ownerApi.operations.checkMoveOrCopyBatchItems({
+      const { data, status } =
+        await ownerApi.operations.checkMoveOrCopyBatchItems({
+          fileIds: [fileId],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+        });
+
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+    },
+  );
+
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Marked test.fail until the SDK is fixed; the
+  // assertions of the test are unchanged.
+  test.fail(
+    "GET /api/2.0/files/fileops/move - DocSpaceAdmin can check move returns 200",
+    async ({ apiSdk }) => {
+      // Catches: DocSpaceAdmin incorrectly denied access to check move operation
+      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
+
+      // DocSpaceAdmin checks move of a file from their own MyDocs
+      const { data: adminMyDocsData } = await adminApi.folders.getMyFolder();
+      const adminMyDocsFolderId = adminMyDocsData.response!.current!.id!;
+
+      const { data: fileData } = await adminApi.files.createFile({
+        folderId: adminMyDocsFolderId,
+        createFileRequest: { title: "Autotest CheckMove Perm Admin.docx" },
+      });
+      const fileId = fileData.response!.id!;
+
+      // DocSpaceAdmin creates the destination room themselves
+      const { data: roomData } = await adminApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CheckMove Perm Admin Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { data, status } =
+        await adminApi.operations.checkMoveOrCopyBatchItems({
+          fileIds: [fileId],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+        });
+
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+    },
+  );
+
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Marked test.fail until the SDK is fixed; the
+  // assertions of the test are unchanged.
+  test.fail(
+    "GET /api/2.0/files/fileops/move - RoomAdmin with RoomManager access can check move of room file returns 200",
+    async ({ apiSdk }) => {
+      // Catches: RoomAdmin with RoomManager role denied access to check move of files in their room
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CheckMove Perm RoomAdmin Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileRequest: {
+          title: "Autotest CheckMove Perm RoomAdmin File.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { api: roomAdminApi, data: roomAdminData } =
+        await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+      const roomAdminId = roomAdminData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: roomAdminId, access: FileShare.RoomManager }],
+          notify: false,
+        },
+      });
+
+      const { data: destRoomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CheckMove Perm RoomAdmin DestRoom",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = destRoomData.response!.id!;
+
+      // RoomAdmin must have access to the destination room as well
+      await ownerApi.rooms.setRoomSecurity({
+        id: destFolderId,
+        roomInvitationRequest: {
+          invitations: [{ id: roomAdminId, access: FileShare.RoomManager }],
+          notify: false,
+        },
+      });
+
+      const { data, status } =
+        await roomAdminApi.operations.checkMoveOrCopyBatchItems({
+          fileIds: [fileId],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+        });
+
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+    },
+  );
+
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Marked test.fail until the SDK is fixed; the
+  // assertions of the test are unchanged.
+  test.fail(
+    "GET /api/2.0/files/fileops/move - User with ContentCreator access can check move of own file to room returns 200",
+    async ({ apiSdk }) => {
+      // Catches: ContentCreator incorrectly denied move check for own files despite having write access to destination
+      const ownerApi = apiSdk.forRole("owner");
+      const { api: userApi, data: userData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      const userId = userData.response!.id!;
+
+      const { data: userMyDocsData } = await userApi.folders.getMyFolder();
+      const userMyDocsFolderId = userMyDocsData.response!.current!.id!;
+
+      const { data: fileData } = await userApi.files.createFile({
+        folderId: userMyDocsFolderId,
+        createFileRequest: {
+          title: "Autotest CheckMove Perm ContentCreator File.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CheckMove Perm ContentCreator Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.ContentCreator }],
+          notify: false,
+        },
+      });
+
+      const { data, status } =
+        await userApi.operations.checkMoveOrCopyBatchItems({
+          fileIds: [fileId],
+          destFolderId: roomId,
+          conflictResolveType: FileConflictResolveType.Skip,
+        });
+
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+    },
+  );
+
+  // BUG 84727: the SDK drops `destFolderId` from the query string (a
+  // number|string oneOf is spread with Object.entries), so the server
+  // answers 400. Marked test.fail until the SDK is fixed; the
+  // assertions of the test are unchanged.
+  test.fail(
+    "GET /api/2.0/files/fileops/move - User without room access gets 403 when checking move to that room",
+    async ({ apiSdk }) => {
+      // Catches: move check allows user to probe destination folder structure without access,
+      // leaking folder metadata or bypassing access control
+      const ownerApi = apiSdk.forRole("owner");
+      const { api: userApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "User",
+      );
+
+      const { data: userMyDocsData } = await userApi.folders.getMyFolder();
+      const userMyDocsFolderId = userMyDocsData.response!.current!.id!;
+
+      const { data: fileData } = await userApi.files.createFile({
+        folderId: userMyDocsFolderId,
+        createFileRequest: {
+          title: "Autotest CheckMove Perm NoAccess.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CheckMove Perm NoAccess Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { status } = await userApi.operations.checkMoveOrCopyBatchItems({
         fileIds: [fileId],
         destFolderId,
         conflictResolveType: FileConflictResolveType.Skip,
       });
 
-    expect(status).toBe(200);
-    expect(Array.isArray(data.response)).toBe(true);
-  });
+      expect(status).toBe(403);
+    },
+  );
 
   // BUG 84727: the SDK drops `destFolderId` from the query string (a
   // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Expectations are unchanged.
-  test("GET /api/2.0/files/fileops/move - DocSpaceAdmin can check move returns 200", async ({
-    apiSdk,
-  }) => {
-    // Catches: DocSpaceAdmin incorrectly denied access to check move operation
-    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "DocSpaceAdmin",
-    );
+  // answers 400. Marked test.fail until the SDK is fixed; the
+  // assertions of the test are unchanged.
+  test.fail(
+    "GET /api/2.0/files/fileops/move - Guest without room access gets 403 when checking move to that room",
+    async ({ apiSdk }) => {
+      // Catches: Guest role bypasses destination access check, allowing guests to probe
+      // private room structure they are not invited to
+      const ownerApi = apiSdk.forRole("owner");
+      const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "Guest",
+      );
 
-    // DocSpaceAdmin checks move of a file from their own MyDocs
-    const { data: adminMyDocsData } = await adminApi.folders.getMyFolder();
-    const adminMyDocsFolderId = adminMyDocsData.response!.current!.id!;
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
 
-    const { data: fileData } = await adminApi.files.createFile({
-      folderId: adminMyDocsFolderId,
-      createFileRequest: { title: "Autotest CheckMove Perm Admin.docx" },
-    });
-    const fileId = fileData.response!.id!;
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileRequest: {
+          title: "Autotest CheckMove Perm Guest NoAccess.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
 
-    // DocSpaceAdmin creates the destination room themselves
-    const { data: roomData } = await adminApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest CheckMove Perm Admin Room",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const destFolderId = roomData.response!.id!;
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CheckMove Perm Guest NoAccess Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
 
-    const { data, status } =
-      await adminApi.operations.checkMoveOrCopyBatchItems({
+      const { status } = await guestApi.operations.checkMoveOrCopyBatchItems({
         fileIds: [fileId],
         destFolderId,
         conflictResolveType: FileConflictResolveType.Skip,
       });
 
-    expect(status).toBe(200);
-    expect(Array.isArray(data.response)).toBe(true);
-  });
-
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Expectations are unchanged.
-  test("GET /api/2.0/files/fileops/move - RoomAdmin with RoomManager access can check move of room file returns 200", async ({
-    apiSdk,
-  }) => {
-    // Catches: RoomAdmin with RoomManager role denied access to check move of files in their room
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest CheckMove Perm RoomAdmin Room",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const roomId = roomData.response!.id!;
-
-    const { data: fileData } = await ownerApi.files.createFile({
-      folderId: roomId,
-      createFileRequest: {
-        title: "Autotest CheckMove Perm RoomAdmin File.docx",
-      },
-    });
-    const fileId = fileData.response!.id!;
-
-    const { api: roomAdminApi, data: roomAdminData } =
-      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-    const roomAdminId = roomAdminData.response!.id!;
-
-    await ownerApi.rooms.setRoomSecurity({
-      id: roomId,
-      roomInvitationRequest: {
-        invitations: [{ id: roomAdminId, access: FileShare.RoomManager }],
-        notify: false,
-      },
-    });
-
-    const { data: destRoomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest CheckMove Perm RoomAdmin DestRoom",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const destFolderId = destRoomData.response!.id!;
-
-    // RoomAdmin must have access to the destination room as well
-    await ownerApi.rooms.setRoomSecurity({
-      id: destFolderId,
-      roomInvitationRequest: {
-        invitations: [{ id: roomAdminId, access: FileShare.RoomManager }],
-        notify: false,
-      },
-    });
-
-    const { data, status } =
-      await roomAdminApi.operations.checkMoveOrCopyBatchItems({
-        fileIds: [fileId],
-        destFolderId,
-        conflictResolveType: FileConflictResolveType.Skip,
-      });
-
-    expect(status).toBe(200);
-    expect(Array.isArray(data.response)).toBe(true);
-  });
-
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Expectations are unchanged.
-  test("GET /api/2.0/files/fileops/move - User with ContentCreator access can check move of own file to room returns 200", async ({
-    apiSdk,
-  }) => {
-    // Catches: ContentCreator incorrectly denied move check for own files despite having write access to destination
-    const ownerApi = apiSdk.forRole("owner");
-    const { api: userApi, data: userData } =
-      await apiSdk.addAuthenticatedMember("owner", "User");
-    const userId = userData.response!.id!;
-
-    const { data: userMyDocsData } = await userApi.folders.getMyFolder();
-    const userMyDocsFolderId = userMyDocsData.response!.current!.id!;
-
-    const { data: fileData } = await userApi.files.createFile({
-      folderId: userMyDocsFolderId,
-      createFileRequest: {
-        title: "Autotest CheckMove Perm ContentCreator File.docx",
-      },
-    });
-    const fileId = fileData.response!.id!;
-
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest CheckMove Perm ContentCreator Room",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const roomId = roomData.response!.id!;
-
-    await ownerApi.rooms.setRoomSecurity({
-      id: roomId,
-      roomInvitationRequest: {
-        invitations: [{ id: userId, access: FileShare.ContentCreator }],
-        notify: false,
-      },
-    });
-
-    const { data, status } = await userApi.operations.checkMoveOrCopyBatchItems(
-      {
-        fileIds: [fileId],
-        destFolderId: roomId,
-        conflictResolveType: FileConflictResolveType.Skip,
-      },
-    );
-
-    expect(status).toBe(200);
-    expect(Array.isArray(data.response)).toBe(true);
-  });
-
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Expectations are unchanged.
-  test("GET /api/2.0/files/fileops/move - User without room access gets 403 when checking move to that room", async ({
-    apiSdk,
-  }) => {
-    // Catches: move check allows user to probe destination folder structure without access,
-    // leaking folder metadata or bypassing access control
-    const ownerApi = apiSdk.forRole("owner");
-    const { api: userApi } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "User",
-    );
-
-    const { data: userMyDocsData } = await userApi.folders.getMyFolder();
-    const userMyDocsFolderId = userMyDocsData.response!.current!.id!;
-
-    const { data: fileData } = await userApi.files.createFile({
-      folderId: userMyDocsFolderId,
-      createFileRequest: {
-        title: "Autotest CheckMove Perm NoAccess.docx",
-      },
-    });
-    const fileId = fileData.response!.id!;
-
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest CheckMove Perm NoAccess Room",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const destFolderId = roomData.response!.id!;
-
-    const { status } = await userApi.operations.checkMoveOrCopyBatchItems({
-      fileIds: [fileId],
-      destFolderId,
-      conflictResolveType: FileConflictResolveType.Skip,
-    });
-
-    expect(status).toBe(403);
-  });
-
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Expectations are unchanged.
-  test("GET /api/2.0/files/fileops/move - Guest without room access gets 403 when checking move to that room", async ({
-    apiSdk,
-  }) => {
-    // Catches: Guest role bypasses destination access check, allowing guests to probe
-    // private room structure they are not invited to
-    const ownerApi = apiSdk.forRole("owner");
-    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "Guest",
-    );
-
-    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-    const myDocsFolderId = myDocsData.response!.current!.id!;
-
-    const { data: fileData } = await ownerApi.files.createFile({
-      folderId: myDocsFolderId,
-      createFileRequest: {
-        title: "Autotest CheckMove Perm Guest NoAccess.docx",
-      },
-    });
-    const fileId = fileData.response!.id!;
-
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest CheckMove Perm Guest NoAccess Room",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const destFolderId = roomData.response!.id!;
-
-    const { status } = await guestApi.operations.checkMoveOrCopyBatchItems({
-      fileIds: [fileId],
-      destFolderId,
-      conflictResolveType: FileConflictResolveType.Skip,
-    });
-
-    expect(status).toBe(403);
-  });
+      expect(status).toBe(403);
+    },
+  );
 });
 
 test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestFolder - Permissions", () => {
@@ -1309,8 +1320,9 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
   // BUG 84727: the SDK drops `destFolderId` from the query string (a
   // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Expectations are unchanged.
-  test(
+  // answers 400. Marked test.fail until the SDK is fixed; the
+  // assertions of the test are unchanged.
+  test.fail(
     "GET /api/2.0/files/fileops/checkdestfolder - Owner can check move of" +
       " own file returns 200 with AllAllowed",
     async ({ apiSdk }) => {
@@ -1350,8 +1362,9 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
   // BUG 84727: the SDK drops `destFolderId` from the query string (a
   // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Expectations are unchanged.
-  test(
+  // answers 400. Marked test.fail until the SDK is fixed; the
+  // assertions of the test are unchanged.
+  test.fail(
     "GET /api/2.0/files/fileops/checkdestfolder - DocSpaceAdmin can check" +
       " move of own file returns AllAllowed",
     async ({ apiSdk }) => {
@@ -1395,8 +1408,9 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
   // BUG 84727: the SDK drops `destFolderId` from the query string (a
   // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Expectations are unchanged.
-  test(
+  // answers 400. Marked test.fail until the SDK is fixed; the
+  // assertions of the test are unchanged.
+  test.fail(
     "GET /api/2.0/files/fileops/checkdestfolder - RoomAdmin with RoomManager" +
       " access to destination room returns AllAllowed",
     async ({ apiSdk }) => {
@@ -1462,8 +1476,9 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
   // BUG 84727: the SDK drops `destFolderId` from the query string (a
   // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Expectations are unchanged.
-  test(
+  // answers 400. Marked test.fail until the SDK is fixed; the
+  // assertions of the test are unchanged.
+  test.fail(
     "GET /api/2.0/files/fileops/checkdestfolder - User with ContentCreator" +
       " access to destination room returns AllAllowed",
     async ({ apiSdk }) => {
@@ -1516,85 +1531,89 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
   // BUG 84727: the SDK drops `destFolderId` from the query string (a
   // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Expectations are unchanged.
-  test("BUG 82104: GET /api/2.0/files/fileops/checkdestfolder - User without access to destination room returns 403", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
+  // answers 400. Marked test.fail until the SDK is fixed; the
+  // assertions of the test are unchanged.
+  test.fail(
+    "BUG 82104: GET /api/2.0/files/fileops/checkdestfolder - User without access to destination room returns 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
 
-    const { api: userApi } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "User",
-    );
+      const { api: userApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "User",
+      );
 
-    const { data: myDocsData } = await userApi.folders.getMyFolder();
-    const userMyDocsFolderId = myDocsData.response!.current!.id!;
+      const { data: myDocsData } = await userApi.folders.getMyFolder();
+      const userMyDocsFolderId = myDocsData.response!.current!.id!;
 
-    const { data: fileData } = await userApi.files.createFile({
-      folderId: userMyDocsFolderId,
-      createFileRequest: {
-        title: "Autotest CheckDestFolder Perm NoAccess File.docx",
-      },
-    });
-    const fileId = fileData.response!.id!;
+      const { data: fileData } = await userApi.files.createFile({
+        folderId: userMyDocsFolderId,
+        createFileRequest: {
+          title: "Autotest CheckDestFolder Perm NoAccess File.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest CheckDestFolder Perm NoAccess Room",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const destFolderId = roomData.response!.id!;
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CheckDestFolder Perm NoAccess Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
 
-    const { status } = await userApi.operations.checkMoveOrCopyDestFolder({
-      fileIds: [fileId],
-      destFolderId,
-      conflictResolveType: FileConflictResolveType.Skip,
-      deleteAfter: true,
-    });
+      const { status } = await userApi.operations.checkMoveOrCopyDestFolder({
+        fileIds: [fileId],
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Skip,
+        deleteAfter: true,
+      });
 
-    expect(status).toBe(403);
-  });
+      expect(status).toBe(403);
+    },
+  );
 
   // BUG 84727: the SDK drops `destFolderId` from the query string (a
   // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Expectations are unchanged.
-  test("BUG 82104: GET /api/2.0/files/fileops/checkdestfolder - Guest without access to destination room returns 403", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "Guest",
-    );
+  // answers 400. Marked test.fail until the SDK is fixed; the
+  // assertions of the test are unchanged.
+  test.fail(
+    "BUG 82104: GET /api/2.0/files/fileops/checkdestfolder - Guest without access to destination room returns 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "Guest",
+      );
 
-    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-    const myDocsFolderId = myDocsData.response!.current!.id!;
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
 
-    const { data: fileData } = await ownerApi.files.createFile({
-      folderId: myDocsFolderId,
-      createFileRequest: {
-        title: "Autotest CheckDestFolder Perm Guest File.docx",
-      },
-    });
-    const fileId = fileData.response!.id!;
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileRequest: {
+          title: "Autotest CheckDestFolder Perm Guest File.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest CheckDestFolder Perm Guest Room",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const destFolderId = roomData.response!.id!;
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CheckDestFolder Perm Guest Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
 
-    const { status } = await guestApi.operations.checkMoveOrCopyDestFolder({
-      fileIds: [fileId],
-      destFolderId,
-      conflictResolveType: FileConflictResolveType.Skip,
-    });
+      const { status } = await guestApi.operations.checkMoveOrCopyDestFolder({
+        fileIds: [fileId],
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Skip,
+      });
 
-    expect(status).toBe(403);
-  });
+      expect(status).toBe(403);
+    },
+  );
 });
 
 test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems - Permissions", () => {
