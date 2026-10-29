@@ -54,4 +54,34 @@ test.describe("GET /api/2.0/thirdparty/:provider - Get provider consent URL", ()
 
     expect(status).toBe(400);
   });
+
+  // desktop=true isn't exposed as a typed SDK parameter, so this goes
+  // through the raw HTTP layer.
+  test("desktop=true copies the whole query string into the callback state", async ({
+    apiSdk,
+  }) => {
+    const headers = {
+      Authorization: `Bearer ${apiSdk.tokenStore.getToken("owner")}`,
+      Origin: `http://${apiSdk.tokenStore.newTenantDomain}`,
+    };
+    const base = `${apiSdk.tokenStore.portalBaseUrl}/api/2.0/thirdparty/${LoginProvider.Google}`;
+
+    const plain = await apiSdk.request.get(base, { headers });
+    const plainBody = await plain.json();
+    const plainState = new URL(plainBody.response).searchParams.get("state");
+    expect(plainState).toBe(
+      `${apiSdk.tokenStore.portalBaseUrl}/thirdparty/google/code`,
+    );
+
+    const desktop = await apiSdk.request.get(`${base}?desktop=true&foo=bar`, {
+      headers,
+    });
+    const desktopBody = await desktop.json();
+    const desktopState = new URL(desktopBody.response).searchParams.get(
+      "state",
+    );
+    expect(desktopState).toBe(
+      `${apiSdk.tokenStore.portalBaseUrl}/thirdparty/google/code?desktop=true&foo=bar`,
+    );
+  });
 });
