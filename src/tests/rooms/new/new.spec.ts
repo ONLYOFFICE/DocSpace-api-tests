@@ -849,6 +849,74 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Cross-check with folder endpo
   });
 });
 
+test.describe("GET /api/2.0/files/:folderId - must not clear an individual file's New mark", () => {
+  // BUG TBD: confirmed with product (Anna M, via Alexey Tarantovich, 2026-10-30)
+  // that this is NOT the intended design, despite matching the backend's own
+  // documented contract for GET /files/{folderId} ("Reading a room or an
+  // ordinary folder clears its new-item marks for the caller"). The original
+  // intent was for a New badge to clear only once the file itself is opened
+  // in the editor - simply listing the folder's contents (e.g. to find and
+  // select a file for some other action, like copying it) should not be
+  // enough. The exact replacement behavior (clear strictly on file-open, vs.
+  // Alexey's alternative proposal of clearing after a hover delay) is still
+  // under discussion - this test only locks in the narrower, already-agreed
+  // claim that merely listing the folder is not sufficient on its own.
+  //
+  // Not the same as BUG 81712 (closed, unrelated): that bug was about
+  // rooms.getRoomInfo() failing to clear a room's news after a visit when it
+  // should have - the opposite direction, and a different, already-settled
+  // mechanism (see the "Core semantics" describe block above). This test
+  // deliberately never calls getRoomInfo() after the file is created, to
+  // isolate the folder-listing mechanism alone.
+  test.fail(
+    "BUG TBD: browsing a folder's contents clears a file's New mark without the file being opened",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest News Folder Browse",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { api: userApi, data: userData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      const userId = userData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      // Visit once, before the file exists - nothing to clear yet.
+      await userApi.rooms.getRoomInfo({ id: roomId });
+
+      await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileRequest: { title: "Autotest News Folder Browse File.docx" },
+      });
+
+      const before = await userApi.rooms.getNewRoomItems({ id: roomId });
+      expect(titlesOf(before.data.response)).toContain(
+        "Autotest News Folder Browse File.docx",
+      );
+
+      // The action under test: list the folder's contents, without opening
+      // the file itself.
+      await userApi.folders.getFolderByFolderId({ folderId: roomId });
+
+      const after = await userApi.rooms.getNewRoomItems({ id: roomId });
+      expect(titlesOf(after.data.response)).toContain(
+        "Autotest News Folder Browse File.docx",
+      );
+    },
+  );
+});
+
 test.describe("GET /api/2.0/files/rooms/news - Contract", () => {
   test("GET /files/rooms/news - Owner with only own content gets 200 and no new items", async ({
     apiSdk,
