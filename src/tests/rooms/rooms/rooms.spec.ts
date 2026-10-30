@@ -8865,7 +8865,7 @@ test.describe("API rooms methods", () => {
 
       for (const c of sharedToCases) {
         test.fail(
-          `BUG XXXXX: GET /files/rooms/:id/share - ${c.label} returns 500 (JsonException: possible object cycle) instead of 200`,
+          `BUG 84766: GET /files/rooms/:id/share - ${c.label} returns 500 (JsonException: possible object cycle) instead of 200`,
           async ({ apiSdk }) => {
             await assertFieldsMatchBaseline(apiSdk, c.fields, c.extra);
           },

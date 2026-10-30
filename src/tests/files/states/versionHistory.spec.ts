@@ -339,7 +339,7 @@ test.describe("restoreFileVersion and changeVersionHistory - file states", () =>
   // The refusal of a locked file is a 500 ("The file is currently locked by another
   // user" raised as a plain System.Exception), not a client error.
   test.fail(
-    "BUG XXXXX: changeVersionHistory - A file locked by someone else is refused with a client error, not 500",
+    "BUG 84771: changeVersionHistory - A file locked by someone else is refused with a client error, not 500",
     async ({ apiSdk }) => {
       const { api, fileId } = await heldByOwner(apiSdk, "locked");
 
@@ -355,7 +355,7 @@ test.describe("restoreFileVersion and changeVersionHistory - file states", () =>
   // A file open in someone else's editing session is "refused" by the SDK; the call
   // answers 200 although nothing changes.
   test.fail(
-    "BUG XXXXX: changeVersionHistory - A file being edited by someone else is refused, not reported as success",
+    "BUG 84772: changeVersionHistory - A file being edited by someone else is refused, not reported as success",
     async ({ apiSdk }) => {
       const { ownerApi, api, fileId, before } = await heldByOwner(
         apiSdk,
@@ -464,7 +464,7 @@ test.describe("restoreFileVersion and changeVersionHistory - file states", () =>
   // once, but an HTML file created or updated through createHtmlFile has an empty
   // log (still empty 26 s later).
   test.fail(
-    "BUG XXXXX: getFileHistory - A file created through createHtmlFile has a creation entry",
+    "BUG 84773: getFileHistory - A file created through createHtmlFile has a creation entry",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const roomId = await room(
@@ -497,7 +497,7 @@ test.describe("restoreFileVersion and changeVersionHistory - file states", () =>
   // Documented (getFileVersionInfo): "in a room only its managers and content
   // creators may read the history". An Editing member gets the list.
   test.fail(
-    "BUG XXXXX: getFileVersionInfo - An Editing member of a room cannot read the version list",
+    "BUG 84774: getFileVersionInfo - An Editing member of a room cannot read the version list",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const roomId = await room(
