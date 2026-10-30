@@ -845,6 +845,32 @@ test.describe("PUT /api/2.0/settings/invitationsettings - Update the user invita
     expect(data.response?.allowInvitingMembers).toBe(false);
     expect(data.response?.allowInvitingGuests).toBe(false);
   });
+
+  // Documents current behavior, not a bug: omitting a field from the request
+  // does NOT leave its prior value untouched - it is treated as the type
+  // default (false), silently resetting it. Confirmed this is unreachable
+  // through the product's own UI (checked live): the UI always sends both
+  // fields with their full current state on every save, never a partial
+  // payload, so this only matters to a caller hitting the API directly.
+  test("Omitting a field resets it to false rather than leaving it unchanged", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.commonSettings.updateInvitationSettings({
+      tenantUserInvitationSettingsRequestDto: {
+        allowInvitingMembers: true,
+        allowInvitingGuests: true,
+      },
+    });
+
+    const { data } = await ownerApi.commonSettings.updateInvitationSettings({
+      tenantUserInvitationSettingsRequestDto: { allowInvitingGuests: false },
+    });
+
+    expect(data.response?.allowInvitingGuests).toBe(false);
+    expect(data.response?.allowInvitingMembers).toBe(false);
+  });
 });
 
 test.describe("PUT /api/2.0/settings/emailactivation - Update the email activation settings", () => {
