@@ -801,3 +801,108 @@ test.describe("PUT /api/2.0/settings/defaultfolder - Set the default folder", ()
     );
   });
 });
+
+test.describe("GET /api/2.0/settings/invitationsettings - Get the user invitation settings", () => {
+  test("Owner gets both invitation flags enabled by default", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .commonSettings.getTenantUserInvitationSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.allowInvitingMembers).toBe(true);
+    expect(data.response?.allowInvitingGuests).toBe(true);
+  });
+
+  test("Anonymous can read the invitation settings - the invitation flow itself may run before sign-in", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .commonSettings.getTenantUserInvitationSettings();
+
+    expect(status).toBe(200);
+  });
+});
+
+test.describe("PUT /api/2.0/settings/invitationsettings - Update the user invitation settings", () => {
+  test("Owner disables both invitation flags, read-back confirms", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.commonSettings.updateInvitationSettings({
+      tenantUserInvitationSettingsRequestDto: {
+        allowInvitingMembers: false,
+        allowInvitingGuests: false,
+      },
+    });
+    expect(status).toBe(200);
+
+    const { data } =
+      await ownerApi.commonSettings.getTenantUserInvitationSettings();
+    expect(data.response?.allowInvitingMembers).toBe(false);
+    expect(data.response?.allowInvitingGuests).toBe(false);
+  });
+});
+
+test.describe("PUT /api/2.0/settings/emailactivation - Update the email activation settings", () => {
+  test("Owner dismisses their own email confirmation reminder", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .commonSettings.updateEmailActivationSettings({
+        emailActivationSettingsRequestDto: { show: false },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response?.show).toBe(false);
+  });
+});
+
+test.describe("PUT /api/2.0/settings/dns - Save the DNS settings", () => {
+  // Confirmed live: unlike the usual SaaS-refusal gate seen elsewhere (a
+  // clean 403 business-logic rejection with a full stack trace), this
+  // answers 415 with no stack trace at all - the route itself appears to
+  // not be registered on this SaaS build, a plain ASP.NET-level rejection
+  // rather than an app-level one. Reproduced identically for Owner and
+  // DocSpaceAdmin.
+  test("Owner is refused - custom DNS mapping is a self-hosted-only feature", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .commonSettings.saveDnsSettings({
+        dnsSettingsRequestDto: { dnsName: "custom.example.com", enable: true },
+      });
+
+    expect(status).toBe(415);
+  });
+});
+
+test.describe("GET /api/2.0/settings/timezones - Get time zones", () => {
+  // The SDK doc claims this needs a confirmation link bearing the Wizard or
+  // Administrators claim rather than a normal session - confirmed live that
+  // a normal Owner/DocSpaceAdmin session works fine too (200, full list),
+  // while User/Guest are refused with a plain 403 permission check. The
+  // doc's claim may describe an additional, alternate auth path (the
+  // initial setup wizard, before any session exists) rather than the only
+  // one - not pursued further since the normal-session path already covers
+  // this for an authenticated test suite.
+  test("Owner gets the full list of known time zones", async ({ apiSdk }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .commonSettings.getTimeZones();
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBeGreaterThan(0);
+    expect(data.response![0]).toEqual(
+      expect.objectContaining({
+        id: expect.any(String),
+        displayName: expect.any(String),
+      }),
+    );
+  });
+});

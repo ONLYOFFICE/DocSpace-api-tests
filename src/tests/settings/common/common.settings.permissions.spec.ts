@@ -588,3 +588,122 @@ test.describe("PUT /api/2.0/settings/defaultfolder - access control", () => {
     expect(settings.response!.defaultFolderType).toBe(FolderType.VirtualRooms);
   });
 });
+
+test.describe("PUT /api/2.0/settings/invitationsettings - access control", () => {
+  test("User (non-admin) cannot update the invitation settings", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } = await userApi.commonSettings.updateInvitationSettings({
+      tenantUserInvitationSettingsRequestDto: { allowInvitingMembers: true },
+    });
+    expect(status).toBe(403);
+  });
+
+  test("DocSpaceAdmin can update the invitation settings", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { status } = await adminApi.commonSettings.updateInvitationSettings({
+      tenantUserInvitationSettingsRequestDto: { allowInvitingMembers: true },
+    });
+    expect(status).toBe(200);
+  });
+
+  test("Anonymous cannot update the invitation settings", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .commonSettings.updateInvitationSettings({
+        tenantUserInvitationSettingsRequestDto: { allowInvitingMembers: true },
+      });
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("PUT /api/2.0/settings/emailactivation - access control", () => {
+  test("User (non-admin) can update their own email activation settings - no admin permission needed", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } =
+      await userApi.commonSettings.updateEmailActivationSettings({
+        emailActivationSettingsRequestDto: { show: true },
+      });
+    expect(status).toBe(200);
+  });
+
+  test("Anonymous cannot update the email activation settings", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .commonSettings.updateEmailActivationSettings({
+        emailActivationSettingsRequestDto: { show: true },
+      });
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("PUT /api/2.0/settings/dns - access control", () => {
+  test("Anonymous cannot save the DNS settings", async ({ apiSdk }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .commonSettings.saveDnsSettings({
+        dnsSettingsRequestDto: { dnsName: "custom.example.com", enable: true },
+      });
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("GET /api/2.0/settings/timezones - access control", () => {
+  test("User (non-admin) cannot read the time zones", async ({ apiSdk }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } = await userApi.commonSettings.getTimeZones();
+    expect(status).toBe(403);
+  });
+
+  test("Guest cannot read the time zones", async ({ apiSdk }) => {
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { status } = await guestApi.commonSettings.getTimeZones();
+    expect(status).toBe(403);
+  });
+
+  test("DocSpaceAdmin can read the time zones", async ({ apiSdk }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { status } = await adminApi.commonSettings.getTimeZones();
+    expect(status).toBe(200);
+  });
+
+  test("Anonymous cannot read the time zones", async ({ apiSdk }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .commonSettings.getTimeZones();
+    expect(status).toBe(401);
+  });
+});
