@@ -186,14 +186,14 @@ test.describe("POST /api/2.0/migration/clear", () => {
     expect(second.status).toBe(200);
   });
 
-  // BUG TBD: confirmed live, reproducible both with a synthetic failure (no
+  // BUG 84792: confirmed live, reproducible both with a synthetic failure (no
   // backup ever uploaded) and a realistic one (a real but invalid archive
   // uploaded via migrationFileUpload.ashx, failing with "Archive must be
   // .zip"). clearMigration answers 200 but GET /migration/status keeps
   // reporting the exact same finished/failed job afterward, even after a
   // 1.5s wait - not a race, the job is never actually cleared.
   test.fail(
-    "BUG TBD: clearMigration answers 200 but does not actually clear a finished/failed job",
+    "BUG 84792: clearMigration answers 200 but does not actually clear a finished/failed job",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -213,7 +213,7 @@ test.describe("POST /api/2.0/migration/clear", () => {
 });
 
 test.describe("GET /api/2.0/migration/logs - after a failed job", () => {
-  // BUG TBD: confirmed live for a RECOGNIZED migrator name, reproducible
+  // BUG 84791: confirmed live for a RECOGNIZED migrator name, reproducible
   // both with a synthetic failure (no backup ever uploaded) and a realistic
   // one (a real but invalid archive, failing with "Archive must be .zip").
   // A job that failed before ever writing a log file should sensibly answer
@@ -225,7 +225,7 @@ test.describe("GET /api/2.0/migration/logs - after a failed job", () => {
   // correctly, presumably because no job folder is created at all before
   // the name is found to be invalid.)
   test.fail(
-    "BUG TBD: logs for a job that failed before writing any log crash instead of a clean 404",
+    "BUG 84791: logs for a job that failed before writing any log crash instead of a clean 404",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
