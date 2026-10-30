@@ -850,7 +850,7 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Cross-check with folder endpo
 });
 
 test.describe("GET /api/2.0/files/:folderId - must not clear an individual file's New mark", () => {
-  // BUG TBD: confirmed with product (Anna M, via Alexey Tarantovich, 2026-10-30)
+  // BUG 84797: confirmed with product (Anna M, via Alexey Tarantovich, 2026-10-30)
   // that this is NOT the intended design, despite matching the backend's own
   // documented contract for GET /files/{folderId} ("Reading a room or an
   // ordinary folder clears its new-item marks for the caller"). The original
@@ -869,7 +869,7 @@ test.describe("GET /api/2.0/files/:folderId - must not clear an individual file'
   // deliberately never calls getRoomInfo() after the file is created, to
   // isolate the folder-listing mechanism alone.
   test.fail(
-    "BUG TBD: browsing a folder's contents clears a file's New mark without the file being opened",
+    "BUG 84797: browsing a folder's contents clears a file's New mark without the file being opened",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
