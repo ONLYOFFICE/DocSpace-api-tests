@@ -38,96 +38,55 @@ function createPluginZip(pluginName: string): Buffer {
     license: "MIT",
     homePage: "",
   });
-  const fileData = Buffer.from(configJson, "utf8");
-  const filename = Buffer.from("config.json", "utf8");
-  const crc = crc32(fileData);
-  const fileSize = fileData.length;
+  // The server rejects an archive without plugin.js ("The required entry
+  // plugin.js not found"), so both entries are stored.
+  const entries = [
+    { name: "config.json", data: Buffer.from(configJson, "utf8") },
+    { name: "plugin.js", data: Buffer.from("/* autotest plugin */", "utf8") },
+  ];
 
-  const local = Buffer.alloc(30 + filename.length);
-  let o = 0;
-  local.writeUInt32LE(0x04034b50, o);
-  o += 4;
-  local.writeUInt16LE(20, o);
-  o += 2;
-  local.writeUInt16LE(0, o);
-  o += 2;
-  local.writeUInt16LE(0, o);
-  o += 2;
-  local.writeUInt16LE(0, o);
-  o += 2;
-  local.writeUInt16LE(0, o);
-  o += 2;
-  local.writeUInt32LE(crc, o);
-  o += 4;
-  local.writeUInt32LE(fileSize, o);
-  o += 4;
-  local.writeUInt32LE(fileSize, o);
-  o += 4;
-  local.writeUInt16LE(filename.length, o);
-  o += 2;
-  local.writeUInt16LE(0, o);
-  o += 2;
-  filename.copy(local, o);
+  const locals: Buffer[] = [];
+  const centrals: Buffer[] = [];
+  let offset = 0;
 
-  const cd = Buffer.alloc(46 + filename.length);
-  o = 0;
-  cd.writeUInt32LE(0x02014b50, o);
-  o += 4;
-  cd.writeUInt16LE(20, o);
-  o += 2;
-  cd.writeUInt16LE(20, o);
-  o += 2;
-  cd.writeUInt16LE(0, o);
-  o += 2;
-  cd.writeUInt16LE(0, o);
-  o += 2;
-  cd.writeUInt16LE(0, o);
-  o += 2;
-  cd.writeUInt16LE(0, o);
-  o += 2;
-  cd.writeUInt32LE(crc, o);
-  o += 4;
-  cd.writeUInt32LE(fileSize, o);
-  o += 4;
-  cd.writeUInt32LE(fileSize, o);
-  o += 4;
-  cd.writeUInt16LE(filename.length, o);
-  o += 2;
-  cd.writeUInt16LE(0, o);
-  o += 2;
-  cd.writeUInt16LE(0, o);
-  o += 2;
-  cd.writeUInt16LE(0, o);
-  o += 2;
-  cd.writeUInt16LE(0, o);
-  o += 2;
-  cd.writeUInt32LE(0, o);
-  o += 4;
-  cd.writeUInt32LE(0, o);
-  o += 4;
-  filename.copy(cd, o);
+  for (const entry of entries) {
+    const filename = Buffer.from(entry.name, "utf8");
+    const crc = crc32(entry.data);
 
-  const cdOffset = local.length + fileSize;
+    const local = Buffer.alloc(30 + filename.length);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt32LE(crc, 14);
+    local.writeUInt32LE(entry.data.length, 18);
+    local.writeUInt32LE(entry.data.length, 22);
+    local.writeUInt16LE(filename.length, 26);
+    filename.copy(local, 30);
 
+    const cd = Buffer.alloc(46 + filename.length);
+    cd.writeUInt32LE(0x02014b50, 0);
+    cd.writeUInt16LE(20, 4);
+    cd.writeUInt16LE(20, 6);
+    cd.writeUInt32LE(crc, 16);
+    cd.writeUInt32LE(entry.data.length, 20);
+    cd.writeUInt32LE(entry.data.length, 24);
+    cd.writeUInt16LE(filename.length, 28);
+    cd.writeUInt32LE(offset, 42);
+    filename.copy(cd, 46);
+
+    locals.push(local, entry.data);
+    centrals.push(cd);
+    offset += local.length + entry.data.length;
+  }
+
+  const cdBuffer = Buffer.concat(centrals);
   const eocd = Buffer.alloc(22);
-  o = 0;
-  eocd.writeUInt32LE(0x06054b50, o);
-  o += 4;
-  eocd.writeUInt16LE(0, o);
-  o += 2;
-  eocd.writeUInt16LE(0, o);
-  o += 2;
-  eocd.writeUInt16LE(1, o);
-  o += 2;
-  eocd.writeUInt16LE(1, o);
-  o += 2;
-  eocd.writeUInt32LE(cd.length, o);
-  o += 4;
-  eocd.writeUInt32LE(cdOffset, o);
-  o += 4;
-  eocd.writeUInt16LE(0, o);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(entries.length, 8);
+  eocd.writeUInt16LE(entries.length, 10);
+  eocd.writeUInt32LE(cdBuffer.length, 12);
+  eocd.writeUInt32LE(offset, 16);
 
-  return Buffer.concat([local, fileData, cd, eocd]);
+  return Buffer.concat([...locals, cdBuffer, eocd]);
 }
 
 async function uploadPlugin(
@@ -169,50 +128,48 @@ function makeWebPluginsApi(apiSdk: ApiSDK, role: Role): WebpluginsApi {
   return new WebpluginsApi(config, undefined, apiSdk.createAxiosInstance());
 }
 
-// BUG XXXXX: DELETE and PUT /api/2.0/settings/webplugins/{name} return 404 when
+// BUG 84321 (DELETE, fixed), BUG 83425 (PUT, fixed): DELETE and PUT /api/2.0/settings/webplugins/{name} return 404 when
 // plugin name starts with: files-, privacyroom, people, group, accounts, keys,
 // backup, plugins, migration, clients, scopes, oauth2, ai
 test.describe("DELETE and PUT /api/2.0/settings/webplugins/{name} - reserved name prefix", () => {
-  // BUG XXXXX: DELETE /api/2.0/settings/webplugins/{name} returns 404 for plugin named 'files-*'
-  test.fail(
-    "BUG 84321: DELETE /api/2.0/settings/webplugins/{name} - Plugin with 'files-' prefix returns 404 instead of 200",
-    async ({ apiSdk }) => {
-      const pluginName = "files-autotest";
+  // BUG 84321 (fixed): DELETE /api/2.0/settings/webplugins/{name} returns 404 for plugin named 'files-*'
+  test("BUG 84321: DELETE /api/2.0/settings/webplugins/{name} - Plugin with 'files-' prefix returns 404 instead of 200", async ({
+    apiSdk,
+  }) => {
+    const pluginName = "files-autotest";
 
-      const { status: uploadStatus } = await uploadPlugin(
-        apiSdk,
-        "owner",
-        pluginName,
-      );
-      expect(uploadStatus).toBe(200);
+    const { status: uploadStatus } = await uploadPlugin(
+      apiSdk,
+      "owner",
+      pluginName,
+    );
+    expect(uploadStatus).toBe(200);
 
-      const webPlugins = makeWebPluginsApi(apiSdk, "owner");
-      const { status } = await webPlugins.deleteWebPlugin({
-        name: pluginName,
-      });
-      expect(status).toBe(200);
-    },
-  );
+    const webPlugins = makeWebPluginsApi(apiSdk, "owner");
+    const { status } = await webPlugins.deleteWebPlugin({
+      name: pluginName,
+    });
+    expect(status).toBe(200);
+  });
 
   // BUG 83425: PUT /api/2.0/settings/webplugins/{name} returns 404 for plugin named 'files-*'
-  test.fail(
-    "BUG 83425: PUT /api/2.0/settings/webplugins/{name} - Disabling plugin with 'files-' prefix returns 404 instead of 200",
-    async ({ apiSdk }) => {
-      const pluginName = "files-autotest";
+  test("BUG 83425: PUT /api/2.0/settings/webplugins/{name} - Disabling plugin with 'files-' prefix returns 404 instead of 200", async ({
+    apiSdk,
+  }) => {
+    const pluginName = "files-autotest";
 
-      const { status: uploadStatus } = await uploadPlugin(
-        apiSdk,
-        "owner",
-        pluginName,
-      );
-      expect(uploadStatus).toBe(200);
+    const { status: uploadStatus } = await uploadPlugin(
+      apiSdk,
+      "owner",
+      pluginName,
+    );
+    expect(uploadStatus).toBe(200);
 
-      const webPlugins = makeWebPluginsApi(apiSdk, "owner");
-      const { status } = await webPlugins.updateWebPlugin({
-        name: pluginName,
-        webPluginRequest: { enabled: false, settings: null },
-      });
-      expect(status).toBe(200);
-    },
-  );
+    const webPlugins = makeWebPluginsApi(apiSdk, "owner");
+    const { status } = await webPlugins.updateWebPlugin({
+      name: pluginName,
+      webPluginRequest: { enabled: false, settings: null },
+    });
+    expect(status).toBe(200);
+  });
 });

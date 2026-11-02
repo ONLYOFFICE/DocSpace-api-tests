@@ -119,7 +119,7 @@ test.describe("State: locked file", () => {
   // Documented (lockFile): the lock "blocks editing" for everybody but the setter.
   // The claim is refused, but through an unhandled exception (500).
   test.fail(
-    "BUG XXXXX: startedit - Another member cannot claim a locked file and gets a client error, not 500",
+    "BUG 84768: startedit - Another member cannot claim a locked file and gets a client error, not 500",
     async ({ apiSdk }) => {
       const { member, fileId } = await lockedFile(apiSdk);
       const before = await fileState(apiSdk, fileId);
@@ -198,7 +198,7 @@ test.describe("State: open in an editing session", () => {
   // stored bytes become the uploaded ones, the owner's editing flag is cleared and the
   // owner's next trackeditfile is refused with 403 (its session is gone).
   test.fail(
-    "BUG XXXXX: saveediting - Content cannot be replaced by another member during an editing session",
+    "BUG 84769: saveediting - Content cannot be replaced by another member during an editing session",
     async ({ apiSdk }) => {
       const { member, fileId } = await editedFile(apiSdk);
       const before = await fileState(apiSdk, fileId);
