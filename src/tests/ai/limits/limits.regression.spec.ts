@@ -33,7 +33,7 @@ import {
 // `test.fail` with the issue id; it fails on step 6, the first refusal that does
 // not come, and the later steps are not reached.
 test.fail(
-  "AI-LIMITS-001 BUG XXXXX: a user whose Custom limit has been lowered below what they spent is refused AI Chat and AI Search after signing in again",
+  "AI-LIMITS-001 BUG 84836: a user whose Custom limit has been lowered below what they spent is refused AI Chat and AI Search after signing in again",
   async ({ apiSdk, paymentsApi, makeMember }) => {
     test.setTimeout(600000);
     const ai = await provisionAiPortal(apiSdk, paymentsApi);
