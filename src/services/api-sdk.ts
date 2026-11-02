@@ -8,7 +8,7 @@ import {
   FoldersApi,
   RoomsApi,
   OperationsApi,
-  MetadataApi,
+  FilesMetadataApi,
   SharingApi,
   PeopleProfilesApi,
   PasswordApi,
@@ -82,6 +82,7 @@ import { SSOApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/ssoapi";
 import { TelegramApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/telegram-api";
 import { StatisticsApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/statistics-api";
 import { ThirdPartyApi } from "@onlyoffice/docspace-api-sdk/dist/api/third-party/third-party-api";
+import { DocsApi } from "@onlyoffice/docspace-api-sdk/dist/api/docs/docs-api";
 import { createPlaywrightAdapter } from "../utils/playwright-axios-adapter";
 import { parseResponse } from "../utils/parse-response";
 import config from "../../config";
@@ -185,7 +186,7 @@ export class ApiSDK {
       groupApi: new GroupApi(config, undefined, axiosInstance),
       groupSearch: new GroupSearchApi(config, undefined, axiosInstance),
       operations: new OperationsApi(config, undefined, axiosInstance),
-      metadata: new MetadataApi(config, undefined, axiosInstance),
+      metadata: new FilesMetadataApi(config, undefined, axiosInstance),
       sharing: new SharingApi(config, undefined, axiosInstance),
       profiles: new PeopleProfilesApi(config, undefined, axiosInstance),
       password: new PasswordApi(config, undefined, axiosInstance),
@@ -299,6 +300,7 @@ export class ApiSDK {
       telegram: new TelegramApi(config, undefined, axiosInstance),
       statistics: new StatisticsApi(config, undefined, axiosInstance),
       thirdPartyOAuth: new ThirdPartyApi(config, undefined, axiosInstance),
+      docs: new DocsApi(config, undefined, axiosInstance),
     };
   }
 
@@ -316,7 +318,7 @@ export class ApiSDK {
       rooms: new RoomsApi(config, undefined, axiosInstance),
       files: new FilesApi(config, undefined, axiosInstance),
       folders: new FoldersApi(config, undefined, axiosInstance),
-      metadata: new MetadataApi(config, undefined, axiosInstance),
+      metadata: new FilesMetadataApi(config, undefined, axiosInstance),
       groups: new GroupsApi(config, undefined, axiosInstance),
       groupApi: new GroupApi(config, undefined, axiosInstance),
       groupSearch: new GroupSearchApi(config, undefined, axiosInstance),
@@ -432,6 +434,7 @@ export class ApiSDK {
       telegram: new TelegramApi(config, undefined, axiosInstance),
       statistics: new StatisticsApi(config, undefined, axiosInstance),
       thirdPartyOAuth: new ThirdPartyApi(config, undefined, axiosInstance),
+      docs: new DocsApi(config, undefined, axiosInstance),
     };
   }
 
