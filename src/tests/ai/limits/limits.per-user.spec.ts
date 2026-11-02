@@ -50,7 +50,7 @@ const searchRefused = (search: SearchOutcome) => {
 
 test.describe("Per-user limits - they must refuse", () => {
   test.fail(
-    "BUG XXXXX: a Global limit of zero refuses AI Agent chat and AI Search for a user who has no personal limit",
+    "BUG 84836: a Global limit of zero refuses AI Agent chat and AI Search for a user who has no personal limit",
     async ({ apiSdk, paymentsApi, makeMember }) => {
       test.setTimeout(480000);
       const ai = await provisionAiPortal(apiSdk, paymentsApi);
@@ -72,7 +72,7 @@ test.describe("Per-user limits - they must refuse", () => {
   );
 
   test.fail(
-    "BUG XXXXX: a Custom limit of zero refuses AI Agent chat and AI Search for its user",
+    "BUG 84836: a Custom limit of zero refuses AI Agent chat and AI Search for its user",
     async ({ apiSdk, paymentsApi, makeMember }) => {
       test.setTimeout(480000);
       const ai = await provisionAiPortal(apiSdk, paymentsApi);
@@ -94,7 +94,7 @@ test.describe("Per-user limits - they must refuse", () => {
   );
 
   test.fail(
-    "BUG XXXXX: a Custom limit too small for the reservation refuses a chat, as a Total limit of the same size does",
+    "BUG 84836: a Custom limit too small for the reservation refuses a chat, as a Total limit of the same size does",
     async ({ apiSdk, paymentsApi, makeMember }) => {
       test.setTimeout(480000);
       const ai = await provisionAiPortal(apiSdk, paymentsApi);
@@ -112,7 +112,7 @@ test.describe("Per-user limits - they must refuse", () => {
   );
 
   test.fail(
-    "BUG XXXXX: a Custom limit overrides the Global one in both directions",
+    "BUG 84836: a Custom limit overrides the Global one in both directions",
     async ({ apiSdk, paymentsApi, makeMember }) => {
       test.setTimeout(600000);
       const ai = await provisionAiPortal(apiSdk, paymentsApi);
@@ -137,7 +137,7 @@ test.describe("Per-user limits - they must refuse", () => {
   );
 
   test.fail(
-    "BUG XXXXX: one user's exhausted Custom limit refuses that user and leaves another user working",
+    "BUG 84836: one user's exhausted Custom limit refuses that user and leaves another user working",
     async ({ apiSdk, paymentsApi, makeMember }) => {
       test.setTimeout(600000);
       const ai = await provisionAiPortal(apiSdk, paymentsApi);
@@ -166,7 +166,7 @@ test.describe("Per-user limits - they must refuse", () => {
   );
 
   test.fail(
-    "BUG XXXXX: a refused user is let back in by raising the Custom limit or deleting it, and out again by lowering it",
+    "BUG 84836: a refused user is let back in by raising the Custom limit or deleting it, and out again by lowering it",
     async ({ apiSdk, paymentsApi, makeMember }) => {
       test.setTimeout(600000);
       const ai = await provisionAiPortal(apiSdk, paymentsApi);
@@ -189,7 +189,7 @@ test.describe("Per-user limits - they must refuse", () => {
   );
 
   test.fail(
-    "BUG XXXXX: switching a Custom limit off stops restricting its user, switching it on restricts again",
+    "BUG 84836: switching a Custom limit off stops restricting its user, switching it on restricts again",
     async ({ apiSdk, paymentsApi, makeMember }) => {
       test.setTimeout(600000);
       const ai = await provisionAiPortal(apiSdk, paymentsApi);
@@ -209,7 +209,7 @@ test.describe("Per-user limits - they must refuse", () => {
   );
 
   test.fail(
-    "BUG XXXXX: a user whose Custom limit has been used up is refused, also after a re-login, in a new chat, with another model",
+    "BUG 84836: a user whose Custom limit has been used up is refused, also after a re-login, in a new chat, with another model",
     async ({ apiSdk, paymentsApi, makeMember }) => {
       test.setTimeout(600000);
       const ai = await provisionAiPortal(apiSdk, paymentsApi);
@@ -242,7 +242,7 @@ test.describe("Per-user limits - they must refuse", () => {
   );
 
   test.fail(
-    "BUG XXXXX: concurrent chats of one user are admitted only as far as the user's Custom limit covers",
+    "BUG 84836: concurrent chats of one user are admitted only as far as the user's Custom limit covers",
     async ({ apiSdk, paymentsApi, makeMember }) => {
       test.setTimeout(600000);
       const ai = await provisionAiPortal(apiSdk, paymentsApi);

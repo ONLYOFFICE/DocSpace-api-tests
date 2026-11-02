@@ -75,7 +75,7 @@ test.describe("Service limits - no billing customer", () => {
   // fall over with an unhandled AccountingCustomerNotFoundException. The routes
   // promise 404 for "no billing customer".
   test.fail(
-    "BUG XXXXX: POST /portal/payment/servicelimit - a portal with payment set up but no wallet answers 404, not 500",
+    "BUG 84837: POST /portal/payment/servicelimit - a portal with payment set up but no wallet answers 404, not 500",
     async ({ apiSdk, paymentsApi }) => {
       await paymentsApi.setupPayment();
       const payment = apiSdk.forRole("owner").payment;
@@ -93,7 +93,7 @@ test.describe("Service limits - no billing customer", () => {
   );
 
   test.fail(
-    "BUG XXXXX: POST /portal/payment/servicelimit/participants/disable - a portal with payment set up but no wallet answers 404, not 500",
+    "BUG 84837: POST /portal/payment/servicelimit/participants/disable - a portal with payment set up but no wallet answers 404, not 500",
     async ({ apiSdk, paymentsApi }) => {
       await paymentsApi.setupPayment();
       const payment = apiSdk.forRole("owner").payment;
@@ -248,7 +248,7 @@ test.describe("Service limits - create validation", () => {
   // `scope` as the thing that says whom the limit applies to and documents no
   // default for it.
   test.fail(
-    "BUG XXXXX: POST /portal/payment/servicelimit - a request without a scope is refused instead of becoming a portal-wide Total limit",
+    "BUG 84839: POST /portal/payment/servicelimit - a request without a scope is refused instead of becoming a portal-wide Total limit",
     async ({ apiSdk, paymentsApi }) => {
       await provisionBilling(paymentsApi);
       const payment = apiSdk.forRole("owner").payment;

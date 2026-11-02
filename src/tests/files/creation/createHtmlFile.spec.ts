@@ -387,7 +387,7 @@ test.describe("POST /files/:folderId/html - Create an HTML file", () => {
   // A form-filling room only takes PDF forms. The portal reports the rejection as
   // an unhandled System.Exception, i.e. a 500, for every non-PDF creation.
   test.fail(
-    "BUG XXXXX: POST /files/:folderId/html - Form-filling room rejects HTML with a client error, not 500",
+    "BUG 84840: POST /files/:folderId/html - Form-filling room rejects HTML with a client error, not 500",
     async ({ apiSdk }) => {
       const roomId = await createRoom(
         apiSdk,
@@ -405,7 +405,7 @@ test.describe("POST /files/:folderId/html - Create an HTML file", () => {
   );
 
   test.fail(
-    "BUG XXXXX: POST /files/:folderId/text - Form-filling room rejects text files with a client error, not 500",
+    "BUG 84840: POST /files/:folderId/text - Form-filling room rejects text files with a client error, not 500",
     async ({ apiSdk }) => {
       const roomId = await createRoom(
         apiSdk,
@@ -423,7 +423,7 @@ test.describe("POST /files/:folderId/html - Create an HTML file", () => {
   );
 
   test.fail(
-    "BUG XXXXX: POST /files/:folderId/file - Form-filling room rejects a docx with a client error, not 500",
+    "BUG 84840: POST /files/:folderId/file - Form-filling room rejects a docx with a client error, not 500",
     async ({ apiSdk }) => {
       const roomId = await createRoom(
         apiSdk,

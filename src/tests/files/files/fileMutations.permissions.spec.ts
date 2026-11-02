@@ -296,7 +296,7 @@ test.describe("updateFile, lockFile and deleteFile - room type and access level 
 
   // The rename is refused as documented, but through an unhandled exception (500).
   test.fail(
-    "BUG XXXXX: Custom room - A lock set by the owner blocks a ContentCreator from renaming with a client error, not 500",
+    "BUG 84842: Custom room - A lock set by the owner blocks a ContentCreator from renaming with a client error, not 500",
     async ({ apiSdk }) => {
       const { api, fileId } = await lockedByOwner(apiSdk);
 
