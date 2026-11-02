@@ -1009,722 +1009,632 @@ test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Check conversi
 });
 
 test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () => {
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
-    "GET /api/2.0/files/fileops/move - Owner checks move of folder from MyDocs to CustomRoom returns 200",
-    async ({ apiSdk }) => {
-      // Catches: folder move check returns unexpected status when source is a folder instead of a file
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
-
-      const { data: folderData } = await ownerApi.folders.createFolder({
-        folderId: myDocsFolderId,
-        createFolderRequest: { title: "Autotest CheckMove Source Folder" },
-      });
-      const folderId = folderData.response!.id!;
-
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CheckMove Folder Dest Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const destFolderId = roomData.response!.id!;
-
-      const { data, status } =
-        await ownerApi.operations.checkMoveOrCopyBatchItems({
-          folderIds: [folderId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        });
-
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response)).toBe(true);
-      expect(data.response).toHaveLength(0);
-    },
-  );
-
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
-    "GET /api/2.0/files/fileops/move - Owner checks move of file from MyDocs to EditingRoom returns 200",
-    async ({ apiSdk }) => {
-      // Catches: move check incorrectly fails for EditingRoom (Collaboration) destination
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
-
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileRequest: {
-          title: "Autotest CheckMove To EditingRoom.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
-
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CheckMove Dest EditingRoom",
-          roomType: RoomType.EditingRoom,
-        },
-      });
-      const destFolderId = roomData.response!.id!;
-
-      const { data, status } =
-        await ownerApi.operations.checkMoveOrCopyBatchItems({
-          fileIds: [fileId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        });
-
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response)).toBe(true);
-      expect(data.response).toHaveLength(0);
-    },
-  );
-
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
-    "GET /api/2.0/files/fileops/move - Owner checks move of file from MyDocs to FillingFormsRoom returns 200",
-    async ({ apiSdk }) => {
-      // Catches: move check returns 403 or 400 for FillingFormsRoom destination, blocking form-room workflows
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
-
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileRequest: {
-          title: "Autotest CheckMove To FillingForms.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
-
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CheckMove Dest FillingForms",
-          roomType: RoomType.FillingFormsRoom,
-        },
-      });
-      const destFolderId = roomData.response!.id!;
-
-      const { data, status } =
-        await ownerApi.operations.checkMoveOrCopyBatchItems({
-          fileIds: [fileId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        });
-
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response)).toBe(true);
-      expect(data.response).toHaveLength(0);
-    },
-  );
-
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
-    "GET /api/2.0/files/fileops/move - Owner checks move of file from MyDocs to PublicRoom returns 200",
-    async ({ apiSdk }) => {
-      // Catches: move check incorrectly rejects files destined for PublicRoom
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
-
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileRequest: { title: "Autotest CheckMove To PublicRoom.docx" },
-      });
-      const fileId = fileData.response!.id!;
-
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CheckMove Dest PublicRoom",
-          roomType: RoomType.PublicRoom,
-        },
-      });
-      const destFolderId = roomData.response!.id!;
-
-      const { data, status } =
-        await ownerApi.operations.checkMoveOrCopyBatchItems({
-          fileIds: [fileId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        });
-
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response)).toBe(true);
-      expect(data.response).toHaveLength(0);
-    },
-  );
-
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
-    "GET /api/2.0/files/fileops/move - Owner checks move of file from MyDocs to VirtualDataRoom returns 200",
-    async ({ apiSdk }) => {
-      // Catches: move check returns error for VirtualDataRoom despite owner having full access
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
-
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileRequest: { title: "Autotest CheckMove To VDR.docx" },
-      });
-      const fileId = fileData.response!.id!;
-
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CheckMove Dest VDR",
-          roomType: RoomType.VirtualDataRoom,
-        },
-      });
-      const destFolderId = roomData.response!.id!;
-
-      const { data, status } =
-        await ownerApi.operations.checkMoveOrCopyBatchItems({
-          fileIds: [fileId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        });
-
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response)).toBe(true);
-      expect(data.response).toHaveLength(0);
-    },
-  );
-
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
-    "GET /api/2.0/files/fileops/move - Conflict detected: same-named file in destination appears in response",
-    async ({ apiSdk }) => {
-      // Catches: conflicting file missing from response when same-named file exists in destination,
-      // causing the UI to skip the conflict dialog and silently overwrite or lose data
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
-
-      const conflictTitle = "Autotest CheckMove ConflictFile.docx";
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileRequest: { title: conflictTitle },
-      });
-      const fileId = fileData.response!.id!;
-
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CheckMove Conflict Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const destFolderId = roomData.response!.id!;
-
-      await ownerApi.files.createFile({
-        folderId: destFolderId,
-        createFileRequest: { title: conflictTitle },
-      });
-
-      const { data, status } =
-        await ownerApi.operations.checkMoveOrCopyBatchItems({
-          fileIds: [fileId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        });
-
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response)).toBe(true);
-      expect(data.response!.length).toBeGreaterThan(0);
-      expect(data.response![0].title).toBe(conflictTitle);
-    },
-  );
-
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
-    "GET /api/2.0/files/fileops/move - No conflict: response is empty when destination has no same-named file",
-    async ({ apiSdk }) => {
-      // Catches: response incorrectly contains items when no conflict exists,
-      // causing false-positive conflict dialogs in the UI
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
-
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileRequest: { title: "Autotest CheckMove NoConflict.docx" },
-      });
-      const fileId = fileData.response!.id!;
-
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CheckMove NoConflict Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const destFolderId = roomData.response!.id!;
-
-      const { data, status } =
-        await ownerApi.operations.checkMoveOrCopyBatchItems({
-          fileIds: [fileId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        });
-
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response)).toBe(true);
-      expect(data.response).toHaveLength(0);
-    },
-  );
-
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
-    "GET /api/2.0/files/fileops/move - conflictResolveType Overwrite returns 200 with conflict item",
-    async ({ apiSdk }) => {
-      // Catches: Overwrite conflict mode rejected or fails to identify the conflicting item
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
-
-      const conflictTitle = "Autotest CheckMove Overwrite.docx";
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileRequest: { title: conflictTitle },
-      });
-      const fileId = fileData.response!.id!;
-
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CheckMove Overwrite Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const destFolderId = roomData.response!.id!;
-
-      await ownerApi.files.createFile({
-        folderId: destFolderId,
-        createFileRequest: { title: conflictTitle },
-      });
-
-      const { data, status } =
-        await ownerApi.operations.checkMoveOrCopyBatchItems({
-          fileIds: [fileId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Overwrite,
-        });
-
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response)).toBe(true);
-      expect(data.response!.length).toBeGreaterThan(0);
-      expect(data.response![0].title).toBe(conflictTitle);
-    },
-  );
-
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
-    "GET /api/2.0/files/fileops/move - conflictResolveType Duplicate returns 200 with empty response when no conflict",
-    async ({ apiSdk }) => {
-      // Catches: Duplicate mode returns unexpected status or incorrectly reports conflicts when none exist
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
-
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileRequest: { title: "Autotest CheckMove Duplicate.docx" },
-      });
-      const fileId = fileData.response!.id!;
-
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CheckMove Duplicate Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const destFolderId = roomData.response!.id!;
-
-      const { data, status } =
-        await ownerApi.operations.checkMoveOrCopyBatchItems({
-          fileIds: [fileId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Duplicate,
-        });
-
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response)).toBe(true);
-      expect(data.response).toHaveLength(0);
-    },
-  );
-
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
-    "GET /api/2.0/files/fileops/move - Multiple files checked at once returns 200",
-    async ({ apiSdk }) => {
-      // Catches: batch check fails or drops items when multiple fileIds are passed simultaneously
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
-
-      const { data: file1 } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileRequest: { title: "Autotest CheckMove Multi1.docx" },
-      });
-      const { data: file2 } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileRequest: { title: "Autotest CheckMove Multi2.docx" },
-      });
-      const fileIds = [file1.response!.id!, file2.response!.id!];
-
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CheckMove Multi Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const destFolderId = roomData.response!.id!;
-
-      const { data, status } =
-        await ownerApi.operations.checkMoveOrCopyBatchItems({
-          fileIds,
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        });
-
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response)).toBe(true);
-      expect(data.response).toHaveLength(0);
-    },
-  );
-
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
-    "GET /api/2.0/files/fileops/move - Owner checks copy (deleteAfter false) of file to CustomRoom returns 200",
-    async ({ apiSdk }) => {
-      // Catches: copy check (deleteAfter: false) returns unexpected status or is treated same as move,
-      // breaking UI distinction between copy and move conflict resolution flows
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
-
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileRequest: { title: "Autotest CheckCopy File.docx" },
-      });
-      const fileId = fileData.response!.id!;
-
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CheckCopy Dest Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const destFolderId = roomData.response!.id!;
-
-      const { data, status } =
-        await ownerApi.operations.checkMoveOrCopyBatchItems({
-          fileIds: [fileId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-          deleteAfter: false,
-        });
-
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response)).toBe(true);
-      expect(data.response).toHaveLength(0);
-    },
-  );
-
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
-    "GET /api/2.0/files/fileops/move - Owner checks move of files and folders together returns 200",
-    async ({ apiSdk }) => {
-      // Catches: mixed batch (files + folders) causes error or drops items from conflict check
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
-
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileRequest: { title: "Autotest CheckMove Mixed File.docx" },
-      });
-      const { data: folderData } = await ownerApi.folders.createFolder({
-        folderId: myDocsFolderId,
-        createFolderRequest: { title: "Autotest CheckMove Mixed Folder" },
-      });
-
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CheckMove Mixed Dest Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const destFolderId = roomData.response!.id!;
-
-      const { data, status } =
-        await ownerApi.operations.checkMoveOrCopyBatchItems({
-          fileIds: [fileData.response!.id!],
-          folderIds: [folderData.response!.id!],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        });
-
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response)).toBe(true);
-      expect(data.response).toHaveLength(0);
-    },
-  );
-
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
-    "GET /api/2.0/files/fileops/move - content true: check move of folder content only returns 200",
-    async ({ apiSdk }) => {
-      // Catches: content:true flag ignored or causes 400/500, breaking "move folder contents" workflow
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
-
-      const { data: folderData } = await ownerApi.folders.createFolder({
-        folderId: myDocsFolderId,
-        createFolderRequest: {
-          title: "Autotest CheckMove Content True Folder",
-        },
-      });
-      const folderId = folderData.response!.id!;
-
-      await ownerApi.files.createFile({
-        folderId,
-        createFileRequest: {
-          title: "Autotest CheckMove Content True File.docx",
-        },
-      });
-
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CheckMove Content True Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const destFolderId = roomData.response!.id!;
-
-      const { data, status } =
-        await ownerApi.operations.checkMoveOrCopyBatchItems({
-          folderIds: [folderId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-          content: true,
-        });
-
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response)).toBe(true);
-      expect(data.response).toHaveLength(0);
-    },
-  );
-
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
-    "GET /api/2.0/files/fileops/move - Empty request (no fileIds, no folderIds) returns 200 with empty response",
-    async ({ apiSdk }) => {
-      // Catches: empty batch request causes 400/500 instead of graceful empty response,
-      // breaking UI when user initiates move with no selection
-      const ownerApi = apiSdk.forRole("owner");
-
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CheckMove Empty Dest Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const destFolderId = roomData.response!.id!;
-
-      const { data, status } =
-        await ownerApi.operations.checkMoveOrCopyBatchItems({
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        });
-
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response)).toBe(true);
-      expect(data.response).toHaveLength(0);
-    },
-  );
-
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
-    "GET /api/2.0/files/fileops/move - Move to same folder (source equals destination) returns 200",
-    async ({ apiSdk }) => {
-      // Catches: moving file to its own parent folder causes 500 or returns unexpected error.
-      // The file already exists in the destination with the same name, so API reports it as a conflict.
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
-
-      const fileTitle = "Autotest CheckMove SameFolder.docx";
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileRequest: { title: fileTitle },
-      });
-      const fileId = fileData.response!.id!;
-
-      const { data, status } =
-        await ownerApi.operations.checkMoveOrCopyBatchItems({
-          fileIds: [fileId],
-          destFolderId: myDocsFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        });
-
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response)).toBe(true);
-      expect(data.response).toHaveLength(1);
-      expect(data.response![0].title).toBe(fileTitle);
-    },
-  );
-
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
-    "GET /api/2.0/files/fileops/move - Move to archived room returns 403",
-    async ({ apiSdk }) => {
-      // Catches: archived rooms incorrectly accept move-check requests, allowing writes to read-only archived content
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
-
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileRequest: { title: "Autotest CheckMove Archived.docx" },
-      });
-      const fileId = fileData.response!.id!;
-
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CheckMove Archived Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
-
-      await ownerApi.rooms.archiveRoom({
-        id: roomId,
-        archiveRoomRequest: { deleteAfter: false },
-      });
-      await waitForOperation(ownerApi.operations);
-
-      const { status } = await ownerApi.operations.checkMoveOrCopyBatchItems({
-        fileIds: [fileId],
-        destFolderId: roomId,
+  test("GET /api/2.0/files/fileops/move - Owner checks move of folder from MyDocs to CustomRoom returns 200", async ({
+    apiSdk,
+  }) => {
+    // Catches: folder move check returns unexpected status when source is a folder instead of a file
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolderRequest: { title: "Autotest CheckMove Source Folder" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckMove Folder Dest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
+
+    const { data, status } =
+      await ownerApi.operations.checkMoveOrCopyBatchItems({
+        folderIds: [String(folderId)],
+        destFolderId: String(destFolderId),
         conflictResolveType: FileConflictResolveType.Skip,
       });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+  });
 
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
-    "GET /api/2.0/files/fileops/move - Non-existent fileId returns 200 with empty response",
-    async ({ apiSdk }) => {
-      // Non-existent fileId is silently skipped: no file to check, no conflicts - returns empty array.
-      const ownerApi = apiSdk.forRole("owner");
+  test("GET /api/2.0/files/fileops/move - Owner checks move of file from MyDocs to EditingRoom returns 200", async ({
+    apiSdk,
+  }) => {
+    // Catches: move check incorrectly fails for EditingRoom (Collaboration) destination
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CheckMove NonExist File Room",
-          roomType: RoomType.CustomRoom,
-        },
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileRequest: {
+        title: "Autotest CheckMove To EditingRoom.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckMove Dest EditingRoom",
+        roomType: RoomType.EditingRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
+
+    const { data, status } =
+      await ownerApi.operations.checkMoveOrCopyBatchItems({
+        fileIds: [String(fileId)],
+        destFolderId: String(destFolderId),
+        conflictResolveType: FileConflictResolveType.Skip,
       });
-      const destFolderId = roomData.response!.id!;
 
-      const { data, status } =
-        await ownerApi.operations.checkMoveOrCopyBatchItems({
-          fileIds: [999999999],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        });
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+  });
 
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response)).toBe(true);
-      expect(data.response).toHaveLength(0);
-    },
-  );
+  test("GET /api/2.0/files/fileops/move - Owner checks move of file from MyDocs to FillingFormsRoom returns 200", async ({
+    apiSdk,
+  }) => {
+    // Catches: move check returns 403 or 400 for FillingFormsRoom destination, blocking form-room workflows
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileRequest: {
+        title: "Autotest CheckMove To FillingForms.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckMove Dest FillingForms",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
+
+    const { data, status } =
+      await ownerApi.operations.checkMoveOrCopyBatchItems({
+        fileIds: [String(fileId)],
+        destFolderId: String(destFolderId),
+        conflictResolveType: FileConflictResolveType.Skip,
+      });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+  });
+
+  test("GET /api/2.0/files/fileops/move - Owner checks move of file from MyDocs to PublicRoom returns 200", async ({
+    apiSdk,
+  }) => {
+    // Catches: move check incorrectly rejects files destined for PublicRoom
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileRequest: { title: "Autotest CheckMove To PublicRoom.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckMove Dest PublicRoom",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
+
+    const { data, status } =
+      await ownerApi.operations.checkMoveOrCopyBatchItems({
+        fileIds: [String(fileId)],
+        destFolderId: String(destFolderId),
+        conflictResolveType: FileConflictResolveType.Skip,
+      });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+  });
+
+  test("GET /api/2.0/files/fileops/move - Owner checks move of file from MyDocs to VirtualDataRoom returns 200", async ({
+    apiSdk,
+  }) => {
+    // Catches: move check returns error for VirtualDataRoom despite owner having full access
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileRequest: { title: "Autotest CheckMove To VDR.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckMove Dest VDR",
+        roomType: RoomType.VirtualDataRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
+
+    const { data, status } =
+      await ownerApi.operations.checkMoveOrCopyBatchItems({
+        fileIds: [String(fileId)],
+        destFolderId: String(destFolderId),
+        conflictResolveType: FileConflictResolveType.Skip,
+      });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+  });
+
+  test("GET /api/2.0/files/fileops/move - Conflict detected: same-named file in destination appears in response", async ({
+    apiSdk,
+  }) => {
+    // Catches: conflicting file missing from response when same-named file exists in destination,
+    // causing the UI to skip the conflict dialog and silently overwrite or lose data
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const conflictTitle = "Autotest CheckMove ConflictFile.docx";
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileRequest: { title: conflictTitle },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckMove Conflict Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
+
+    await ownerApi.files.createFile({
+      folderId: destFolderId,
+      createFileRequest: { title: conflictTitle },
+    });
+
+    const { data, status } =
+      await ownerApi.operations.checkMoveOrCopyBatchItems({
+        fileIds: [String(fileId)],
+        destFolderId: String(destFolderId),
+        conflictResolveType: FileConflictResolveType.Skip,
+      });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBeGreaterThan(0);
+    expect(data.response![0].title).toBe(conflictTitle);
+  });
+
+  test("GET /api/2.0/files/fileops/move - No conflict: response is empty when destination has no same-named file", async ({
+    apiSdk,
+  }) => {
+    // Catches: response incorrectly contains items when no conflict exists,
+    // causing false-positive conflict dialogs in the UI
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileRequest: { title: "Autotest CheckMove NoConflict.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckMove NoConflict Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
+
+    const { data, status } =
+      await ownerApi.operations.checkMoveOrCopyBatchItems({
+        fileIds: [String(fileId)],
+        destFolderId: String(destFolderId),
+        conflictResolveType: FileConflictResolveType.Skip,
+      });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+  });
+
+  test("GET /api/2.0/files/fileops/move - conflictResolveType Overwrite returns 200 with conflict item", async ({
+    apiSdk,
+  }) => {
+    // Catches: Overwrite conflict mode rejected or fails to identify the conflicting item
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const conflictTitle = "Autotest CheckMove Overwrite.docx";
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileRequest: { title: conflictTitle },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckMove Overwrite Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
+
+    await ownerApi.files.createFile({
+      folderId: destFolderId,
+      createFileRequest: { title: conflictTitle },
+    });
+
+    const { data, status } =
+      await ownerApi.operations.checkMoveOrCopyBatchItems({
+        fileIds: [String(fileId)],
+        destFolderId: String(destFolderId),
+        conflictResolveType: FileConflictResolveType.Overwrite,
+      });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBeGreaterThan(0);
+    expect(data.response![0].title).toBe(conflictTitle);
+  });
+
+  test("GET /api/2.0/files/fileops/move - conflictResolveType Duplicate returns 200 with empty response when no conflict", async ({
+    apiSdk,
+  }) => {
+    // Catches: Duplicate mode returns unexpected status or incorrectly reports conflicts when none exist
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileRequest: { title: "Autotest CheckMove Duplicate.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckMove Duplicate Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
+
+    const { data, status } =
+      await ownerApi.operations.checkMoveOrCopyBatchItems({
+        fileIds: [String(fileId)],
+        destFolderId: String(destFolderId),
+        conflictResolveType: FileConflictResolveType.Duplicate,
+      });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+  });
+
+  test("GET /api/2.0/files/fileops/move - Multiple files checked at once returns 200", async ({
+    apiSdk,
+  }) => {
+    // Catches: batch check fails or drops items when multiple fileIds are passed simultaneously
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: file1 } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileRequest: { title: "Autotest CheckMove Multi1.docx" },
+    });
+    const { data: file2 } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileRequest: { title: "Autotest CheckMove Multi2.docx" },
+    });
+    const fileIds = [file1.response!.id!, file2.response!.id!];
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckMove Multi Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
+
+    const { data, status } =
+      await ownerApi.operations.checkMoveOrCopyBatchItems({
+        fileIds: fileIds.map(String),
+        destFolderId: String(destFolderId),
+        conflictResolveType: FileConflictResolveType.Skip,
+      });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+  });
+
+  test("GET /api/2.0/files/fileops/move - Owner checks copy (deleteAfter false) of file to CustomRoom returns 200", async ({
+    apiSdk,
+  }) => {
+    // Catches: copy check (deleteAfter: false) returns unexpected status or is treated same as move,
+    // breaking UI distinction between copy and move conflict resolution flows
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileRequest: { title: "Autotest CheckCopy File.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckCopy Dest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
+
+    const { data, status } =
+      await ownerApi.operations.checkMoveOrCopyBatchItems({
+        fileIds: [String(fileId)],
+        destFolderId: String(destFolderId),
+        conflictResolveType: FileConflictResolveType.Skip,
+        deleteAfter: false,
+      });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+  });
+
+  test("GET /api/2.0/files/fileops/move - Owner checks move of files and folders together returns 200", async ({
+    apiSdk,
+  }) => {
+    // Catches: mixed batch (files + folders) causes error or drops items from conflict check
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileRequest: { title: "Autotest CheckMove Mixed File.docx" },
+    });
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolderRequest: { title: "Autotest CheckMove Mixed Folder" },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckMove Mixed Dest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
+
+    const { data, status } =
+      await ownerApi.operations.checkMoveOrCopyBatchItems({
+        fileIds: [String(fileData.response!.id!)],
+        folderIds: [String(folderData.response!.id!)],
+        destFolderId: String(destFolderId),
+        conflictResolveType: FileConflictResolveType.Skip,
+      });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+  });
+
+  test("GET /api/2.0/files/fileops/move - content true: check move of folder content only returns 200", async ({
+    apiSdk,
+  }) => {
+    // Catches: content:true flag ignored or causes 400/500, breaking "move folder contents" workflow
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolderRequest: {
+        title: "Autotest CheckMove Content True Folder",
+      },
+    });
+    const folderId = folderData.response!.id!;
+
+    await ownerApi.files.createFile({
+      folderId,
+      createFileRequest: {
+        title: "Autotest CheckMove Content True File.docx",
+      },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckMove Content True Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
+
+    const { data, status } =
+      await ownerApi.operations.checkMoveOrCopyBatchItems({
+        folderIds: [String(folderId)],
+        destFolderId: String(destFolderId),
+        conflictResolveType: FileConflictResolveType.Skip,
+        content: true,
+      });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+  });
+
+  test("GET /api/2.0/files/fileops/move - Empty request (no fileIds, no folderIds) returns 200 with empty response", async ({
+    apiSdk,
+  }) => {
+    // Catches: empty batch request causes 400/500 instead of graceful empty response,
+    // breaking UI when user initiates move with no selection
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckMove Empty Dest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
+
+    const { data, status } =
+      await ownerApi.operations.checkMoveOrCopyBatchItems({
+        destFolderId: String(destFolderId),
+        conflictResolveType: FileConflictResolveType.Skip,
+      });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+  });
+
+  test("GET /api/2.0/files/fileops/move - Move to same folder (source equals destination) returns 200", async ({
+    apiSdk,
+  }) => {
+    // Catches: moving file to its own parent folder causes 500 or returns unexpected error.
+    // The file already exists in the destination with the same name, so API reports it as a conflict.
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const fileTitle = "Autotest CheckMove SameFolder.docx";
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileRequest: { title: fileTitle },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } =
+      await ownerApi.operations.checkMoveOrCopyBatchItems({
+        fileIds: [String(fileId)],
+        destFolderId: String(myDocsFolderId),
+        conflictResolveType: FileConflictResolveType.Skip,
+      });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(1);
+    expect(data.response![0].title).toBe(fileTitle);
+  });
+
+  test("GET /api/2.0/files/fileops/move - Move to archived room returns 403", async ({
+    apiSdk,
+  }) => {
+    // Catches: archived rooms incorrectly accept move-check requests, allowing writes to read-only archived content
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileRequest: { title: "Autotest CheckMove Archived.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckMove Archived Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { status } = await ownerApi.operations.checkMoveOrCopyBatchItems({
+      fileIds: [String(fileId)],
+      destFolderId: String(roomId),
+      conflictResolveType: FileConflictResolveType.Skip,
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("GET /api/2.0/files/fileops/move - Non-existent fileId returns 200 with empty response", async ({
+    apiSdk,
+  }) => {
+    // Non-existent fileId is silently skipped: no file to check, no conflicts - returns empty array.
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckMove NonExist File Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
+
+    const { data, status } =
+      await ownerApi.operations.checkMoveOrCopyBatchItems({
+        fileIds: ["999999999"],
+        destFolderId: String(destFolderId),
+        conflictResolveType: FileConflictResolveType.Skip,
+      });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+  });
 
   // BUG 81881: GET /api/2.0/files/fileops/move - non-existent destFolderId returns 403 instead of 404
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
-    "BUG 81881: GET /api/2.0/files/fileops/move - Non-existent destFolderId returns 404",
-    async ({ apiSdk }) => {
-      // Catches: non-existent destFolderId returns 403 (Access denied) instead of 404 (Not found);
-      // misleads callers into thinking it is a permissions issue rather than a missing resource
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
+  test("BUG 81881: GET /api/2.0/files/fileops/move - Non-existent destFolderId returns 404", async ({
+    apiSdk,
+  }) => {
+    // Catches: non-existent destFolderId returns 403 (Access denied) instead of 404 (Not found);
+    // misleads callers into thinking it is a permissions issue rather than a missing resource
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileRequest: {
-          title: "Autotest CheckMove NonExist Dest.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileRequest: {
+        title: "Autotest CheckMove NonExist Dest.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { status } = await ownerApi.operations.checkMoveOrCopyBatchItems({
-        fileIds: [fileId],
-        destFolderId: 999999999,
-        conflictResolveType: FileConflictResolveType.Skip,
-      });
+    const { status } = await ownerApi.operations.checkMoveOrCopyBatchItems({
+      fileIds: [String(fileId)],
+      destFolderId: "999999999",
+      conflictResolveType: FileConflictResolveType.Skip,
+    });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 
   // BUG 81882: GET /api/2.0/files/fileops/move - missing destFolderId returns 403 instead of 400
   test("BUG 81882: GET /api/2.0/files/fileops/move - No destFolderId specified returns 400", async ({
@@ -1745,13 +1655,13 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
     const fileId = fileData.response!.id!;
 
     const response = await ownerApi.operations.checkMoveOrCopyBatchItems({
-      fileIds: [fileId],
+      fileIds: [String(fileId)],
       conflictResolveType: FileConflictResolveType.Skip,
     });
 
-    // The request really carries no destination: neither `destFolderId` nor the
-    // indexed characters (`0=..`) that the SDK produces for a string id (BUG 84727).
-    // Without this check the test would also pass for a request the SDK broke.
+    // The request really carries no destination: no `destFolderId` key and no
+    // indexed characters (`0=..`) in the query. Without this check the test
+    // would also pass for a request that lost the parameter on the way out.
     const sentKeys = [
       ...new URL(
         (response as unknown as { config: { url: string } }).config.url,
@@ -1765,11 +1675,7 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
 });
 
 test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestFolder", () => {
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
+  test(
     "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of file" +
       " to CustomRoom returns AllAllowed and files contains source file",
     async ({ apiSdk }) => {
@@ -1796,8 +1702,8 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data, status } =
         await ownerApi.operations.checkMoveOrCopyDestFolder({
-          fileIds: [fileId],
-          destFolderId,
+          fileIds: [String(fileId)],
+          destFolderId: String(destFolderId),
           conflictResolveType: FileConflictResolveType.Skip,
           deleteAfter: true,
         });
@@ -1809,11 +1715,7 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
+  test(
     "GET /api/2.0/files/fileops/checkdestfolder - files field contains all" +
       " source files when multiple files are checked",
     async ({ apiSdk }) => {
@@ -1845,8 +1747,8 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data, status } =
         await ownerApi.operations.checkMoveOrCopyDestFolder({
-          fileIds,
-          destFolderId,
+          fileIds: fileIds.map(String),
+          destFolderId: String(destFolderId),
           conflictResolveType: FileConflictResolveType.Skip,
           deleteAfter: true,
         });
@@ -1860,11 +1762,7 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
+  test(
     "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of file" +
       " to EditingRoom returns AllAllowed",
     async ({ apiSdk }) => {
@@ -1891,8 +1789,8 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data, status } =
         await ownerApi.operations.checkMoveOrCopyDestFolder({
-          fileIds: [fileId],
-          destFolderId,
+          fileIds: [String(fileId)],
+          destFolderId: String(destFolderId),
           conflictResolveType: FileConflictResolveType.Skip,
           deleteAfter: true,
         });
@@ -1902,11 +1800,7 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
+  test(
     "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of" +
       " .docx file to FillingFormsRoom returns NoneAllowed",
     async ({ apiSdk }) => {
@@ -1934,8 +1828,8 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data, status } =
         await ownerApi.operations.checkMoveOrCopyDestFolder({
-          fileIds: [fileId],
-          destFolderId,
+          fileIds: [String(fileId)],
+          destFolderId: String(destFolderId),
           conflictResolveType: FileConflictResolveType.Skip,
           deleteAfter: true,
         });
@@ -1945,11 +1839,7 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
+  test(
     "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of" +
       " form file to FillingFormsRoom returns AllAllowed",
     async ({ apiSdk }) => {
@@ -1971,8 +1861,8 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data, status } =
         await ownerApi.operations.checkMoveOrCopyDestFolder({
-          fileIds: [formFileId],
-          destFolderId,
+          fileIds: [String(formFileId)],
+          destFolderId: String(destFolderId),
           conflictResolveType: FileConflictResolveType.Skip,
           deleteAfter: true,
         });
@@ -1982,11 +1872,7 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
+  test(
     "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of file" +
       " to PublicRoom returns AllAllowed",
     async ({ apiSdk }) => {
@@ -2013,8 +1899,8 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data, status } =
         await ownerApi.operations.checkMoveOrCopyDestFolder({
-          fileIds: [fileId],
-          destFolderId,
+          fileIds: [String(fileId)],
+          destFolderId: String(destFolderId),
           conflictResolveType: FileConflictResolveType.Skip,
           deleteAfter: true,
         });
@@ -2024,11 +1910,7 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
+  test(
     "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of file" +
       " to VirtualDataRoom returns AllAllowed",
     async ({ apiSdk }) => {
@@ -2055,8 +1937,8 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data, status } =
         await ownerApi.operations.checkMoveOrCopyDestFolder({
-          fileIds: [fileId],
-          destFolderId,
+          fileIds: [String(fileId)],
+          destFolderId: String(destFolderId),
           conflictResolveType: FileConflictResolveType.Skip,
           deleteAfter: true,
         });
@@ -2066,11 +1948,7 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
+  test(
     "GET /api/2.0/files/fileops/checkdestfolder - Owner checks copy" +
       " (deleteAfter: false) of file returns AllAllowed",
     async ({ apiSdk }) => {
@@ -2097,8 +1975,8 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data, status } =
         await ownerApi.operations.checkMoveOrCopyDestFolder({
-          fileIds: [fileId],
-          destFolderId,
+          fileIds: [String(fileId)],
+          destFolderId: String(destFolderId),
           conflictResolveType: FileConflictResolveType.Skip,
           deleteAfter: false,
         });
@@ -2108,11 +1986,7 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
+  test(
     "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of folder" +
       " returns AllAllowed",
     async ({ apiSdk }) => {
@@ -2139,8 +2013,8 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data, status } =
         await ownerApi.operations.checkMoveOrCopyDestFolder({
-          folderIds: [sourceFolderId],
-          destFolderId,
+          folderIds: [String(sourceFolderId)],
+          destFolderId: String(destFolderId),
           conflictResolveType: FileConflictResolveType.Skip,
           deleteAfter: true,
         });
@@ -2150,11 +2024,7 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
+  test(
     "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of" +
       " multiple files returns AllAllowed",
     async ({ apiSdk }) => {
@@ -2187,8 +2057,8 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data, status } =
         await ownerApi.operations.checkMoveOrCopyDestFolder({
-          fileIds,
-          destFolderId,
+          fileIds: fileIds.map(String),
+          destFolderId: String(destFolderId),
           conflictResolveType: FileConflictResolveType.Skip,
           deleteAfter: true,
         });
@@ -2198,79 +2068,69 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
-    "BUG 82103: GET /api/2.0/files/fileops/checkdestfolder - Move to archived room returns 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
+  test("BUG 82103: GET /api/2.0/files/fileops/checkdestfolder - Move to archived room returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileRequest: {
-          title: "Autotest CheckDestFolder Archived Dest.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileRequest: {
+        title: "Autotest CheckDestFolder Archived Dest.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CheckDestFolder Archived Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckDestFolder Archived Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      await ownerApi.rooms.archiveRoom({
-        id: roomId,
-        archiveRoomRequest: { deleteAfter: false },
-      });
-      await waitForOperation(ownerApi.operations);
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
 
-      const { status } = await ownerApi.operations.checkMoveOrCopyDestFolder({
-        fileIds: [fileId],
-        destFolderId: roomId,
-        conflictResolveType: FileConflictResolveType.Skip,
-        deleteAfter: true,
-      });
+    const { status } = await ownerApi.operations.checkMoveOrCopyDestFolder({
+      fileIds: [String(fileId)],
+      destFolderId: String(roomId),
+      conflictResolveType: FileConflictResolveType.Skip,
+      deleteAfter: true,
+    });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
-    "BUG 82158: GET /api/2.0/files/fileops/checkdestfolder - Non-existent destFolderId returns 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
+  test("BUG 82158: GET /api/2.0/files/fileops/checkdestfolder - Non-existent destFolderId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileRequest: {
-          title: "Autotest CheckDestFolder NonExistent Dest.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileRequest: {
+        title: "Autotest CheckDestFolder NonExistent Dest.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { status } = await ownerApi.operations.checkMoveOrCopyDestFolder({
-        fileIds: [fileId],
-        destFolderId: 999999999,
-        conflictResolveType: FileConflictResolveType.Skip,
-        deleteAfter: true,
-      });
+    const { status } = await ownerApi.operations.checkMoveOrCopyDestFolder({
+      fileIds: [String(fileId)],
+      destFolderId: "999999999",
+      conflictResolveType: FileConflictResolveType.Skip,
+      deleteAfter: true,
+    });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 
   test("BUG 82159: GET /api/2.0/files/fileops/checkdestfolder - No destFolderId specified returns 400", async ({
     apiSdk,
@@ -2288,13 +2148,13 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     const fileId = fileData.response!.id!;
 
     const response = await ownerApi.operations.checkMoveOrCopyDestFolder({
-      fileIds: [fileId],
+      fileIds: [String(fileId)],
       conflictResolveType: FileConflictResolveType.Skip,
     });
 
-    // The request really carries no destination: neither `destFolderId` nor the
-    // indexed characters (`0=..`) that the SDK produces for a string id (BUG 84727).
-    // Without this check the test would also pass for a request the SDK broke.
+    // The request really carries no destination: no `destFolderId` key and no
+    // indexed characters (`0=..`) in the query. Without this check the test
+    // would also pass for a request that lost the parameter on the way out.
     const sentKeys = [
       ...new URL(
         (response as unknown as { config: { url: string } }).config.url,
@@ -2306,11 +2166,7 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     expect(response.status).toBe(400);
   });
 
-  // BUG 84727: the SDK drops `destFolderId` from the query string (a
-  // number|string oneOf is spread with Object.entries), so the server
-  // answers 400. Marked test.fail until the SDK is fixed; the
-  // assertions of the test are unchanged.
-  test.fail(
+  test(
     "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of file" +
       " to room with connected Third-party storage returns AllAllowed",
     async ({ apiSdk }) => {
@@ -2351,7 +2207,7 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
 
       const { data, status } =
         await ownerApi.operations.checkMoveOrCopyDestFolder({
-          fileIds: [fileId],
+          fileIds: [String(fileId)],
           destFolderId,
           conflictResolveType: FileConflictResolveType.Skip,
           deleteAfter: true,

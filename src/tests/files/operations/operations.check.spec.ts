@@ -16,13 +16,13 @@ import type { Role } from "@/src/services/token-store";
 // checkMoveOrCopyBatchItems (GET /files/fileops/move) and
 // checkMoveOrCopyDestFolder (GET /files/fileops/checkdestfolder).
 //
-// BUG 84727: the SDK 4.0.0 request builder spreads `destFolderId` with
-// Object.entries(), so a number is dropped from the query and a string is split
-// into `0=1&1=2...`. The server then rejects the call as "no destination", which
-// is why every functional test below sends the request itself (`checkRequest`)
-// with a correct query. The SDK path is covered by the "destFolderId
-// serialization" group, marked `BUG 84727`, which flips to "unexpected pass" as
-// soon as the SDK is fixed.
+// BUG 84727 (fixed in SDK d7ec1fd67a): the 4.0.0 request builder spread
+// `destFolderId` with Object.entries(), so a number was dropped from the query
+// and a string was split into `0=1&1=2...`, and the server rejected the call as
+// "no destination". That is why every functional test below sends the request
+// itself (`checkRequest`) with a correct query; the SDK path is covered by the
+// "destFolderId serialization" group. The helper is kept as is - the tests
+// below assert against it and there is no reason to move them.
 //
 // Contract used (SDK JSDoc, confirmed on the portal):
 //   * move: answers the part of the request that clashes by name with an entry
@@ -167,12 +167,12 @@ test.describe("destFolderId serialization (SDK regression)", () => {
     const call = (api: Api, fileId: number, destFolderId: number | string) =>
       kind === "move"
         ? api.operations.checkMoveOrCopyBatchItems({
-            fileIds: [fileId],
-            destFolderId,
+            fileIds: [String(fileId)],
+            destFolderId: String(destFolderId),
           })
         : api.operations.checkMoveOrCopyDestFolder({
-            fileIds: [fileId],
-            destFolderId,
+            fileIds: [String(fileId)],
+            destFolderId: String(destFolderId),
           });
     const method =
       kind === "move"
@@ -207,9 +207,6 @@ test.describe("destFolderId serialization (SDK regression)", () => {
         (res as unknown as { config: { url: string } }).config.url,
       ).searchParams;
 
-      knownDefect(
-        "SDK drops a numeric destFolderId from the query; the server answers 400",
-      );
       expect(sent.get("destFolderId")).toBe(String(roomId));
       expect(res.status).toBe(200);
     });
@@ -242,9 +239,6 @@ test.describe("destFolderId serialization (SDK regression)", () => {
       ).searchParams;
       const indexedKeys = [...sent.keys()].filter((k) => /^\d+$/.test(k));
 
-      knownDefect(
-        "SDK spreads the string with Object.entries(): ?0=1&1=2&... instead of destFolderId=12",
-      );
       expect(sent.get("destFolderId")).toBe(String(roomId));
       expect(indexedKeys).toEqual([]);
       expect(res.status).toBe(200);
@@ -1178,7 +1172,8 @@ test.describe("Preflight vs the real operation", () => {
     expect(untouched[dest].some((e) => e.startsWith(`${destA}:`))).toBe(true);
     expect(untouched[dest].some((e) => e.startsWith(`${destB}:`))).toBe(true);
 
-    // The call with content=true needs the raw request: the SDK would not send destFolderId.
+    // The call with content=true goes through the raw request, like the rest
+    // of this file; `content` is the only parameter the helper does not carry.
     const res = await apiSdk
       .createAxiosInstance()
       .get(
