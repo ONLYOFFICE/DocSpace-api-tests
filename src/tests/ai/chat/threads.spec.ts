@@ -79,6 +79,11 @@ async function expectOnlyThreads(
 // aiThreadsCreate
 
 test.describe("POST /api/2.0/ai/threads/create - ThreadsApi.aiThreadsCreate", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/threads/create - Owner's new thread is readable, listed, empty and keeps what was sent", async ({
     apiSdk,
     paymentsApi,
@@ -318,6 +323,11 @@ test.describe("POST /api/2.0/ai/threads/create - ThreadsApi.aiThreadsCreate", ()
 // aiThreadsOpenOrCreate
 
 test.describe("POST /api/2.0/ai/threads/open-or-create - ThreadsApi.aiThreadsOpenOrCreate", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/threads/open-or-create - opening a thread replays exactly what read-messages holds, and opening is read-only", async ({
     apiSdk,
     paymentsApi,
@@ -491,6 +501,11 @@ test.describe("POST /api/2.0/ai/threads/open-or-create - ThreadsApi.aiThreadsOpe
 // aiThreadsGetById
 
 test.describe("GET /api/2.0/ai/threads/get-by-id - ThreadsApi.aiThreadsGetById", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("GET /api/2.0/ai/threads/get-by-id - the thread follows every change made to it, and reading changes nothing", async ({
     apiSdk,
     paymentsApi,
@@ -590,6 +605,11 @@ test.describe("GET /api/2.0/ai/threads/get-by-id - ThreadsApi.aiThreadsGetById",
 // aiThreadsList
 
 test.describe("GET /api/2.0/ai/threads/list - ThreadsApi.aiThreadsList", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("GET /api/2.0/ai/threads/list - the list mirrors get-by-id and follows rename, clear and delete", async ({
     apiSdk,
     paymentsApi,
@@ -736,6 +756,11 @@ test.describe("GET /api/2.0/ai/threads/list - ThreadsApi.aiThreadsList", () => {
 // aiThreadsRename
 
 test.describe("PUT /api/2.0/ai/threads/rename - ThreadsApi.aiThreadsRename", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("PUT /api/2.0/ai/threads/rename - Owner renames a thread and nothing else about it changes", async ({
     apiSdk,
     paymentsApi,
@@ -863,6 +888,11 @@ test.describe("PUT /api/2.0/ai/threads/rename - ThreadsApi.aiThreadsRename", () 
 // aiThreadsRegenerateTitle
 
 test.describe("POST /api/2.0/ai/threads/regenerate-title - ThreadsApi.aiThreadsRegenerateTitle", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/threads/regenerate-title - a malformed, unknown, deleted or incomplete request is refused and the title stays", async ({
     apiSdk,
     paymentsApi,
@@ -964,6 +994,11 @@ test.describe("POST /api/2.0/ai/threads/regenerate-title - ThreadsApi.aiThreadsR
 // aiThreadsTouch
 
 test.describe("POST /api/2.0/ai/threads/touch - ThreadsApi.aiThreadsTouch", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/threads/touch - touching advances lastEditDate and changes nothing else, empty thread or not", async ({
     apiSdk,
     paymentsApi,
@@ -1080,6 +1115,11 @@ test.describe("POST /api/2.0/ai/threads/touch - ThreadsApi.aiThreadsTouch", () =
 // aiThreadsDelete
 
 test.describe("DELETE /api/2.0/ai/threads/delete - ThreadsApi.aiThreadsDelete", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("DELETE /api/2.0/ai/threads/delete - deleting a thread with a history takes it and its messages, and no other thread", async ({
     apiSdk,
     paymentsApi,
@@ -1151,6 +1191,11 @@ test.describe("DELETE /api/2.0/ai/threads/delete - ThreadsApi.aiThreadsDelete", 
 // aiThreadsClearMessages
 
 test.describe("DELETE /api/2.0/ai/threads/clear-messages - ThreadsApi.aiThreadsClearMessages", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("DELETE /api/2.0/ai/threads/clear-messages - a cleared thread is empty everywhere, keeps its identity, and starts a new history", async ({
     apiSdk,
     paymentsApi,

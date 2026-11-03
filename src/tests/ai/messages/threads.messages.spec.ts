@@ -54,6 +54,11 @@ const AWKWARD_TEXTS: string[] = [
 // aiThreadsReadMessages
 
 test.describe("GET /api/2.0/ai/threads/read-messages - ThreadsApi.aiThreadsReadMessages", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("GET /api/2.0/ai/threads/read-messages - stored messages come back whole, in order, with unique ids", async ({
     apiSdk,
     paymentsApi,
@@ -300,6 +305,11 @@ test.describe("GET /api/2.0/ai/threads/read-messages - ThreadsApi.aiThreadsReadM
 // aiThreadsAppendUserMessage
 
 test.describe("POST /api/2.0/ai/threads/append-user-message - ThreadsApi.aiThreadsAppendUserMessage", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/threads/append-user-message - a stored message is the same message through every read path", async ({
     apiSdk,
     paymentsApi,
@@ -568,6 +578,11 @@ test.describe("POST /api/2.0/ai/threads/append-user-message - ThreadsApi.aiThrea
 // aiThreadsGetMessageById
 
 test.describe("GET /api/2.0/ai/threads/get-message-by-id - ThreadsApi.aiThreadsGetMessageById", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("GET /api/2.0/ai/threads/get-message-by-id - serves the stored message and follows an edit, and reading changes nothing", async ({
     apiSdk,
     paymentsApi,
@@ -699,6 +714,11 @@ test.describe("GET /api/2.0/ai/threads/get-message-by-id - ThreadsApi.aiThreadsG
 // aiThreadsUpdateMessage
 
 test.describe("PUT /api/2.0/ai/threads/update-message - ThreadsApi.aiThreadsUpdateMessage", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("PUT /api/2.0/ai/threads/update-message - rewrites one message in place and leaves its neighbours and the thread alone", async ({
     apiSdk,
     paymentsApi,
@@ -943,6 +963,11 @@ test.describe("PUT /api/2.0/ai/threads/update-message - ThreadsApi.aiThreadsUpda
 // aiThreadsDeleteMessage
 
 test.describe("DELETE /api/2.0/ai/threads/delete-message - ThreadsApi.aiThreadsDeleteMessage", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("DELETE /api/2.0/ai/threads/delete-message - first, middle and last messages go one at a time and the rest keep their order", async ({
     apiSdk,
     paymentsApi,

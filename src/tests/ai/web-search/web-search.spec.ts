@@ -166,7 +166,8 @@ test.describe("AI Web Search - the AI search add-on", () => {
     expect((await webSearch.getActiveConfig("owner")).data).toBeNull();
   });
 
-  test("GET /api/2.0/ai/web-search/is-configured - the add-on configuration is reported in every entity scope", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("GET /api/2.0/ai/web-search/is-configured - the add-on configuration is reported in every entity scope", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -218,7 +219,8 @@ test.describe("AI Web Search - the AI search add-on", () => {
     }
   });
 
-  test("POST /api/2.0/ai/ai/send-with-stream - with the add-on on the model searches the web and the reply carries its sources", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/ai/send-with-stream - with the add-on on the model searches the web and the reply carries its sources", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -278,7 +280,8 @@ test.describe("AI Web Search - the AI search add-on", () => {
     );
   });
 
-  test("POST /api/2.0/ai/ai/send-with-stream - turning the add-on off takes the web_search tool away from the model", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/ai/send-with-stream - turning the add-on off takes the web_search tool away from the model", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -516,7 +519,8 @@ test.describe("AI Web Search - the AI search add-on", () => {
 // and price, which is what its management page reads) is in
 // portal/payments/payment.spec.ts, together with `customer/usage`.
 test.describe("AI Web Search - billed as a service of its own", () => {
-  test("GET /api/2.0/portal/payment/customer/operations, customer/usage - a web search is charged to ai-search", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("GET /api/2.0/portal/payment/customer/operations, customer/usage - a web search is charged to ai-search", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1109,7 +1113,8 @@ test.describe("AI Web Search - unconfigured state", () => {
     expect(active.data).toBeNull();
   });
 
-  test("GET /api/2.0/ai/web-search/is-configured - an agent scope is unconfigured too", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("GET /api/2.0/ai/web-search/is-configured - an agent scope is unconfigured too", async ({
     apiSdk,
     paymentsApi,
   }) => {

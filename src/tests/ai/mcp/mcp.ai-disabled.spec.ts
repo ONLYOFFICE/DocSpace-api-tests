@@ -86,6 +86,11 @@ async function mcpSetup(
 }
 
 test.describe("MCP - AI Disabled", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("GET /api/2.0/ai/tools/list-system-tools - stays readable when AI access is disabled", async ({
     apiSdk,
     paymentsApi,
@@ -457,6 +462,11 @@ test.describe("MCP - AI Disabled", () => {
 // is read back, so a 200 that stored nothing cannot pass as "not gated".
 
 test.describe("MCP - AI Tools wallet service not paid for", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("GET|POST|PUT|DELETE /api/2.0/ai/tools/* - the tools surface is not gated by the AI Tools wallet service", async ({
     apiSdk,
   }) => {

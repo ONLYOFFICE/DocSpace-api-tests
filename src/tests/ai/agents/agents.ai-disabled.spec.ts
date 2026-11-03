@@ -129,7 +129,8 @@ test.describe("AI Agents - AI Disabled", () => {
     expect(status).toBe(403);
   });
 
-  test("GET /ai/agents/:id - an existing agent becomes unreadable when AI access is disabled", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("GET /ai/agents/:id - an existing agent becomes unreadable when AI access is disabled", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -154,7 +155,8 @@ test.describe("AI Agents - AI Disabled", () => {
     expect(status).toBe(403);
   });
 
-  test("PUT /ai/agents/:id - an existing agent cannot be updated when AI access is disabled", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("PUT /ai/agents/:id - an existing agent cannot be updated when AI access is disabled", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -199,7 +201,8 @@ test.describe("AI Agents - AI Disabled", () => {
     expect(status).toBe(403);
   });
 
-  test("DELETE /ai/agents/:id - an existing agent cannot be deleted when AI access is disabled", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("DELETE /ai/agents/:id - an existing agent cannot be deleted when AI access is disabled", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -235,7 +238,8 @@ test.describe("AI Agents - AI Disabled", () => {
     expect(status).toBe(403);
   });
 
-  test("PUT /ai/agents/agentquota - returns 403 when AI access is disabled", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("PUT /ai/agents/agentquota - returns 403 when AI access is disabled", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -272,7 +276,8 @@ test.describe("AI Agents - AI Disabled", () => {
     expect(status).toBe(403);
   });
 
-  test("PUT /ai/agents/resetquota - returns 403 when AI access is disabled", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("PUT /ai/agents/resetquota - returns 403 when AI access is disabled", async ({
     apiSdk,
     paymentsApi,
   }) => {

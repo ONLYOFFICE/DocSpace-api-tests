@@ -17,6 +17,11 @@ const MANAGERS = [
 ] as const;
 
 test.describe("Vectorization - startTask", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   for (const manager of MANAGERS) {
     test(`POST /api/2.0/ai/vectorization/tasks - ${manager.title} starts vectorization task`, async ({
       apiSdk,

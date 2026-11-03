@@ -29,7 +29,6 @@ import {
   UserTypeApi,
   PhotosApi,
   SecurityApi,
-  AgentsApi,
   GroupsApi,
   GroupApi,
   SearchApi as GroupSearchApi,
@@ -223,7 +222,6 @@ export class ApiSDK {
       userType: new UserTypeApi(config, undefined, axiosInstance),
       photos: new PhotosApi(config, undefined, axiosInstance),
       security: new SecurityApi(config, undefined, axiosInstance),
-      agents: new AgentsApi(config, undefined, axiosInstance),
       providers: new ProvidersApi(config, undefined, axiosInstance),
       openaiPassthrough: new OpenAIPassthroughApi(
         config,
@@ -352,7 +350,6 @@ export class ApiSDK {
       userType: new UserTypeApi(config, undefined, axiosInstance),
       photos: new PhotosApi(config, undefined, axiosInstance),
       security: new SecurityApi(config, undefined, axiosInstance),
-      agents: new AgentsApi(config, undefined, axiosInstance),
       providers: new ProvidersApi(config, undefined, axiosInstance),
       openaiPassthrough: new OpenAIPassthroughApi(
         config,

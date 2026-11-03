@@ -26,6 +26,11 @@ import {
 // is a soft one, so one wrong answer does not abort the rest of the battery.
 
 test.describe("AI Agent reasoning over employees_standard.csv", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test.setTimeout(600_000);
   for (const method of ATTACHMENT_METHODS) {
     test(`${method.name} - agent reads and reasons over employees_standard.csv`, async ({
@@ -56,6 +61,11 @@ test.describe("AI Agent reasoning over employees_standard.csv", () => {
 // amount — so every assertion here is checking that nothing got silently
 // corrected or dropped.
 test.describe("AI Agent reasoning over employees_edge_cases.csv", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test.setTimeout(600_000);
   for (const method of ATTACHMENT_METHODS) {
     // BUG 84461: intermittent — the model sometimes answers Test 14 without X001
@@ -103,6 +113,11 @@ test.describe("AI Agent reasoning over employees_edge_cases.csv", () => {
 // exercise: totals per calendar month, comparing months against each other,
 // and aggregating one employee's rows across months.
 test.describe("AI Agent reasoning over employees_monthly_payroll.csv", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test.setTimeout(600_000);
   for (const method of ATTACHMENT_METHODS) {
     test(`${method.name} - agent reads and reasons over employees_monthly_payroll.csv`, async ({

@@ -83,6 +83,11 @@ async function ask(
 }
 
 test.describe("Vectorization - the index is used by the agent that owns it", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/vectorization/tasks - a submitted file is found by its agent's knowledge_search and not by another agent's", async ({
     apiSdk,
     paymentsApi,

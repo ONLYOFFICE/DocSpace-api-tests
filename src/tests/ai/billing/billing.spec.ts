@@ -137,6 +137,11 @@ async function spendOnAiTools(
 }
 
 test.describe("AI usage - billed to the AI Tools add-on", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("GET /api/2.0/portal/payment/customer/operations, customer/usage - an AI chat reply is charged to ai-tools", async ({
     apiSdk,
     paymentsApi,

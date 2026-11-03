@@ -74,6 +74,11 @@ const GATED: GatedCall[] = [
 ];
 
 test.describe("Threads - AI Disabled: the routes the other suites leave out", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   for (const { route, act } of GATED) {
     test(`${route} - returns 403 when AI access is disabled and writes nothing`, async ({
       apiSdk,

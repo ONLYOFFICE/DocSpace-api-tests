@@ -97,6 +97,11 @@ async function serversOf(aiTools: AiTools, agentId?: number) {
 // ---------------------------------------------------------------------------
 
 test.describe("ToolsApi - get-custom-server and list-custom-servers", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("GET /api/2.0/ai/tools/get-custom-server - names that exist on Object.prototype read as unregistered", async ({
     apiSdk,
     paymentsApi,
@@ -349,6 +354,11 @@ test.describe("ToolsApi - get-custom-server and list-custom-servers", () => {
 // ---------------------------------------------------------------------------
 
 test.describe("ToolsApi - add-custom-server", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/tools/add-custom-server - a config with both url and command is refused and nothing is stored", async ({
     apiSdk,
     paymentsApi,
@@ -500,6 +510,11 @@ test.describe("ToolsApi - add-custom-server", () => {
 // ---------------------------------------------------------------------------
 
 test.describe("ToolsApi - update-custom-server", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("PUT /api/2.0/ai/tools/update-custom-server - every refused update leaves the stored config exactly as it was", async ({
     apiSdk,
     paymentsApi,
@@ -647,6 +662,11 @@ test.describe("ToolsApi - update-custom-server", () => {
 });
 
 test.describe("ToolsApi - remove-custom-server", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("DELETE /api/2.0/ai/tools/remove-custom-server - a bad name is refused, an unknown one is a no-op, and neither touches the scope", async ({
     apiSdk,
     paymentsApi,
@@ -724,6 +744,11 @@ test.describe("ToolsApi - remove-custom-server", () => {
 // ---------------------------------------------------------------------------
 
 test.describe("ToolsApi - replace-all-custom-servers", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("PUT /api/2.0/ai/tools/replace-all-custom-servers - the scope always ends up as exactly the map that was sent", async ({
     apiSdk,
     paymentsApi,
@@ -906,6 +931,11 @@ test.describe("ToolsApi - replace-all-custom-servers", () => {
 // ---------------------------------------------------------------------------
 
 test.describe("ToolsApi - set-disabled, get-disabled, is-tool-disabled", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("PUT /api/2.0/ai/tools/set-disabled - a bad serverType or a non-string tool name is a 400 and the stored list is untouched", async ({
     apiSdk,
     paymentsApi,
@@ -1181,6 +1211,11 @@ test.describe("ToolsApi - set-disabled, get-disabled, is-tool-disabled", () => {
 // ---------------------------------------------------------------------------
 
 test.describe("ToolsApi - set-allow-always, get-allow-always, is-allow-always", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("PUT /api/2.0/ai/tools/set-allow-always - the list is flat serverType_toolName strings, set is idempotent, and revoking one entry touches no other", async ({
     apiSdk,
     paymentsApi,
@@ -1448,6 +1483,11 @@ test.describe("ToolsApi - set-allow-always, get-allow-always, is-allow-always", 
 // ---------------------------------------------------------------------------
 
 test.describe("ToolsApi - list-system-tools with servers registered", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("GET /api/2.0/ai/tools/list-system-tools - the catalogue is keyed by registered server, names an unreachable one in errors, and follows the scope", async ({
     apiSdk,
     paymentsApi,
@@ -1547,6 +1587,11 @@ test.describe("ToolsApi - list-system-tools with servers registered", () => {
 // ---------------------------------------------------------------------------
 
 test.describe("ToolsApi - lifecycles across routes", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("add-custom-server -> remove-custom-server -> add-custom-server - a removed server takes its disabled and allow-always entries with it, and a new one starts clean", async ({
     apiSdk,
     paymentsApi,
@@ -1922,6 +1967,11 @@ test.describe("ToolsApi - lifecycles across routes", () => {
 });
 
 test.describe("ToolsApi - settings of a deleted agent", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("DELETE /api/2.0/ai/agents/{id} - the agent's disabled and allow-always entries are not reachable through its id, the portal or a new agent", async ({
     apiSdk,
     paymentsApi,
@@ -1966,6 +2016,11 @@ test.describe("ToolsApi - settings of a deleted agent", () => {
 });
 
 test.describe("ToolsApi - concurrent writes", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/tools/add-custom-server - eight concurrent registrations of one name store it once", async ({
     apiSdk,
     paymentsApi,

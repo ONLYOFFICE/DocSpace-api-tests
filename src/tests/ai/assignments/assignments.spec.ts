@@ -989,7 +989,8 @@ test.describe("AI Assignments - removing assignments", () => {
 });
 
 test.describe("AI Assignments - entity scope", () => {
-  test("GET /api/2.0/ai/assignments/get-all-assignments - an agent carries its own Chat binding", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("GET /api/2.0/ai/assignments/get-all-assignments - an agent carries its own Chat binding", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1193,7 +1194,8 @@ test.describe("AI Assignments - resolution precedence", () => {
     await expectResolved(profiles, b.id!, "Chat");
   });
 
-  test("GET /api/2.0/ai/assignments/resolve-for-action - an agent's own model wins over the portal Chat and Default", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("GET /api/2.0/ai/assignments/resolve-for-action - an agent's own model wins over the portal Chat and Default", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1237,7 +1239,8 @@ test.describe("AI Assignments - resolution precedence", () => {
     });
   });
 
-  test("GET /api/2.0/ai/assignments/resolve-for-action - two agents each resolve their own model and leave the portal map alone", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("GET /api/2.0/ai/assignments/resolve-for-action - two agents each resolve their own model and leave the portal map alone", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1328,7 +1331,8 @@ test.describe("AI Assignments - resolution precedence", () => {
     });
   });
 
-  test("GET /api/2.0/ai/assignments/resolve-for-action - an agent's model does not override FormAnalysis, only Chat", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("GET /api/2.0/ai/assignments/resolve-for-action - an agent's model does not override FormAnalysis, only Chat", async ({
     apiSdk,
     paymentsApi,
   }) => {

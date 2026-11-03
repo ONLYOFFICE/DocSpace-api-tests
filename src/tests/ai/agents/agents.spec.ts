@@ -110,7 +110,8 @@ test.describe("POST /ai/agents - Create AI agent", () => {
 test.describe("POST /ai/agents - Create AI agent validation", () => {
   // Replaces the old modelId-validation tests (BUG 80650): there is no modelId
   // any more, and the profileId that took its place IS validated.
-  test("POST /ai/agents - Owner cannot create an agent with a malformed profileId", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /ai/agents - Owner cannot create an agent with a malformed profileId", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -190,7 +191,8 @@ test.describe("POST /ai/agents - Create AI agent validation", () => {
   // lifecycle cannot be staged here, because the gateway catalogue is read-only
   // (profiles/delete is 403 even for the Owner) and may well leave state of its
   // own behind. Only the dangling-reference half is covered.
-  test("BUG 82922: POST /ai/agents - Owner cannot create an agent on a profile that is not in the catalogue", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 82922: POST /ai/agents - Owner cannot create an agent on a profile that is not in the catalogue", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -318,6 +320,11 @@ test.describe("POST /ai/agents - Create AI agent validation", () => {
 });
 
 test.describe("POST /ai/agents - the Chat assignment a create produces", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /ai/agents - create binds the given profile as the agent's Chat assignment", async ({
     apiSdk,
     paymentsApi,
@@ -347,6 +354,11 @@ test.describe("POST /ai/agents - the Chat assignment a create produces", () => {
 });
 
 test.describe("GET /ai/agents - Get AI agents", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("GET /ai/agents - Owner creates an agent and verifies it in agent list", async ({
     apiSdk,
     paymentsApi,
@@ -448,7 +460,8 @@ test.describe("GET /ai/agents - Get AI agents", () => {
 });
 
 test.describe("GET /ai/agents/:id - Get AI agent info", () => {
-  test("GET /ai/agents/:id - Owner creates an agent and gets its info", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("GET /ai/agents/:id - Owner creates an agent and gets its info", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -474,7 +487,8 @@ test.describe("GET /ai/agents/:id - Get AI agent info", () => {
     );
   });
 
-  test("GET /ai/agents/:id - DocSpace Admin gets info about agent created by Owner", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("GET /ai/agents/:id - DocSpace Admin gets info about agent created by Owner", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -515,7 +529,8 @@ test.describe("GET /ai/agents/:id - Get AI agent info", () => {
     },
     { label: "Guest", type: "Guest", role: "guest", access: FileShare.Read },
   ] as const) {
-    test(`GET /ai/agents/:id - ${label} added to agent room gets agent info`, async ({
+    // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+    test.skip(`GET /ai/agents/:id - ${label} added to agent room gets agent info`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -583,6 +598,11 @@ test.describe("GET /ai/agents/:id - Get AI agent info", () => {
 });
 
 test.describe("DELETE /ai/agents/:id - Delete AI agent", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   for (const { label, type, role } of [
     { label: "Owner", type: undefined, role: "owner" },
     { label: "DocSpace Admin", type: "DocSpaceAdmin", role: "docSpaceAdmin" },
@@ -647,6 +667,11 @@ test.describe("GET /ai/agents/news - Get AI agents new items", () => {
 });
 
 test.describe("PUT /ai/agents/agentquota - Change AI agent quota", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("PUT /ai/agents/agentquota - Owner changes agent quota limit", async ({
     apiSdk,
     paymentsApi,
@@ -742,6 +767,11 @@ test.describe("PUT /ai/agents/agentquota - Change AI agent quota", () => {
 });
 
 test.describe("PUT /ai/agents/resetquota - Reset AI agent quota", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("PUT /ai/agents/resetquota - Owner resets agent quota limit", async ({
     apiSdk,
     paymentsApi,
@@ -849,6 +879,11 @@ test.describe("PUT /ai/agents/resetquota - Reset AI agent quota", () => {
 });
 
 test.describe("PUT /ai/agents/:id - Update AI agent", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   for (const { label, type, role } of [
     { label: "Owner", type: undefined, role: "owner" },
     { label: "DocSpace Admin", type: "DocSpaceAdmin", role: "docSpaceAdmin" },
@@ -942,6 +977,11 @@ test.describe("PUT /ai/agents/:id - Update AI agent", () => {
 // catalogue profile. There is no third valid outcome, and "no model at all" is
 // the one this endpoint can reach.
 test.describe("PUT /ai/agents/:id - the agent's profile binding", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("PUT /ai/agents/:id - an update that leaves profileId out keeps the agent's model", async ({
     apiSdk,
     paymentsApi,
@@ -1099,6 +1139,11 @@ test.describe("PUT /ai/agents/:id - the agent's profile binding", () => {
 });
 
 test.describe("PUT /ai/agents/:id - profileId positive path", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("PUT /ai/agents/:id - moving from profile A to profile B replaces the Chat assignment", async ({
     apiSdk,
     paymentsApi,
@@ -1241,6 +1286,11 @@ test.describe("PUT|DELETE /ai/agents/:id - nonexistent agent", () => {
 });
 
 test.describe("DELETE /ai/agents/:id - assignment cleanup", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("DELETE /ai/agents/:id - deleting an agent leaves no dangling Chat assignment", async ({
     apiSdk,
     paymentsApi,
@@ -1274,7 +1324,8 @@ test.describe("DELETE /ai/agents/:id - assignment cleanup", () => {
 });
 
 test.describe("GET /ai/agents - ordinary rooms never surface as agents", () => {
-  test("GET /ai/agents - an ordinary room is never listed alongside real agents", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("GET /ai/agents - an ordinary room is never listed alongside real agents", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1336,6 +1387,11 @@ test.describe("GET /ai/agents - ordinary rooms never surface as agents", () => {
 });
 
 test.describe("PUT /ai/agents/agentquota|resetquota - batch semantics with mixed roomIds", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   // Measured live: a batch with one real agent id and one that does not exist
   // does not partially apply, does not refuse cleanly, and does not echo back
   // the valid agent — it 500s with `{"error":"Internal Server Error"}`. Any of
@@ -1444,7 +1500,8 @@ test.describe("PUT /ai/agents/agentquota|resetquota - batch semantics with mixed
 //     message:"Profile not found"}}` — no trap, no erasure. That is what the
 //     agent-update path should be doing instead.
 test.describe("PUT /api/2.0/ai/agents/:id - restricting the agent's current model", () => {
-  test("PUT /ai/agents/:id - restricting a model the agent is not on has no effect", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("PUT /ai/agents/:id - restricting a model the agent is not on has no effect", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1493,7 +1550,8 @@ test.describe("PUT /api/2.0/ai/agents/:id - restricting the agent's current mode
     expect(put.status, "renaming the agent").toBe(200);
   });
 
-  test("PUT /ai/agents/:id - a rename with no profileId succeeds even while the agent's own model is restricted", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("PUT /ai/agents/:id - a rename with no profileId succeeds even while the agent's own model is restricted", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1529,7 +1587,8 @@ test.describe("PUT /api/2.0/ai/agents/:id - restricting the agent's current mode
     expect(rename.status, "a rename that does not touch profileId").toBe(200);
   });
 
-  test("BUG 83355: PUT /ai/agents/:id - moving off a restricted model onto a different, valid one is refused", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 83355: PUT /ai/agents/:id - moving off a restricted model onto a different, valid one is refused", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1597,7 +1656,8 @@ test.describe("PUT /api/2.0/ai/agents/:id - restricting the agent's current mode
   // at the moment of the update is now a controlled refusal — 400, the same
   // "AI profile "..." does not exist" shape an unrecognised profileId gets —
   // and the agent keeps the profileId/Chat assignment it already had.
-  test("BUG 83359: PUT /ai/agents/:id - moving onto a restricted model is refused atomically, the current profileId/Chat assignment is preserved", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 83359: PUT /ai/agents/:id - moving onto a restricted model is refused atomically, the current profileId/Chat assignment is preserved", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1685,7 +1745,8 @@ test.describe("PUT /api/2.0/ai/agents/:id - restricting the agent's current mode
     expect(created.error).toContain(`AI profile "${target.id}" does not exist`);
   });
 
-  test("PUT /ai/model/restrictions - REPLACE takes effect immediately, both ways, in the same session", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("PUT /ai/model/restrictions - REPLACE takes effect immediately, both ways, in the same session", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1760,6 +1821,11 @@ test.describe("PUT /api/2.0/ai/agents/:id - restricting the agent's current mode
 // profile nothing guarantees — the rooms-API path all over again. It cannot:
 // the call is accepted and the operation settles without producing anything.
 test.describe("POST /files/roomtemplate - an agent as a template source", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /files/roomtemplate - an agent cannot be turned into a room template", async ({
     apiSdk,
     paymentsApi,

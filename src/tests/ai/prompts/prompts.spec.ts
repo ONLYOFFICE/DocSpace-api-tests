@@ -1513,6 +1513,11 @@ const MESSAGE_TO_SAVE = [
 ].join("\n");
 
 test.describe("AI Prompts - composer round trip", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("GET /api/2.0/ai/threads/read-messages, POST /api/2.0/ai/prompts/create - a prompt made from a message keeps it verbatim", async ({
     apiSdk,
     paymentsApi,

@@ -56,6 +56,11 @@ test.describe("AI Vectorization - AI Disabled", () => {
 // attributing the gate to the wrong thing.
 
 test.describe("AI Vectorization - AI Tools wallet service not paid for", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/vectorization/tasks - the route is accepted while AI Tools is unpaid, but a Knowledge file cannot be added until the service is enabled", async ({
     apiSdk,
     paymentsApi,

@@ -88,6 +88,11 @@ async function expectNoThreadWasCreated(
 }
 
 test.describe("Threads - access control for non-members", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/threads/create - DocSpaceAdmin not in the agent cannot start a thread", async ({
     apiSdk,
     paymentsApi,
@@ -317,6 +322,11 @@ const REFUSED_OPERATIONS: IsolationOperation[] = [
 ];
 
 test.describe("Threads - isolation between members of the same agent", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   for (const { type, role } of MEMBER_ROLES) {
     for (const { route, description, act } of REFUSED_OPERATIONS) {
       test(`${route} - ${role} invited to the agent ${description}`, async ({
@@ -375,6 +385,11 @@ test.describe("Threads - isolation between members of the same agent", () => {
 });
 
 test.describe("Threads - anonymous access", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   // Each of these endpoints sits behind its own middleware, so a 401 on create
   // says nothing about append or clear — every one of them is checked. That is
   // also why the list covers the whole chat surface and not just the thread CRUD:
@@ -639,6 +654,11 @@ test.describe("Threads - anonymous access", () => {
 });
 
 test.describe("Threads - members without content access", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   // Being in the agent room is not enough. A member invited at Read is refused
   // on the thread surface outright, which is what closes Guests out of agents
   // altogether: Read is the only level a Guest can be granted.
@@ -1115,7 +1135,8 @@ test.describe("Threads - a Guest outside an agent", () => {
     }).toEqual({ send: 403, sendCustom: 403, sendCustomStreamed: 403 });
   });
 
-  test("GET|PUT|DELETE /api/2.0/ai/threads/*-message, POST open-or-create - a Guest cannot touch the Owner's chat", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("GET|PUT|DELETE /api/2.0/ai/threads/*-message, POST open-or-create - a Guest cannot touch the Owner's chat", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1431,6 +1452,11 @@ test.describe("Threads - the room membership is revoked", () => {
 });
 
 test.describe("Agent room membership", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   const REFUSED_GUEST_LEVELS: Array<{ label: string; access: FileShare }> = [
     { label: "Editing", access: FileShare.Editing },
     { label: "ContentCreator", access: FileShare.ContentCreator },
@@ -1625,7 +1651,8 @@ test.describe("Threads - validation", () => {
     );
   });
 
-  test("BUG 82720: POST /api/2.0/ai/ai/send-with-stream - an empty message is refused", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 82720: POST /api/2.0/ai/ai/send-with-stream - an empty message is refused", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1663,7 +1690,8 @@ test.describe("Threads - validation", () => {
     expect(AiAgentChat.assistantMessages(messages.data)).toEqual([]);
   });
 
-  test("POST /api/2.0/ai/ai/send-with-stream - an unknown thread is refused with a 404", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/ai/send-with-stream - an unknown thread is refused with a 404", async ({
     apiSdk,
     paymentsApi,
   }) => {

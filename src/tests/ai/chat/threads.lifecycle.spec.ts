@@ -29,6 +29,11 @@ import {
 // nothing cannot pass.
 
 test.describe("Threads - lifecycle", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("ThreadsApi - create, write, read, edit, rename, touch, prune, clear and delete a thread, each step confirmed by another route", async ({
     apiSdk,
     paymentsApi,
