@@ -119,6 +119,11 @@ test.describe("AI Preferences - deep mode state", () => {
 });
 
 test.describe("AI Preferences - deep mode is per entity", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("PUT /api/2.0/ai/preferences/set-deep-mode - an agent's value is independent of the portal-wide one", async ({
     apiSdk,
     paymentsApi,
@@ -274,6 +279,11 @@ test.describe("AI Preferences - deep mode is per entity", () => {
 // thread surface is BUG 82855 (every non-agent entity collapses into one bucket),
 // and on set-reasoning-level it is BUG 84306.
 test.describe("AI Preferences - deep mode of a room or a folder", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   for (const kind of ["room", "folder"] as const) {
     test(`BUG 82900: PUT /api/2.0/ai/preferences/set-deep-mode - a ${kind} scope is stored separately from the portal-wide value`, async ({
       apiSdk,
@@ -430,7 +440,8 @@ test.describe("AI Preferences - deep mode validation", () => {
   // BUG 82815 was a bare `entityId` body (`"<id>"` instead of `{entityId}`) that
   // answered 200 and cleared nothing. Re-measured 2026-10-06: the bare form now
   // clears that scope — and only that scope — so the test is a plain one.
-  test("BUG 82815: DELETE /api/2.0/ai/preferences/clear-deep-mode - a bare entityId body clears that scope and leaves the others", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 82815: DELETE /api/2.0/ai/preferences/clear-deep-mode - a bare entityId body clears that scope and leaves the others", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -569,6 +580,11 @@ test.describe("AI Preferences - deep mode and model support", () => {
 // thing that is verifiable in the positive is the mirror-image requirement —
 // the trace must not be mixed into the answer — and it holds.
 test.describe("AI Preferences - deep mode and the answer", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   const REASONING_QUESTION =
     "A bat and a ball cost $1.10 together. The bat costs $1.00 more than the " +
     "ball. How much does the ball cost? Reply with the amount only.";
@@ -743,6 +759,11 @@ test.describe("AI Preferences - deep mode and the answer", () => {
 //     (BUG 84026); re-measured 2026-10-06 it is refused again and no scope
 //     moves.
 test.describe("AI Preferences - deep mode is not per thread", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("BUG 84026: GET|PUT /api/2.0/ai/preferences/set-deep-mode - a thread is not a scope of its own", async ({
     apiSdk,
     paymentsApi,
@@ -1021,7 +1042,8 @@ test.describe("AI Preferences - reasoning level and the deep-mode switch", () =>
 });
 
 test.describe("AI Preferences - reasoning level is per entity", () => {
-  test("PUT /api/2.0/ai/preferences/set-reasoning-level - the portal and two agents each keep their own level", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("PUT /api/2.0/ai/preferences/set-reasoning-level - the portal and two agents each keep their own level", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1063,7 +1085,8 @@ test.describe("AI Preferences - reasoning level is per entity", () => {
     expect((await preferences.isDeepModeSet("owner", agentA)).data).toBe(true);
   });
 
-  test("DELETE /api/2.0/ai/preferences/clear-deep-mode - clearing an agent drops its level and leaves the others", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("DELETE /api/2.0/ai/preferences/clear-deep-mode - clearing an agent drops its level and leaves the others", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1133,7 +1156,8 @@ test.describe("AI Preferences - reasoning level is per entity", () => {
   // what gives it away. The request looks successful and overwrites another
   // scope's setting.
   for (const kind of ["room", "folder", "nonexistent id"] as const) {
-    test(`BUG 84306: PUT /api/2.0/ai/preferences/set-reasoning-level - a ${kind} scope is stored separately from the portal-wide level`, async ({
+    // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+    test.skip(`BUG 84306: PUT /api/2.0/ai/preferences/set-reasoning-level - a ${kind} scope is stored separately from the portal-wide level`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -1262,7 +1286,8 @@ async function createNonAgentEntity(
 const MALFORMED_ENTITY_IDS = ["abc", "-5", "1.5", " "];
 
 test.describe("AI Preferences - malformed entityId", () => {
-  test("PUT set-deep-mode | DELETE clear-deep-mode - a malformed entityId is refused and writes nowhere", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("PUT set-deep-mode | DELETE clear-deep-mode - a malformed entityId is refused and writes nowhere", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1345,7 +1370,8 @@ test.describe("AI Preferences - malformed entityId", () => {
     });
   }
 
-  test("PUT /api/2.0/ai/preferences/set-deep-mode - a thread id is refused by every write route and moves no scope", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("PUT /api/2.0/ai/preferences/set-deep-mode - a thread id is refused by every write route and moves no scope", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1429,6 +1455,11 @@ test.describe("AI Preferences - set-deep-mode value types", () => {
 });
 
 test.describe("AI Preferences - clear-deep-mode body contract", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("DELETE /api/2.0/ai/preferences/clear-deep-mode - a missing, empty or non-numeric target is refused and clears nothing", async ({
     apiSdk,
     paymentsApi,
@@ -1579,6 +1610,11 @@ test.describe("AI Preferences - clear-deep-mode body contract", () => {
 });
 
 test.describe("AI Preferences - portal scope tokens", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   for (const token of ["", "0"]) {
     test(`PUT|GET|DELETE /api/2.0/ai/preferences/* - entityId ${JSON.stringify(token)} is the portal-wide scope for every route`, async ({
       apiSdk,
@@ -1643,6 +1679,11 @@ test.describe("AI Preferences - portal scope tokens", () => {
 });
 
 test.describe("AI Preferences - a real agent against the portal-wide value", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("GET /api/2.0/ai/preferences/is-deep-mode-set - an agent with no value of its own is unset whatever the portal holds", async ({
     apiSdk,
     paymentsApi,
@@ -1670,7 +1711,8 @@ test.describe("AI Preferences - a real agent against the portal-wide value", () 
 test.describe("AI Preferences - a room, a folder or an unknown id is not a scope", () => {
   // The room and folder variants of this write are BUG 82900 (above). An id that
   // exists nowhere has no such ticket.
-  test("BUG 84418: PUT /api/2.0/ai/preferences/set-deep-mode - a nonexistent id scope is stored separately from the portal-wide value", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 84418: PUT /api/2.0/ai/preferences/set-deep-mode - a nonexistent id scope is stored separately from the portal-wide value", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1732,7 +1774,8 @@ test.describe("AI Preferences - a room, a folder or an unknown id is not a scope
       });
     });
 
-    test(`BUG 84420: GET get-deep-mode | is-deep-mode-set | get-reasoning-level - a ${kind} with nothing of its own does not read the portal-wide value`, async ({
+    // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+    test.skip(`BUG 84420: GET get-deep-mode | is-deep-mode-set | get-reasoning-level - a ${kind} with nothing of its own does not read the portal-wide value`, async ({
       apiSdk,
       paymentsApi,
     }) => {

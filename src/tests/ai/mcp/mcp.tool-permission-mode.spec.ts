@@ -281,6 +281,11 @@ async function modeHarness(apiSdk: ApiSDK, paymentsApi: PortalPaymentApi) {
 }
 
 test.describe("MCP - tool permission mode steers the approval pause", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("BUG 84298: POST /api/2.0/ai/ai/send-with-stream - ask: every host tool waits for approval until an allow-always is saved", async ({
     apiSdk,
     paymentsApi,
@@ -410,7 +415,8 @@ test.describe("MCP - tool permission mode steers the approval pause", () => {
 });
 
 test.describe("MCP - tool permission mode, scope and switching", () => {
-  test("POST /api/2.0/ai/ai/send-with-stream - a mode change applies to both existing and newly created threads", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/ai/send-with-stream - a mode change applies to both existing and newly created threads", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -559,7 +565,8 @@ test.describe("MCP - tool permission mode, scope and switching", () => {
     }
   });
 
-  test("POST /api/2.0/ai/ai/send-with-stream - a new mode applies to the next tool call", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/ai/send-with-stream - a new mode applies to the next tool call", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -821,6 +828,11 @@ async function serverToolHarness(
 }
 
 test.describe("MCP - tool permission mode and server-executed tools", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/ai/send-with-stream - the document generator waits for approval in ask and auto and runs unasked in allow", async ({
     apiSdk,
     paymentsApi,

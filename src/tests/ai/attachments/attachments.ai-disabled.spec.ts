@@ -127,7 +127,8 @@ async function expectRefusedOnceSettled(
 }
 
 test.describe("AI Attachments - AI access disabled", () => {
-  test("POST /api/2.0/ai/attachments/link-to-message - returns 403 when AI access is disabled", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/attachments/link-to-message - returns 403 when AI access is disabled", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -371,6 +372,11 @@ test.describe("AI Attachments - AI access disabled", () => {
 // controller and have not diverged from the single-item ones in any state.
 
 test.describe("AI Attachments - AI Tools wallet service not paid for", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/attachments/save-file, get, link-to-message, DELETE delete - the attachment lifecycle works with AI Tools unpaid", async ({
     apiSdk,
   }) => {

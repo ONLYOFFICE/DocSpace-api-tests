@@ -112,7 +112,8 @@ test.describe("POST /ai/agents - Create AI agent access control", () => {
 
 test.describe("GET /ai/agents - Get AI agents access control", () => {
   for (const { label, type, role } of NON_OWNER_ROLES) {
-    test(`GET /ai/agents - ${label} does not see an agent created by Owner they were not invited to`, async ({
+    // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+    test.skip(`GET /ai/agents - ${label} does not see an agent created by Owner they were not invited to`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -154,6 +155,11 @@ test.describe("GET /ai/agents - Get AI agents access control", () => {
 });
 
 test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   for (const { label, type, role } of NON_OWNER_ROLES.filter(
     (entry) => entry.role !== "docSpaceAdmin",
   )) {
@@ -229,6 +235,11 @@ test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
 });
 
 test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   for (const { label, type, role } of NON_OWNER_ROLES) {
     test(`PUT /ai/agents/:id - ${label} cannot update an agent created by Owner`, async ({
       apiSdk,
@@ -402,6 +413,11 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
 });
 
 test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   for (const { label, type, role } of NON_OWNER_ROLES) {
     test(`DELETE /ai/agents/:id - ${label} cannot delete an agent created by Owner`, async ({
       apiSdk,
@@ -473,6 +489,11 @@ test.describe("GET /ai/agents/news - Get AI agents new items access control", ()
 });
 
 test.describe("PUT /ai/agents/agentquota - Change AI agent quota access control", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   for (const { label, type, role } of NON_OWNER_ROLES) {
     test(`PUT /ai/agents/agentquota - ${label} cannot change quota on an agent created by Owner`, async ({
       apiSdk,
@@ -563,6 +584,11 @@ test.describe("PUT /ai/agents/agentquota - Change AI agent quota access control"
 });
 
 test.describe("PUT /ai/agents/resetquota - Reset AI agent quota access control", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   for (const { label, type, role } of NON_OWNER_ROLES) {
     test(`PUT /ai/agents/resetquota - ${label} cannot reset quota on an agent created by Owner`, async ({
       apiSdk,
@@ -664,6 +690,11 @@ const INJECTION_INSTRUCTIONS =
 const NEUTRAL_MESSAGE = "Hi there!";
 
 test.describe("AI Instructions - stored HTML injection", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   // The delivered message is now stripped of markup, so this is an ordinary
   // passing test. Its one soft spot is the precondition: the model has to
   // actually reproduce the payload for the sanitisation to be observable, and it
@@ -846,6 +877,11 @@ test.describe("AI Instructions - stored HTML injection", () => {
 // on every `/ai/threads/*` route (chat.permission.spec.ts), so a Guest still cannot
 // chat with an agent they can see.
 test.describe("AI Agents - a Guest invited as a Viewer gets the Viewer's reads", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   const GUEST_INSTRUCTIONS = "Autotest guest-visible instructions";
 
   test("GET /ai/agents - a Guest invited as a Viewer sees that agent and no other", async ({

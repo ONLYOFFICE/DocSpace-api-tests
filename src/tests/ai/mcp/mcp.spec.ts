@@ -79,6 +79,11 @@ const SERVER_CONFIG = { url: "https://mcp.example.invalid/sse" };
 const BUILT_IN_DOC_TOOL = "generate_docx";
 
 test.describe("MCP - System tools catalogue", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("GET /api/2.0/ai/tools/list-system-tools - the catalogue publishes nothing", async ({
     apiSdk,
     paymentsApi,
@@ -117,6 +122,11 @@ test.describe("MCP - System tools catalogue", () => {
 });
 
 test.describe("MCP - Custom server lifecycle", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST/GET/PUT/DELETE /api/2.0/ai/tools/*-custom-server - Owner round-trips a server", async ({
     apiSdk,
     paymentsApi,
@@ -275,6 +285,11 @@ test.describe("MCP - Custom server lifecycle", () => {
 const DISABLE_TARGET_SERVER = "autotest-disable-target";
 
 test.describe("MCP - Disabling individual tools", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("PUT /api/2.0/ai/tools/set-disabled - the built-in DocSpace tools cannot be switched off", async ({
     apiSdk,
     paymentsApi,
@@ -461,6 +476,11 @@ test.describe("MCP - Disabling individual tools", () => {
 });
 
 test.describe("MCP - Allow-always for tool approval", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("PUT /api/2.0/ai/tools/set-allow-always - Owner marks a tool as pre-approved", async ({
     apiSdk,
     paymentsApi,
@@ -729,6 +749,11 @@ const TOOL_CALL_BODY = {
 };
 
 test.describe("MCP - tool-call confirmation validation", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/ai/approve-tool-call, deny-tool-call - a confirmation for a message that has no tool call is refused with 409", async ({
     apiSdk,
     paymentsApi,
@@ -961,6 +986,11 @@ test.describe("MCP - tool-call confirmation validation", () => {
 });
 
 test.describe("MCP - tool-call confirmation with AI Disabled", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/ai/approve-tool-call, deny-tool-call - both are refused when AI access is disabled", async ({
     apiSdk,
     paymentsApi,
@@ -1081,6 +1111,11 @@ const ASK_FOR_TWO_HOP_TOOLS =
   "for its result, then call get_recommendation.";
 
 test.describe("MCP - the tool-call pause", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/ai/send-with-stream - a client-supplied tool pauses the stream at tool-call-pending", async ({
     apiSdk,
     paymentsApi,
@@ -1299,6 +1334,11 @@ test.describe("MCP - the tool-call pause", () => {
 // content part inside `message.content`" — which is exactly what the second
 // half of the test below pins.
 test.describe("MCP - a genuine two-hop tool call", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/ai/send-with-stream, approve-tool-call - pending A -> approve A -> pending B -> approve B -> final, with both calls, results and the final answer in order", async ({
     apiSdk,
     paymentsApi,
@@ -1440,6 +1480,11 @@ test.describe("MCP - a genuine two-hop tool call", () => {
 // (a repeat deny always answers with the same canned "User deny tool call"
 // result, so only the regenerated prose around it shows the replay).
 test.describe("MCP - a decision replayed on an already-resolved tool call", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("BUG 84283: POST /api/2.0/ai/ai/approve-tool-call - a second approve with a different result does not overwrite the first", async ({
     apiSdk,
     paymentsApi,
@@ -1777,7 +1822,8 @@ async function waitForRegenerateReplacement(
 }
 
 test.describe("MCP - regenerate over a resolved tool call", () => {
-  test("POST /api/2.0/ai/ai/regenerate-stream - the old tool call and its result are replaced whole, not orphaned or duplicated", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/ai/regenerate-stream - the old tool call and its result are replaced whole, not orphaned or duplicated", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1860,7 +1906,8 @@ test.describe("MCP - regenerate over a resolved tool call", () => {
     ).toBe(false);
   });
 
-  test("POST /api/2.0/ai/ai/regenerate-stream - a two-hop tool chain is replaced whole, not just its last call", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/ai/regenerate-stream - a two-hop tool chain is replaced whole, not just its last call", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1933,7 +1980,8 @@ test.describe("MCP - regenerate over a resolved tool call", () => {
     expect(serialized.includes(oldIdB as string)).toBe(false);
   });
 
-  test("POST /api/2.0/ai/ai/regenerate-stream, approve-tool-call - a regenerated reply that itself calls a tool starts a clean new chain", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/ai/regenerate-stream, approve-tool-call - a regenerated reply that itself calls a tool starts a clean new chain", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2165,6 +2213,11 @@ function expectAnnouncementPhrase(intent: unknown, label: string) {
 }
 
 test.describe("MCP - the tool call announces itself", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/ai/send-with-stream - the pending tool call carries the model's aiChatIntent phrase and keeps it in the thread", async ({
     apiSdk,
     paymentsApi,
@@ -2367,6 +2420,11 @@ test.describe("MCP - the tool call announces itself", () => {
 });
 
 test.describe("MCP - always-allow drives the pause", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("BUG 84292: PUT /api/2.0/ai/tools/set-allow-always - a listed tool comes back autoAllow and delisting it prompts again", async ({
     apiSdk,
     paymentsApi,
@@ -2693,6 +2751,11 @@ const OWNERS_PRE_APPROVED = "delete_file";
 const MEMBERS_PRE_APPROVED = "create_room";
 
 test.describe("MCP - whose always-allow decision it is", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("PUT /api/2.0/ai/tools/set-allow-always - one user's pre-approval does not disarm another user's dialog", async ({
     apiSdk,
     paymentsApi,
@@ -3102,6 +3165,11 @@ test.describe("MCP - custom servers scoped to a room", () => {
 });
 
 test.describe("MCP - replace-all-custom-servers", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("PUT /api/2.0/ai/tools/replace-all-custom-servers - the scoped map replaces exactly one scope", async ({
     apiSdk,
     paymentsApi,
@@ -3513,6 +3581,11 @@ test.describe("MCP - replace-all-custom-servers", () => {
 });
 
 test.describe("MCP - concurrent writes to one scope", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/tools/add-custom-server - five concurrent registrations all land", async ({
     apiSdk,
     paymentsApi,
@@ -3659,6 +3732,11 @@ test.describe("MCP - concurrent writes to one scope", () => {
 });
 
 test.describe("MCP - server types", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("PUT /api/2.0/ai/tools/set-disabled - serverType must be a built-in or a registered custom server", async ({
     apiSdk,
     paymentsApi,
@@ -3868,7 +3946,8 @@ test.describe("MCP - the agent body and the per-entity server map", () => {
     });
   });
 
-  test("PUT /api/2.0/ai/agents/{id} - the agent's server map survives every edit", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("PUT /api/2.0/ai/agents/{id} - the agent's server map survives every edit", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -3961,6 +4040,11 @@ test.describe("MCP - the agent body and the per-entity server map", () => {
 });
 
 test.describe("MCP - a deleted agent's server map", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("DELETE /api/2.0/ai/agents/{id} - the agent's servers go with it and the scoped read falls back to the portal", async ({
     apiSdk,
     paymentsApi,
@@ -4070,6 +4154,11 @@ test.describe("MCP - a deleted agent's server map", () => {
 });
 
 test.describe("MCP - a portal server copied into an agent scope", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/tools/add-custom-server - a name with no config copies the portal server into the agent", async ({
     apiSdk,
     paymentsApi,
@@ -4220,6 +4309,11 @@ test.describe("MCP - a portal server copied into an agent scope", () => {
 });
 
 test.describe("MCP - the stored config", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/tools/add-custom-server - an stdio and an HTTP config round-trip verbatim", async ({
     apiSdk,
     paymentsApi,
@@ -4328,6 +4422,11 @@ test.describe("MCP - the stored config", () => {
 });
 
 test.describe("MCP - server names as map keys", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/tools/add-custom-server - names are case-insensitive and keep the casing they were registered with", async ({
     apiSdk,
     paymentsApi,
@@ -4810,6 +4909,11 @@ const ASK_CALCULATOR = `Call the tool named calculate (it belongs to the "calcul
 const CALCULATOR_TOOL = "calculate";
 
 test.describe("MCP - a registered server and the conversation", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/ai/send-with-stream - registering an unreachable server leaves an ordinary reply unaffected", async ({
     apiSdk,
     paymentsApi,
@@ -5031,6 +5135,11 @@ test.describe("MCP - a registered server and the conversation", () => {
 const ASK_CALCULATOR_TIME = `Call the tool named get_time (it belongs to the "calculator" MCP server) to get the current time, then report it. If you truly have no such tool, reply exactly: ${NO_TOOL_SENTINEL}`;
 
 test.describe("MCP - allow-always for a custom server's own tool", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test(`BUG 84009: GET /api/2.0/ai/tools/is-allow-always - a custom MCP server's tool pre-approved through the dialog is not found under its own key`, async ({
     apiSdk,
     paymentsApi,
@@ -5236,6 +5345,11 @@ async function askInNewThread(
 }
 
 test.describe("MCP - disabling a tool the model really has", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/ai/send-with-stream - a built-in tool is offered to the model and called", async ({
     apiSdk,
     paymentsApi,
@@ -5359,6 +5473,11 @@ test.describe("MCP - disabling a tool the model really has", () => {
 const WHOLE_SERVER_TOOLS = ["calculate", "get_time", "convert_units"];
 
 test.describe("MCP - switching a whole server off", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("PUT /api/2.0/ai/tools/set-disabled - a whole server goes off in one call and the list is a full replacement", async ({
     apiSdk,
     paymentsApi,
@@ -5598,6 +5717,11 @@ const SWITCHED_OFF_WEATHER_TOOL: HostTool = {
 };
 
 test.describe("MCP - the per-request tool switch", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("BUG 83162: POST /api/2.0/ai/ai/send-with-stream - a tool sent with enabled:false is still offered to the model", async ({
     apiSdk,
     paymentsApi,
@@ -5744,6 +5868,11 @@ const SHADOWED_BUILT_IN_TOOLS: HostTool[] = [
 }));
 
 test.describe("MCP - the editor's toolset and the chat's", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/ai/send-with-stream - the editor's tools are added to the chat's, not substituted for them", async ({
     apiSdk,
     paymentsApi,
@@ -5883,6 +6012,11 @@ test.describe("MCP - the editor's toolset and the chat's", () => {
 // is no way for a client to show a common list of tools at all.
 
 test.describe("MCP - a registered server in the tool list", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("BUG 83163: GET /api/2.0/ai/tools/list-system-tools - a registered server's tools never appear in the catalogue", async ({
     apiSdk,
     paymentsApi,
@@ -6345,7 +6479,8 @@ async function generateFile(
 
 test.describe("MCP - the server-executed DocSpace tools", () => {
   for (const generator of GENERATORS) {
-    test(`POST /api/2.0/ai/ai/approve-tool-call - an agent's ${generator.toolName} writes ${generator.label} into Chat outputs, and it opens`, async ({
+    // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+    test.skip(`POST /api/2.0/ai/ai/approve-tool-call - an agent's ${generator.toolName} writes ${generator.label} into Chat outputs, and it opens`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -6482,7 +6617,8 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
   // BUG 84063, its own `test.fail` right after BUG 83232's (now green)
   // container test.
 
-  test("BUG 83231: POST /api/2.0/ai/ai/approve-tool-call - the document generator writes a blank document", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 83231: POST /api/2.0/ai/ai/approve-tool-call - the document generator writes a blank document", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -6521,7 +6657,8 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     ).not.toEqual({ text: "", generationToolCallState: undefined });
   });
 
-  test("BUG 83232: POST /api/2.0/ai/ai/approve-tool-call - the presentation generator writes a presentation", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 83232: POST /api/2.0/ai/ai/approve-tool-call - the presentation generator writes a presentation", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -6556,7 +6693,8 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     });
   });
 
-  test("BUG 84063: POST /api/2.0/ai/ai/approve-tool-call - the presentation generator writes blank slides", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 84063: POST /api/2.0/ai/ai/approve-tool-call - the presentation generator writes blank slides", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -6590,7 +6728,8 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     ).not.toEqual({ slideCount: 1, hasText: false });
   });
 
-  test("POST /api/2.0/ai/ai/approve-tool-call - the form generator writes a real form", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/ai/approve-tool-call - the form generator writes a real form", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -6624,7 +6763,8 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     ).toBe(true);
   });
 
-  test("POST /api/2.0/ai/ai/deny-tool-call - a refused generator writes no file at all", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/ai/deny-tool-call - a refused generator writes no file at all", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -6762,7 +6902,8 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     });
   });
 
-  test("POST /api/2.0/ai/ai/approve-tool-call - Allow with allowAlways stops the generator asking again", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/ai/approve-tool-call - Allow with allowAlways stops the generator asking again", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -6880,7 +7021,8 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     ).toBe(true);
   });
 
-  test("POST /api/2.0/ai/ai/approve-tool-call - a member of the agent generates a document and can open it", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/ai/approve-tool-call - a member of the agent generates a document and can open it", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -7238,7 +7380,8 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
   ];
 
   for (const scope of REST_TOOL_SCOPES) {
-    test(`POST /api/2.0/ai/ai/approve-tool-call - a server-executed DocSpace tool scoped to ${scope.label} runs against the caller's own portal`, async ({
+    // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+    test.skip(`POST /api/2.0/ai/ai/approve-tool-call - a server-executed DocSpace tool scoped to ${scope.label} runs against the caller's own portal`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -7373,6 +7516,11 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
 // on to do anything with what it read.
 
 test.describe("MCP - the DocSpace tools and another tenant's data", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("BUG 83172: POST /api/2.0/ai/ai/send-with-stream - a server-executed DocSpace tool answers with another tenant's folder", async ({
     apiSdk,
     paymentsApi,
@@ -7512,6 +7660,11 @@ const ASK_FOR_TOOL_AGAIN =
 const CARRY_ON = "Forget the weather. Reply with the single word: OK.";
 
 test.describe("MCP - a tool that is not available any more", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test('POST /api/2.0/ai/ai/approve-tool-call - a tool that answers "unavailable" finishes the reply and the thread carries on', async ({
     apiSdk,
     paymentsApi,
@@ -7687,6 +7840,11 @@ test.describe("MCP - a tool that is not available any more", () => {
 });
 
 test.describe("MCP - a server that goes away mid-conversation", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("DELETE /api/2.0/ai/tools/remove-custom-server - a server removed between two messages of one thread costs the next one nothing", async ({
     apiSdk,
     paymentsApi,

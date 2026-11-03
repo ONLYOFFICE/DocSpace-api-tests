@@ -50,6 +50,11 @@ const SUPPORTED_FORMATS: Array<[string, string, string]> = [
 ];
 
 test.describe("Vectorization - startTask request and response", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/vectorization/tasks - the answer acknowledges the request and carries no task to wait for", async ({
     apiSdk,
     paymentsApi,
@@ -189,6 +194,11 @@ test.describe("Vectorization - startTask request and response", () => {
 });
 
 test.describe("Vectorization - startTask input validation", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/vectorization/tasks - a body without a list of numeric file ids is a 400", async ({
     apiSdk,
     paymentsApi,

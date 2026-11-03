@@ -136,6 +136,11 @@ async function addUser(apiSdk: ApiSDK, type: UserType) {
 // ---------------------------------------------------------------------------
 
 test.describe("ToolsApi permissions - a user who was never invited to the agent", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("every /ai/tools route that names the agent is a 403 for an outsider, the body carries no configuration, and nothing the owner stored moves", async ({
     apiSdk,
     paymentsApi,
@@ -348,6 +353,11 @@ test.describe("ToolsApi permissions - credentials in a stored config", () => {
 });
 
 test.describe("ToolsApi permissions - one user's settings and another's", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("get-disabled, get-allow-always - an invited User starts empty, writes their own, and neither side sees the other's, at agent and portal scope", async ({
     apiSdk,
     paymentsApi,
@@ -587,6 +597,11 @@ test.describe("ToolsApi permissions - one user's settings and another's", () => 
 });
 
 test.describe("ToolsApi permissions - access to the agent is withdrawn", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("a removed member is refused on read and write, their refused write lands nowhere, and re-inviting restores exactly what they had", async ({
     apiSdk,
     paymentsApi,
@@ -737,6 +752,11 @@ test.describe("ToolsApi permissions - access to the agent is withdrawn", () => {
 });
 
 test.describe("ToolsApi - the portal AI switch off and on again", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("nothing stored under /ai/tools is lost to, or changed by, an off period in which every route is refused", async ({
     apiSdk,
     paymentsApi,
@@ -873,6 +893,11 @@ test.describe("ToolsApi - the portal AI switch off and on again", () => {
 });
 
 test.describe("ToolsApi - the order of the gate and the serverType check", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("BUG 84400: PUT /api/2.0/ai/tools/set-disabled - with AI access off, a registered custom server as serverType is a 403 like every other tools write", async ({
     apiSdk,
     paymentsApi,

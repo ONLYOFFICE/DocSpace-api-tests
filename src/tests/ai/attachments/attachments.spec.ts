@@ -257,7 +257,8 @@ test.describe("AI Attachments - save-file", () => {
     expect(data!.createdAt!).toBeLessThanOrEqual(after + 60_000);
   });
 
-  test("POST /api/2.0/ai/attachments/save-file - entityId is accepted and never echoed back", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/attachments/save-file - entityId is accepted and never echoed back", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1487,7 +1488,8 @@ test.describe("AI Attachments - link-to-message", () => {
   // returns. It marks the draft as the message's own, and the mark is observable
   // only through deletion: a marked draft goes with its message or thread, an
   // unmarked one stays until it is swept as abandoned.
-  test("POST /api/2.0/ai/attachments/link-to-message - a linked draft is removed with its message, an unlinked one is not", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/attachments/link-to-message - a linked draft is removed with its message, an unlinked one is not", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1535,7 +1537,8 @@ test.describe("AI Attachments - link-to-message", () => {
     await attachments.expectStored("owner", loose, "unlinked draft");
   });
 
-  test("POST /api/2.0/ai/attachments/link-to-message - linking writes nothing onto the message or the record", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/attachments/link-to-message - linking writes nothing onto the message or the record", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1586,7 +1589,8 @@ test.describe("AI Attachments - link-to-message", () => {
   // regression names the case it broke. Every one opens with the same control —
   // the real attachment into the real message is accepted — so a refusal below is
   // about the target and not about a dead route.
-  test("BUG 82771: POST /api/2.0/ai/attachments/link-to-message - a message id from another thread is a 400", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 82771: POST /api/2.0/ai/attachments/link-to-message - a message id from another thread is a 400", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1604,7 +1608,8 @@ test.describe("AI Attachments - link-to-message", () => {
     expect(status).toBe(400);
   });
 
-  test("BUG 82771: POST /api/2.0/ai/attachments/link-to-message - an unknown message id is a 404", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 82771: POST /api/2.0/ai/attachments/link-to-message - an unknown message id is a 404", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1622,7 +1627,8 @@ test.describe("AI Attachments - link-to-message", () => {
     expect(status).toBe(404);
   });
 
-  test("BUG 82771: POST /api/2.0/ai/attachments/link-to-message - an unknown thread id with a real message is a 400", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 82771: POST /api/2.0/ai/attachments/link-to-message - an unknown thread id with a real message is a 400", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1641,7 +1647,8 @@ test.describe("AI Attachments - link-to-message", () => {
     expect(status).toBe(400);
   });
 
-  test("BUG 82771: POST /api/2.0/ai/attachments/link-to-message - an unknown attachment id is a 404", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 82771: POST /api/2.0/ai/attachments/link-to-message - an unknown attachment id is a 404", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1659,7 +1666,8 @@ test.describe("AI Attachments - link-to-message", () => {
     expect(status).toBe(404);
   });
 
-  test("BUG 82771: POST /api/2.0/ai/attachments/link-to-message - an empty ids array is a 400", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 82771: POST /api/2.0/ai/attachments/link-to-message - an empty ids array is a 400", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1677,7 +1685,8 @@ test.describe("AI Attachments - link-to-message", () => {
     expect(status).toBe(400);
   });
 
-  test("POST /api/2.0/ai/attachments/link-to-message - a malformed attachment id is a 400", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/attachments/link-to-message - a malformed attachment id is a 400", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1736,7 +1745,8 @@ test.describe("AI Attachments - link-to-message", () => {
   // Several ids in one call, the same draft twice, and the thread instead of the
   // message: link-to-message only marks drafts as the message's own, and the mark
   // is what makes them go when the message or thread goes.
-  test("POST /api/2.0/ai/attachments/link-to-message - drafts linked in one call are removed with the thread, an unlinked one is not", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/attachments/link-to-message - drafts linked in one call are removed with the thread, an unlinked one is not", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1774,7 +1784,8 @@ test.describe("AI Attachments - link-to-message", () => {
     await attachments.expectStored("owner", loose, "unlinked draft");
   });
 
-  test("POST /api/2.0/ai/attachments/link-to-message - linking the same draft twice is accepted and it is still removed with the message", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/attachments/link-to-message - linking the same draft twice is accepted and it is still removed with the message", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2164,7 +2175,8 @@ async function agentOnProfileClass(
 }
 
 test.describe("AI Attachments - sending a message with an attachment", () => {
-  test("POST /api/2.0/ai/ai/send-with-stream - userMessage.attachments is stored on the message", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/ai/send-with-stream - userMessage.attachments is stored on the message", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2220,7 +2232,8 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
     expect(userMessage?.attachments).toEqual([{ id }]);
   });
 
-  test("BUG 82773: POST /api/2.0/ai/ai/send-with-stream - a draft passed as attachments:[{id}] reaches the model", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 82773: POST /api/2.0/ai/ai/send-with-stream - a draft passed as attachments:[{id}] reaches the model", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2727,7 +2740,8 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
     );
   });
 
-  test("POST /api/2.0/ai/ai/send-with-stream - a picture sent to a model without vision is accepted with no warning at all", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/ai/send-with-stream - a picture sent to a model without vision is accepted with no warning at all", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2803,7 +2817,8 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
     expectHealthyAssistantReply(messages);
   });
 
-  test("POST /api/2.0/ai/threads/append-user-message - an inline attachment object is stored without checking that it exists", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/threads/append-user-message - an inline attachment object is stored without checking that it exists", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -3004,7 +3019,8 @@ test.describe("AI Attachments - client-side rules on the server", () => {
     expect(sniffed.status, "ZIP magic bytes under a .txt name").toBe(400);
   });
 
-  test("POST /api/2.0/ai/threads/append-user-message - a message at the cap carries all five files and all five images", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/threads/append-user-message - a message at the cap carries all five files and all five images", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -3236,7 +3252,8 @@ test.describe("AI Attachments - client-side rules on the server", () => {
     }
   });
 
-  test("POST /api/2.0/ai/threads/append-user-message - a draft staged in one thread stays readable and can still be sent from another", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/threads/append-user-message - a draft staged in one thread stays readable and can still be sent from another", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4089,7 +4106,8 @@ test.describe("AI Attachments - attaching a stored file by id", () => {
 });
 
 test.describe("AI Attachments - the destination of a device file", () => {
-  test("POST /api/2.0/ai/* - the portal exposes no chat upload route, so the destination is chosen by the client", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/* - the portal exposes no chat upload route, so the destination is chosen by the client", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4161,7 +4179,8 @@ test.describe("AI Attachments - the destination of a device file", () => {
     }
   });
 
-  test("POST /api/2.0/files/{agentId}/upload - the agent room root holds no files at all, its subfolders do", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/files/{agentId}/upload - the agent room root holds no files at all, its subfolders do", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4213,7 +4232,8 @@ test.describe("AI Attachments - the destination of a device file", () => {
     ).toBe(200);
   });
 
-  test("BUG 84033: POST /api/2.0/files/folder/{knowledgeId} - a folder created directly in the agent's Knowledge folder is not created", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 84033: POST /api/2.0/files/folder/{knowledgeId} - a folder created directly in the agent's Knowledge folder is not created", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4287,7 +4307,8 @@ test.describe("AI Attachments - the destination of a device file", () => {
     ).toBe(403);
   });
 
-  test("POST /api/2.0/files/{chatOutputsId}/upload - Chat outputs takes a device file and keeps it out of the agent's index", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/files/{chatOutputsId}/upload - Chat outputs takes a device file and keeps it out of the agent's index", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4335,7 +4356,8 @@ test.describe("AI Attachments - the destination of a device file", () => {
     ).toBeUndefined();
   });
 
-  test("POST /api/2.0/files/{knowledgeId}/upload - a device file put in Knowledge instead is indexed as permanent agent knowledge", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/files/{knowledgeId}/upload - a device file put in Knowledge instead is indexed as permanent agent knowledge", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4380,6 +4402,11 @@ const NO_CREATE_ACCESS: Array<{ label: string; access: FileShare }> = [
 ];
 
 test.describe("AI Attachments - who can store a device file inside an agent", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   // These are the permission facts the client's destination choice rests on:
   // which members would be refused by the area, and whether the fallback target
   // exists for them. They do not show that the client falls back — see the
@@ -4632,7 +4659,8 @@ test.describe("AI Attachments - who can store a device file inside an agent", ()
 });
 
 test.describe("AI Attachments - the whole path, end to end", () => {
-  test("BUG 82773: POST /api/2.0/ai/ai/send-with-stream - a device file uploaded, attached by id and carried on the message reaches the model", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 82773: POST /api/2.0/ai/ai/send-with-stream - a device file uploaded, attached by id and carried on the message reaches the model", async ({
     apiSdk,
     paymentsApi,
   }) => {

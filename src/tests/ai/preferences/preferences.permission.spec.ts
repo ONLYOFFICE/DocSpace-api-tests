@@ -143,6 +143,11 @@ test.describe("AI Preferences - role access", () => {
 });
 
 test.describe("AI Preferences - per-user isolation", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("GET /api/2.0/ai/preferences/get-deep-mode - one user's deep mode is invisible to another", async ({
     apiSdk,
     paymentsApi,
@@ -297,6 +302,11 @@ test.describe("AI Preferences - per-user isolation", () => {
 });
 
 test.describe("AI Preferences - reasoning level on an agent the caller cannot see", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("GET|PUT|DELETE /api/2.0/ai/preferences/* - a member outside the agent is refused on the level and clear routes and changes nothing", async ({
     apiSdk,
     paymentsApi,

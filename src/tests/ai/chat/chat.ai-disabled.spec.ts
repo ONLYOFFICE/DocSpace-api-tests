@@ -187,6 +187,11 @@ const GATED_ROUTES: GatedCase[] = [
 ];
 
 test.describe("AI Chat - AI Disabled", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   for (const { name, act, verifyUnchanged } of GATED_ROUTES) {
     test(`${name} - returns 403 when AI access is disabled`, async ({
       apiSdk,
@@ -274,6 +279,11 @@ test.describe("AI Chat - AI Disabled", () => {
 // quietly start proving something else if that default ever changes.
 
 test.describe("AI Chat - AI Tools wallet service not paid for", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/ai/send-with-stream - the assistant reply fails until AI Tools is paid for", async ({
     apiSdk,
     paymentsApi,
@@ -470,6 +480,11 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
 // setup is now the same one every other funded AI test uses.
 
 test.describe("AI Chat - AI Tools paid for with no AI credit", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/ai/send-with-stream - AI inference remains available when AI Tools is enabled and AI credit balance is zero", async ({
     apiSdk,
     paymentsApi,
@@ -530,6 +545,11 @@ test.describe("AI Chat - AI Tools paid for with no AI credit", () => {
 // requirement (the balance, the payer, auto top-up) is in
 // src/tests/portal/payments/lowBalance.spec.ts.
 test.describe("AI Chat - wallet balance below the low-balance threshold", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/ai/send-with-stream - a wallet balance under the low-balance threshold does not stop inference", async ({
     apiSdk,
     paymentsApi,

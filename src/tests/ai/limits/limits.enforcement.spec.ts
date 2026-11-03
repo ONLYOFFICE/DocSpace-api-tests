@@ -129,7 +129,8 @@ async function measureChatReserve(ai: AiPortal): Promise<number> {
 }
 
 test.describe("Total limit - spending within the budget", () => {
-  test("an agent chat and an AI search both draw on the one Total budget, and amountConsumed equals what billing booked", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("an agent chat and an AI search both draw on the one Total budget, and amountConsumed equals what billing booked", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -218,7 +219,8 @@ test.describe("Total limit - spending within the budget", () => {
 });
 
 test.describe("Total limit - refusals", () => {
-  test("a Total limit of zero refuses an AI Agent chat, and the refused chat is not billed", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("a Total limit of zero refuses an AI Agent chat, and the refused chat is not billed", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -394,7 +396,8 @@ test.describe("Total limit - refusals", () => {
     );
   });
 
-  test("the refusal does not depend on re-login, a new chat, another agent or another model", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("the refusal does not depend on re-login, a new chat, another agent or another model", async ({
     apiSdk,
     paymentsApi,
     makeMember,
@@ -639,7 +642,8 @@ test.describe("Total limit - boundaries and the reservation", () => {
     expect(chargeSum(charges)).toBeLessThanOrEqual(0.02);
   });
 
-  test("a chat cut off mid-reply gives its reservation back and is billed for what it used", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("a chat cut off mid-reply gives its reservation back and is billed for what it used", async ({
     apiSdk,
     paymentsApi,
   }) => {

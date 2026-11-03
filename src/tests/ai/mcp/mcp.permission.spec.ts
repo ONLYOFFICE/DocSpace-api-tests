@@ -343,9 +343,15 @@ const MEMBER_OPS: MemberOp[] = [
 ];
 
 test.describe("MCP - Server management permissions", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   for (const { type, role } of MEMBER_ROLES) {
     for (const op of MANAGE_OPS) {
-      test(`${op.label} - ${role} in the agent`, async ({
+      // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+      test.skip(`${op.label} - ${role} in the agent`, async ({
         apiSdk,
         paymentsApi,
       }) => {
@@ -380,7 +386,8 @@ test.describe("MCP - Server management permissions", () => {
 test.describe("MCP - Tool state permissions", () => {
   for (const { type, role } of MEMBER_ROLES) {
     for (const op of MEMBER_OPS) {
-      test(`${op.label} - ${role} in the agent`, async ({
+      // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+      test.skip(`${op.label} - ${role} in the agent`, async ({
         apiSdk,
         paymentsApi,
       }) => {
@@ -429,7 +436,8 @@ test.describe("MCP - Tool state permissions", () => {
     });
   }
 
-  test("GET /api/2.0/ai/tools/list-system-tools - a Guest gets the catalogue and nothing else on this surface", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("GET /api/2.0/ai/tools/list-system-tools - a Guest gets the catalogue and nothing else on this surface", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -565,7 +573,8 @@ test.describe("MCP - Custom server validation", () => {
       body: { name: "   ", config: SERVER_CONFIG },
     },
   ]) {
-    test(`POST /api/2.0/ai/tools/add-custom-server - rejects ${name}`, async ({
+    // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+    test.skip(`POST /api/2.0/ai/tools/add-custom-server - rejects ${name}`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -588,7 +597,8 @@ test.describe("MCP - Custom server validation", () => {
     });
   }
 
-  test("POST /api/2.0/ai/tools/add-custom-server - a missing config is a hard 400", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/tools/add-custom-server - a missing config is a hard 400", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -605,7 +615,8 @@ test.describe("MCP - Custom server validation", () => {
     expect(status).toBe(400);
   });
 
-  test("POST /api/2.0/ai/tools/add-custom-server - rejects a duplicate name", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/tools/add-custom-server - rejects a duplicate name", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -636,7 +647,8 @@ test.describe("MCP - Custom server validation", () => {
     expect(status).toBe(200);
   });
 
-  test("PUT /api/2.0/ai/tools/update-custom-server - rejects an unknown server", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("PUT /api/2.0/ai/tools/update-custom-server - rejects an unknown server", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -653,7 +665,8 @@ test.describe("MCP - Custom server validation", () => {
     expect(status).toBe(200);
   });
 
-  test("DELETE /api/2.0/ai/tools/remove-custom-server - removing an unknown server is a silent no-op", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("DELETE /api/2.0/ai/tools/remove-custom-server - removing an unknown server is a silent no-op", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -738,7 +751,8 @@ test.describe("MCP - Custom server validation", () => {
     });
   });
 
-  test("GET /api/2.0/ai/tools/get-custom-server - an unregistered name answers 200 with null", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("GET /api/2.0/ai/tools/get-custom-server - an unregistered name answers 200 with null", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -771,6 +785,11 @@ test.describe("MCP - Custom server validation", () => {
 });
 
 test.describe("MCP - Custom server config validation", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   // The config is stored transport-agnostically, but not blindly: it has to be an
   // object carrying `url` (HTTP) or `command` (stdio). The refusals split two
   // ways, and the split is the point of these tests — anything the binder reads
@@ -795,7 +814,8 @@ test.describe("MCP - Custom server config validation", () => {
       message: "Server config must be an object",
     },
   ]) {
-    test(`POST /api/2.0/ai/tools/add-custom-server - rejects ${name}`, async ({
+    // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+    test.skip(`POST /api/2.0/ai/tools/add-custom-server - rejects ${name}`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -856,6 +876,11 @@ test.describe("MCP - Custom server config validation", () => {
 });
 
 test.describe("MCP - Custom server name validation", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/tools/add-custom-server - a name of 128 characters is the limit", async ({
     apiSdk,
     paymentsApi,
@@ -890,6 +915,11 @@ test.describe("MCP - Custom server name validation", () => {
 });
 
 test.describe("MCP - Access to another user's agent scope", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("GET|POST|DELETE /api/2.0/ai/tools/*-custom-server - a DocSpaceAdmin who is not in the agent is refused", async ({
     apiSdk,
     paymentsApi,
@@ -957,6 +987,11 @@ test.describe("MCP - Access to another user's agent scope", () => {
 });
 
 test.describe("MCP - Registration does not reach out to the server", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/tools/add-custom-server - an unreachable endpoint is stored without a connection attempt", async ({
     apiSdk,
     paymentsApi,

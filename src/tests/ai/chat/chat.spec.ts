@@ -79,6 +79,11 @@ const SHORT_ANSWER_PROMPT =
   "You are a helpful test assistant. Keep answers very short.";
 
 test.describe("POST /api/2.0/ai/threads/create - Start a chat", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/threads/create - Owner starts a new thread", async ({
     apiSdk,
     paymentsApi,
@@ -162,6 +167,11 @@ test.describe("POST /api/2.0/ai/threads/create - Start a chat", () => {
 });
 
 test.describe("POST /api/2.0/ai/ai/send-with-stream - Talk to an agent", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/ai/send-with-stream - Owner gets an assistant reply", async ({
     apiSdk,
     paymentsApi,
@@ -442,6 +452,11 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - Talk to an agent", () => {
 // profile here would not add coverage. They are still covered by the "on"
 // check, since that reads the whole catalogue.
 test.describe("AI Chat - every catalogue model is alive", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("every AI model is switched on, and every chat-capable one answers a real question", async ({
     apiSdk,
     paymentsApi,
@@ -563,6 +578,11 @@ const LONG_ANSWER_QUESTION =
   "Count from 1 to 60, separated by commas. Output nothing else.";
 
 test.describe("AI Chat - the stream of one reply", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/ai/send-with-stream - the reply is streamed as NDJSON frames that match the stored message", async ({
     apiSdk,
     paymentsApi,
@@ -786,6 +806,11 @@ test.describe("AI Chat - the stream of one reply", () => {
 });
 
 test.describe("Thread management", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("GET /api/2.0/ai/threads/list - lists threads of one agent only", async ({
     apiSdk,
     paymentsApi,
@@ -1071,6 +1096,11 @@ test.describe("Thread management", () => {
 });
 
 test.describe("Thread management - a member manages their own thread", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   // The isolation matrix in chat.permission.spec.ts only establishes that a
   // member is refused on *someone else's* thread. A backend that treated threads
   // as the owner's property — only the portal owner may rename, clear or delete
@@ -1175,6 +1205,11 @@ test.describe("Thread management - a member manages their own thread", () => {
 });
 
 test.describe("GET /api/2.0/ai/profiles/list - Model catalogue", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   // Replaces the removed GET /ai/chats/models.
   test("GET /api/2.0/ai/profiles/list - Owner gets a catalogue that can back an agent", async ({
     apiSdk,
@@ -1239,6 +1274,11 @@ test.describe("GET /api/2.0/ai/profiles/list - Model catalogue", () => {
 // run against and are recorded as gaps.
 
 test.describe("AI Threads - listing", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("GET /api/2.0/ai/threads/list - threads come back newest-activity first", async ({
     apiSdk,
     paymentsApi,
@@ -1388,7 +1428,8 @@ test.describe("AI Threads - listing", () => {
 });
 
 test.describe("AI Threads - open-or-create", () => {
-  test("POST /api/2.0/ai/threads/open-or-create - opens an existing thread and replays its history", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/threads/open-or-create - opens an existing thread and replays its history", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1438,7 +1479,8 @@ test.describe("AI Threads - open-or-create", () => {
     expect(listed.data.map((thread) => thread.threadId)).toEqual([threadId]);
   });
 
-  test("POST /api/2.0/ai/threads/open-or-create - a thread that holds a conversation is replayed whole", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/threads/open-or-create - a thread that holds a conversation is replayed whole", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1541,7 +1583,8 @@ test.describe("AI Threads - open-or-create", () => {
     ]);
   });
 
-  test("POST /api/2.0/ai/threads/open-or-create - the whole profile object is required, not just its id", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/threads/open-or-create - the whole profile object is required, not just its id", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1684,7 +1727,8 @@ test.describe("AI Threads - open-or-create", () => {
     ).toBe(second.id);
   });
 
-  test("POST /api/2.0/ai/threads/open-or-create, GET read-messages - a long history is replayed whole", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/threads/open-or-create, GET read-messages - a long history is replayed whole", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1761,7 +1805,8 @@ test.describe("AI Threads - open-or-create", () => {
     );
   });
 
-  test("POST /api/2.0/ai/threads/open-or-create - a replayed message keeps its attachments", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/threads/open-or-create - a replayed message keeps its attachments", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1840,7 +1885,8 @@ test.describe("AI Threads - open-or-create", () => {
     ).toEqual([{ id: attachmentId }]);
   });
 
-  test("BUG 82826: POST /api/2.0/ai/threads/open-or-create - creating a thread from the first message returns 500", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 82826: POST /api/2.0/ai/threads/open-or-create - creating a thread from the first message returns 500", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1886,6 +1932,11 @@ test.describe("AI Threads - open-or-create", () => {
 });
 
 test.describe("AI Threads - regenerate-title", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("BUG 82828: POST /api/2.0/ai/threads/regenerate-title - returns 500 on a thread with a real conversation", async ({
     apiSdk,
     paymentsApi,
@@ -2019,6 +2070,11 @@ async function waitForRenamedThread(
 }
 
 test.describe("AI Threads - started by the first message", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/threads/create - a thread with no message in it is kept and listed", async ({
     apiSdk,
     paymentsApi,
@@ -2534,7 +2590,8 @@ test.describe("AI Chat - the global entry point", () => {
     expect(sent.status, "a Guest sending into a global chat").toBe(403);
   });
 
-  test("BUG 82855: GET /api/2.0/ai/threads/list - the global chat's history is listed inside rooms and folders", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 82855: GET /api/2.0/ai/threads/list - the global chat's history is listed inside rooms and folders", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2716,7 +2773,8 @@ test.describe("AI Chat - room and folder entity context", () => {
     expect(listed.data.map((thread) => thread.threadId)).toContain(threadId);
   });
 
-  test("BUG 82855: GET /api/2.0/ai/threads/list - every non-agent entity shares one thread list", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 82855: GET /api/2.0/ai/threads/list - every non-agent entity shares one thread list", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2793,7 +2851,8 @@ test.describe("AI Chat - room and folder entity context", () => {
     }
   });
 
-  test("BUG 82855: GET /api/2.0/ai/threads/list - a thread started in a folder is listed for every other folder and room", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 82855: GET /api/2.0/ai/threads/list - a thread started in a folder is listed for every other folder and room", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4016,7 +4075,8 @@ test.describe("AI Chat - the model of one thread", () => {
     );
   });
 
-  test("PUT /api/2.0/ai/threads/* - no route changes a thread's model", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("PUT /api/2.0/ai/threads/* - no route changes a thread's model", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4473,7 +4533,8 @@ test.describe("AI Chat - the model of one thread", () => {
 // accepting it and running the agent's own model anyway.
 
 test.describe("AI Chat - the model of an agent room", () => {
-  test("POST /api/2.0/ai/ai/send-with-stream - a chat in an agent with no profileId anywhere runs on the agent's profile", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/ai/send-with-stream - a chat in an agent with no profileId anywhere runs on the agent's profile", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4536,7 +4597,8 @@ test.describe("AI Chat - the model of an agent room", () => {
     );
   });
 
-  test("PUT /api/2.0/ai/agents/{id} - a new profileId moves the agent's model and leaves existing threads alone", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("PUT /api/2.0/ai/agents/{id} - a new profileId moves the agent's model and leaves existing threads alone", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4610,7 +4672,8 @@ test.describe("AI Chat - the model of an agent room", () => {
     );
   });
 
-  test("GET /api/2.0/ai/agents/{id} - the agent publishes its fixed model, and a member can read it", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("GET /api/2.0/ai/agents/{id} - the agent publishes its fixed model, and a member can read it", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4665,7 +4728,8 @@ test.describe("AI Chat - the model of an agent room", () => {
     { label: "Owner", role: "owner", type: undefined },
     { label: "a member", role: "user", type: "User" },
   ] as Array<{ label: string; role: AgentRole; type?: UserType }>) {
-    test(`BUG 82914: POST /api/2.0/ai/ai/send-with-stream - ${label} can override the fixed model of an agent room`, async ({
+    // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+    test.skip(`BUG 82914: POST /api/2.0/ai/ai/send-with-stream - ${label} can override the fixed model of an agent room`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -4724,7 +4788,8 @@ test.describe("AI Chat - the model of an agent room", () => {
       ).not.toBe(second.id);
     });
 
-    test(`BUG 82915: POST /api/2.0/ai/threads/create - ${label} can start a thread in an agent room on another model`, async ({
+    // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+    test.skip(`BUG 82915: POST /api/2.0/ai/threads/create - ${label} can start a thread in an agent room on another model`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -4848,7 +4913,8 @@ test.describe("AI Chat - the model of an agent room", () => {
   // use, is moved onto the image profile by an ordinary update. It is accepted,
   // both reads of the model follow it, and from then on the agent answers
   // nothing — see the test above for what a chat in it looks like.
-  test("BUG 82927: PUT /api/2.0/ai/agents/{id} - a working agent can be moved onto an image profile", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 82927: PUT /api/2.0/ai/agents/{id} - a working agent can be moved onto an image profile", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4892,7 +4958,8 @@ test.describe("AI Chat - the model of an agent room", () => {
     ).toEqual({ profileId: textProfile.id, chat: textProfile.id });
   });
 
-  test("BUG 82895: GET /api/2.0/ai/assignments/* - the scope of an agent the caller is not in is refused with 403", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 82895: GET /api/2.0/ai/assignments/* - the scope of an agent the caller is not in is refused with 403", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4947,7 +5014,8 @@ test.describe("AI Chat - the model of an agent room", () => {
   // are read separately.
   const UNRESOLVABLE_PROFILE_ID = "019ed118-0000-0000-0000-0000000000ff";
 
-  test("POST /api/2.0/ai/threads/open-or-create - opening an agent thread with another profile does not stamp it", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/threads/open-or-create - opening an agent thread with another profile does not stamp it", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -5030,7 +5098,8 @@ test.describe("AI Chat - the model of an agent room", () => {
     ).toBe(first.id);
   });
 
-  test("POST /api/2.0/ai/ai/send-with-stream - a blank profileId in an agent does not let the portal's model in", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/ai/send-with-stream - a blank profileId in an agent does not let the portal's model in", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -5111,7 +5180,8 @@ test.describe("AI Chat - the model of an agent room", () => {
     ).toBe(stored);
   });
 
-  test("BUG 83160 FIXED: POST /api/2.0/ai/ai/send-with-stream - a profileId that names no model is refused in an agent too", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 83160 FIXED: POST /api/2.0/ai/ai/send-with-stream - a profileId that names no model is refused in an agent too", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -5180,7 +5250,8 @@ test.describe("AI Chat - the model of an agent room", () => {
     }
   });
 
-  test("GET /api/2.0/ai/profiles/list - the catalogue is served whole inside an agent, for a member as well", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("GET /api/2.0/ai/profiles/list - the catalogue is served whole inside an agent, for a member as well", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -5286,7 +5357,8 @@ const MARKER_INSTRUCTIONS = instructionsEndingWith(AGENT_MARKER);
 const markerProbe = (marker: string) => new RegExp(`\\b${marker}\\b`);
 
 test.describe("AI Chat - an agent picked in the composer from another location", () => {
-  test("GET /api/2.0/ai/agents, POST /api/2.0/ai/threads/create, GET /api/2.0/ai/threads/list - a picked agent answers on its own model and comes back when the thread is reopened", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("GET /api/2.0/ai/agents, POST /api/2.0/ai/threads/create, GET /api/2.0/ai/threads/list - a picked agent answers on its own model and comes back when the thread is reopened", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -5402,7 +5474,8 @@ test.describe("AI Chat - an agent picked in the composer from another location",
     ).toBe(agentTitle);
   });
 
-  test("GET /api/2.0/ai/threads/list - picking an agent moves the thread out of the room the composer was opened in", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("GET /api/2.0/ai/threads/list - picking an agent moves the thread out of the room the composer was opened in", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -5515,7 +5588,8 @@ test.describe("AI Chat - an agent picked in the composer from another location",
     ).toMatch(markerProbe(REQUEST_MARKER));
   });
 
-  test("BUG 83236: POST /api/2.0/ai/ai/send-with-stream - a per-request prompt replaces the picked agent's own AI Instructions", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 83236: POST /api/2.0/ai/ai/send-with-stream - a per-request prompt replaces the picked agent's own AI Instructions", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -5573,7 +5647,8 @@ test.describe("AI Chat - an agent picked in the composer from another location",
     ).toEqual({ request: true, agent: false });
   });
 
-  test("POST /api/2.0/ai/ai/send-with-stream - a picked agent answers under the AI Instructions stored on it", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/ai/send-with-stream - a picked agent answers under the AI Instructions stored on it", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -5639,6 +5714,11 @@ test.describe("AI Chat - an agent picked in the composer from another location",
 // — come apart on this path.
 
 test.describe("AI Chat - an AI room created through the rooms API", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/files/rooms - a roomType 9 room has no model of its own and is absent from the agent list", async ({
     apiSdk,
     paymentsApi,
@@ -5972,7 +6052,8 @@ async function waitForNewFile(
 }
 
 test.describe("AI Chat - image generation", () => {
-  test("BUG 82861: POST /api/2.0/ai/ai/send-with-stream - a request for an image resolves the generate_image call", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 82861: POST /api/2.0/ai/ai/send-with-stream - a request for an image resolves the generate_image call", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -6126,7 +6207,8 @@ test.describe("AI Chat - image generation", () => {
   // / get-all-assignments / resolve-for-action kept naming the same image
   // profile. `unassign` now actually clears it, so the second half below
   // (drawing with no image model bound) is reachable.
-  test("DELETE /api/2.0/ai/assignments/unassign - the portal's seeded ImageGeneration model can be taken away", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("DELETE /api/2.0/ai/assignments/unassign - the portal's seeded ImageGeneration model can be taken away", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -6232,7 +6314,8 @@ test.describe("AI Chat - image generation", () => {
   // The landing folder is matched on file ids taken before the request, not on
   // a name: the picture's file name is the server's to choose.
 
-  test("BUG 82861: POST /api/2.0/ai/ai/send-with-stream - a picture generated in an agent chat is not saved into its Chat outputs", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 82861: POST /api/2.0/ai/ai/send-with-stream - a picture generated in an agent chat is not saved into its Chat outputs", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -6544,6 +6627,11 @@ async function startReply(
 }
 
 test.describe("AI Threads - mutated while the model is still writing", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("PUT /api/2.0/ai/threads/rename - a rename mid-reply survives the reply", async ({
     apiSdk,
     paymentsApi,
@@ -6860,7 +6948,8 @@ test.describe("AI Chat - state changed by another actor", () => {
     expect(byId.get(after)).toBe(second.id);
   });
 
-  test("DELETE /api/2.0/ai/agents/{id} - deleting the agent takes its member's threads with it", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("DELETE /api/2.0/ai/agents/{id} - deleting the agent takes its member's threads with it", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -7025,7 +7114,8 @@ async function setProfileCulture(
 }
 
 test.describe("AI Chat - a provider failure lands in the thread", () => {
-  test("POST /api/2.0/ai/ai/send-with-stream - a refused turn does not corrupt the thread, which carries on once the provider stops refusing", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/ai/send-with-stream - a refused turn does not corrupt the thread, which carries on once the provider stops refusing", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -7195,7 +7285,8 @@ test.describe("AI Chat - a provider failure lands in the thread", () => {
     expect(AiAgentChat.userMessages(settled)).toHaveLength(2);
   });
 
-  test("POST /api/2.0/ai/ai/regenerate-stream - regenerating a failed reply reports the same failure and keeps the thread", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("POST /api/2.0/ai/ai/regenerate-stream - regenerating a failed reply reports the same failure and keeps the thread", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -7259,6 +7350,11 @@ test.describe("AI Chat - a provider failure lands in the thread", () => {
 });
 
 test.describe("AI Chat - a failure the chat cannot show", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("BUG 83045 FIXED: POST /api/2.0/ai/ai/send-with-stream - a profileId the backend cannot parse is refused with 400", async ({
     apiSdk,
     paymentsApi,
@@ -7617,7 +7713,8 @@ test.describe("AI Chat - the language a failed reply is reported in", () => {
     });
   }
 
-  test("BUG 84023: PUT /people/{userId}/culture, POST /api/2.0/ai/ai/send-with-stream - the portal's own gateway refusal is translated", async ({
+  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
+  test.skip("BUG 84023: PUT /people/{userId}/culture, POST /api/2.0/ai/ai/send-with-stream - the portal's own gateway refusal is translated", async ({
     apiSdk,
   }) => {
     // Worth its own test because the string is DocSpace's, not a provider's:
@@ -7692,6 +7789,11 @@ type ThreadIdOperation = {
 };
 
 test.describe("AI Threads - renaming, deleting and clearing: validation", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("BUG 83094: PUT /api/2.0/ai/threads/rename - a blank title is accepted and wipes the thread's name", async ({
     apiSdk,
     paymentsApi,
@@ -8067,6 +8169,11 @@ test.describe("AI Threads - renaming, deleting and clearing: validation", () => 
 });
 
 test.describe("AI Threads - a cleared thread carries on", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("DELETE /api/2.0/ai/threads/clear-messages, POST /api/2.0/ai/ai/send-with-stream - a cleared thread answers again and no longer knows the cleared history", async ({
     apiSdk,
     paymentsApi,
