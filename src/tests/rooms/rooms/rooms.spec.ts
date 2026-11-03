@@ -10738,7 +10738,7 @@ test.describe("API rooms methods", () => {
       ).rejects.toThrow();
     });
 
-    // BUG TBD: confirmed live with the EXACT payload the real UI's "delete
+    // BUG 84873: confirmed live with the EXACT payload the real UI's "delete
     // link" action sends (captured from the browser's Network tab) - the
     // request omits `primary` entirely, which is the field that decides the
     // outcome: revoking WITH `primary: true` set lets the primary link be
@@ -10752,7 +10752,7 @@ test.describe("API rooms methods", () => {
     // never sets `primary` themselves, so this reproduces every time through
     // the product itself, not just via direct API calls.
     test.fail(
-      "BUG TBD: revoking a room's primary link the way the real UI does (no primary field) permanently breaks recreation, unlike revoking with primary:true set",
+      "BUG 84873: revoking a room's primary link the way the real UI does (no primary field) permanently breaks recreation, unlike revoking with primary:true set",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({

@@ -247,7 +247,7 @@ test.describe("POST /files/file/:id/link - recreating a primary link after it wa
   // even after the old one was revoked - but the UI's own button doesn't
   // use it.
   test.fail(
-    "BUG TBD: creating a file's primary link again after revoking it is refused with 404, with no way to recover from the UI's own button",
+    "BUG 84872: creating a file's primary link again after revoking it is refused with 404, with no way to recover from the UI's own button",
     async ({ apiSdk }) => {
       const { ownerApi, fileId } = await roomFile(apiSdk, RoomType.CustomRoom);
 
