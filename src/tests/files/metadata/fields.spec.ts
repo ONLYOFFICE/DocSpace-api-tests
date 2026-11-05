@@ -11,7 +11,9 @@ test.describe("POST /files/metadata/templates/:id/fields - Create field", () => 
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { id } = await createTemplateWithFields(ownerApi, apiSdk, []);
+    const { id } = await createTemplateWithFields(ownerApi, apiSdk, [
+      { name: "seed" },
+    ]);
 
     const cases = [
       { name: "s", type: MetadataFieldType.String },
@@ -42,9 +44,10 @@ test.describe("POST /files/metadata/templates/:id/fields - Create field", () => 
     const { data: got } = await ownerApi.metadata.getTemplate({
       templateId: id,
     });
-    expect(got.response!.fields!.map((f) => f.name)).toEqual(
-      cases.map((c) => c.name),
-    );
+    expect(got.response!.fields!.map((f) => f.name)).toEqual([
+      "seed",
+      ...cases.map((c) => c.name),
+    ]);
     const sc = got.response!.fields!.find((f) => f.name === "sc")!;
     expect(sc.options!.map((o) => o.value)).toEqual(["one", "two"]);
     expect(sc.options!.every((o) => !!o.id)).toBe(true);
@@ -128,7 +131,11 @@ test.describe("POST /files/metadata/templates/:id/fields - Create field", () => 
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { id } = await createTemplateWithFields(ownerApi, apiSdk, []);
+      // The template carries the one field it cannot be created without; the
+      // refusal must leave exactly that field behind.
+      const { id } = await createTemplateWithFields(ownerApi, apiSdk, [
+        { name: "seed" },
+      ]);
 
       const { status } = await ownerApi.metadata.createField({
         templateId: id,
@@ -137,7 +144,7 @@ test.describe("POST /files/metadata/templates/:id/fields - Create field", () => 
       expect(status).toBe(400);
 
       const { data } = await ownerApi.metadata.getTemplate({ templateId: id });
-      expect(data.response!.fields).toHaveLength(0);
+      expect(data.response!.fields!.map((f) => f.name)).toEqual(["seed"]);
     });
   }
 
@@ -277,9 +284,14 @@ test.describe("DELETE /files/metadata/templates/:id/fields/:fieldId - Delete fie
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const a = await createTemplateWithFields(ownerApi, apiSdk, [{ name: "A" }]);
+    // Two fields on purpose: the last field of a template cannot be deleted
+    // (documented since 4.1.0), and this checks the deletes, not that rule.
+    const a = await createTemplateWithFields(ownerApi, apiSdk, [
+      { name: "A" },
+      { name: "A2" },
+    ]);
     const b = await createTemplateWithFields(ownerApi, apiSdk, [{ name: "B" }]);
-    const aField = a.template.fields![0].id!;
+    const aField = a.template.fields!.find((f) => f.name === "A")!.id!;
 
     const { status: foreign } = await ownerApi.metadata.deleteField({
       templateId: b.id,
@@ -289,7 +301,7 @@ test.describe("DELETE /files/metadata/templates/:id/fields/:fieldId - Delete fie
     const { data: still } = await ownerApi.metadata.getTemplate({
       templateId: a.id,
     });
-    expect(still.response!.fields).toHaveLength(1);
+    expect(still.response!.fields).toHaveLength(2);
 
     expect(
       (
@@ -304,5 +316,24 @@ test.describe("DELETE /files/metadata/templates/:id/fields/:fieldId - Delete fie
       fieldId: aField,
     });
     expect(again).toBe(404);
+  });
+
+  test("DELETE /files/metadata/templates/:id/fields/:fieldId - The last field of a template cannot be deleted", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { id, template } = await createTemplateWithFields(ownerApi, apiSdk, [
+      { name: "only" },
+    ]);
+    const onlyField = template.fields![0].id!;
+
+    const { status } = await ownerApi.metadata.deleteField({
+      templateId: id,
+      fieldId: onlyField,
+    });
+    expect(status).toBe(400);
+
+    const { data } = await ownerApi.metadata.getTemplate({ templateId: id });
+    expect(data.response!.fields!.map((f) => f.name)).toEqual(["only"]);
   });
 });

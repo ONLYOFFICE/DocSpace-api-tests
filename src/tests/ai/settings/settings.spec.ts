@@ -977,7 +977,9 @@ test.describe("AI services management - the portal AI switch", () => {
 });
 
 test.describe("AI services management - an administrator provisions AI", () => {
-  test("POST /portal/payment/servicestate, PUT /settings/ai-access, PUT /ai/assignments/assign, POST /ai/agents - a DocSpaceAdmin provisions the portal's AI services", async ({
+  // Skipped: the last step of the chain creates an agent, and POST /api/2.0/ai/agents
+  // was removed in DocSpace 4.1.0 - it answers 404.
+  test.skip("POST /portal/payment/servicestate, PUT /settings/ai-access, PUT /ai/assignments/assign, POST /ai/agents - a DocSpaceAdmin provisions the portal's AI services", async ({
     apiSdk,
     paymentsApi,
   }) => {

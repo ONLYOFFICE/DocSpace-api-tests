@@ -74,7 +74,10 @@ test.describe("POST /files/metadata/templates - Create template", () => {
       "A&B 'q' %20 ;",
     ]) {
       const { data, status } = await ownerApi.metadata.createTemplate({
-        createMetadataTemplateRequestDto: { name },
+        createMetadataTemplateRequestDto: {
+          name,
+          fields: [{ name: "f", type: MetadataFieldType.String }],
+        },
       });
       expect(status, name).toBe(200);
       const { data: got } = await ownerApi.metadata.getTemplate({
@@ -91,7 +94,11 @@ test.describe("POST /files/metadata/templates - Create template", () => {
     const { id, name } = await createTemplateWithFields(ownerApi, apiSdk);
 
     const { status } = await ownerApi.metadata.createTemplate({
-      createMetadataTemplateRequestDto: { name: name.toUpperCase() },
+      // A valid field, so the only thing left to refuse is the name.
+      createMetadataTemplateRequestDto: {
+        name: name.toUpperCase(),
+        fields: [{ name: "f", type: MetadataFieldType.String }],
+      },
     });
     expect(status).toBe(400);
 
@@ -106,7 +113,10 @@ test.describe("POST /files/metadata/templates - Create template", () => {
     apiSdk,
   }) => {
     const { status } = await apiSdk.forRole("owner").metadata.createTemplate({
-      createMetadataTemplateRequestDto: { name: "System" },
+      createMetadataTemplateRequestDto: {
+        name: "System",
+        fields: [{ name: "f", type: MetadataFieldType.String }],
+      },
     });
     expect(status).toBe(400);
   });
@@ -124,7 +134,11 @@ test.describe("POST /files/metadata/templates - Create template", () => {
       const { data: before } = await ownerApi.metadata.getTemplates({});
 
       const { status } = await ownerApi.metadata.createTemplate({
-        createMetadataTemplateRequestDto: { name },
+        // A valid field, so the only thing left to refuse is the name.
+        createMetadataTemplateRequestDto: {
+          name,
+          fields: [{ name: "f", type: MetadataFieldType.String }],
+        },
       });
       expect(status).toBe(400);
 
@@ -140,7 +154,10 @@ test.describe("POST /files/metadata/templates - Create template", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .metadata.createTemplate({
-        createMetadataTemplateRequestDto: { name },
+        createMetadataTemplateRequestDto: {
+          name,
+          fields: [{ name: "f", type: MetadataFieldType.String }],
+        },
       });
     expect(status).toBe(200);
     expect(data.response!.name).toBe(name);
@@ -183,6 +200,28 @@ test.describe("POST /files/metadata/templates - Create template", () => {
     expect(status).toBe(400);
   });
 
+  test("POST /files/metadata/templates - A template without fields is rejected", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const name = `Autotest nofields ${apiSdk.faker.generateString(6)}`;
+
+    for (const createMetadataTemplateRequestDto of [
+      { name },
+      { name, fields: [] },
+    ]) {
+      const { status } = await ownerApi.metadata.createTemplate({
+        createMetadataTemplateRequestDto,
+      });
+      expect(status, JSON.stringify(createMetadataTemplateRequestDto)).toBe(
+        400,
+      );
+    }
+
+    const { data } = await ownerApi.metadata.getTemplates({});
+    expect(data.response!.map((t) => t.name)).not.toContain(name);
+  });
+
   test("POST /files/metadata/templates - A non-choice field with options is rejected", async ({
     apiSdk,
   }) => {
@@ -211,12 +250,14 @@ test.describe("GET /files/metadata/templates - List and filter", () => {
       createMetadataTemplateRequestDto: {
         name: `Autotest vis ${apiSdk.faker.generateString(6)}`,
         visible: true,
+        fields: [{ name: "f", type: MetadataFieldType.String }],
       },
     });
     const { data: h } = await ownerApi.metadata.createTemplate({
       createMetadataTemplateRequestDto: {
         name: `Autotest hid ${apiSdk.faker.generateString(6)}`,
         visible: false,
+        fields: [{ name: "f", type: MetadataFieldType.String }],
       },
     });
     const visibleId = v.response!.id!;

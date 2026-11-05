@@ -8864,12 +8864,11 @@ test.describe("API rooms methods", () => {
       ];
 
       for (const c of sharedToCases) {
-        test.fail(
-          `BUG 84766: GET /files/rooms/:id/share - ${c.label} returns 500 (JsonException: possible object cycle) instead of 200`,
-          async ({ apiSdk }) => {
-            await assertFieldsMatchBaseline(apiSdk, c.fields, c.extra);
-          },
-        );
+        test(`BUG 84766: GET /files/rooms/:id/share - ${c.label} returns 500 (JsonException: possible object cycle) instead of 200`, async ({
+          apiSdk,
+        }) => {
+          await assertFieldsMatchBaseline(apiSdk, c.fields, c.extra);
+        });
       }
 
       test("GET /files/rooms/:id/share - fields without sharedTo still match the full response with filterType and count", async ({
@@ -10737,6 +10736,60 @@ test.describe("API rooms methods", () => {
         }),
       ).rejects.toThrow();
     });
+
+    // BUG 84873: confirmed live with the EXACT payload the real UI's "delete
+    // link" action sends (captured from the browser's Network tab) - the
+    // request omits `primary` entirely, which is the field that decides the
+    // outcome: revoking WITH `primary: true` set lets the primary link be
+    // recreated afterward (a fresh linkId each time), but revoking the exact
+    // same way MINUS that one field permanently breaks recreation with 404,
+    // forever after, even on repeated attempts. This is not the documented
+    // "a revoked link is not recreated" restriction working as intended -
+    // that restriction is supposed to apply unconditionally, not hinge on
+    // whether an unrelated-looking field happened to be included in the
+    // revoke call. A plain user disabling a room's share link in the UI
+    // never sets `primary` themselves, so this reproduces every time through
+    // the product itself, not just via direct API calls.
+    test.fail(
+      "BUG 84873: revoking a room's primary link the way the real UI does (no primary field) permanently breaks recreation, unlike revoking with primary:true set",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Primary Link Revoke Recreate",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        const roomId = roomData.response!.id!;
+
+        const { data: first } =
+          await ownerApi.rooms.getRoomsPrimaryExternalLink({ id: roomId });
+        const linkId = first.response!.sharedLink!.id!;
+
+        // Exact payload captured from the real UI's "delete link" action -
+        // deliberately has no `primary` field, unlike the rest of this file's
+        // setRoomLink calls.
+        await ownerApi.rooms.setRoomLink({
+          id: roomId,
+          roomLinkRequest: {
+            linkId,
+            title: "Shared link",
+            access: FileShare.None,
+            expirationDate: null,
+            linkType: LinkType.External,
+            disabled: false,
+            denyDownload: false,
+            internal: false,
+          } as never,
+        });
+
+        const { status } = await ownerApi.rooms.getRoomsPrimaryExternalLink({
+          id: roomId,
+        });
+
+        expect(status).toBe(200);
+      },
+    );
   });
 
   // setRoomLink — PUT /files/rooms/:id/links. Creates, updates (by linkId) or

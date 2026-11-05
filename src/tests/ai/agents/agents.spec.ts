@@ -28,6 +28,11 @@ import { ApiSDK } from "@/src/services/api-sdk";
 const UNKNOWN_PROFILE_ID = "019ed118-0000-0000-0000-0000000000ff";
 
 test.describe("POST /ai/agents - Create AI agent", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /ai/agents - Owner creates an agent", async ({
     apiSdk,
     paymentsApi,
@@ -248,7 +253,9 @@ test.describe("POST /ai/agents - Create AI agent validation", () => {
     });
   });
 
-  test("POST /ai/agents - Owner cannot create an agent without a profileId", async ({
+  // Skipped: POST /api/2.0/ai/agents was removed in DocSpace 4.1.0 - it answers 404,
+  // so the route can no longer be validated.
+  test.skip("POST /ai/agents - Owner cannot create an agent without a profileId", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -266,7 +273,9 @@ test.describe("POST /ai/agents - Create AI agent validation", () => {
     expect(status).toBe(400);
   });
 
-  test("POST /ai/agents - Owner cannot create an agent without a prompt", async ({
+  // Skipped: POST /api/2.0/ai/agents was removed in DocSpace 4.1.0 - it answers 404,
+  // so the route can no longer be validated.
+  test.skip("POST /ai/agents - Owner cannot create an agent without a prompt", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -285,7 +294,9 @@ test.describe("POST /ai/agents - Create AI agent validation", () => {
     expect(status).toBe(400);
   });
 
-  test("POST /ai/agents - Room Admin creates an agent with an oversized prompt and the agent stays usable", async ({
+  // Skipped: POST /api/2.0/ai/agents was removed in DocSpace 4.1.0 - it answers 404,
+  // so the route can no longer be validated.
+  test.skip("POST /ai/agents - Room Admin creates an agent with an oversized prompt and the agent stays usable", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -580,7 +591,8 @@ test.describe("GET /ai/agents/:id - Get AI agent info", () => {
   });
 
   for (const badId of ["-1", "abc"]) {
-    test(`GET /ai/agents/:id - Owner gets 400 for a malformed id "${badId}"`, async ({
+    // Skipped: GET /api/2.0/ai/agents/:id was removed in DocSpace 4.1.0 - it answers 404.
+    test.skip(`GET /ai/agents/:id - Owner gets 400 for a malformed id "${badId}"`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -639,6 +651,11 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent", () => {
 });
 
 test.describe("GET /ai/agents/news - Get AI agents new items", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   for (const { label, type, role } of [
     { label: "Owner", type: undefined, role: "owner" },
     { label: "DocSpace Admin", type: "DocSpaceAdmin", role: "docSpaceAdmin" },
@@ -1708,7 +1725,9 @@ test.describe("PUT /api/2.0/ai/agents/:id - restricting the agent's current mode
     ).toEqual({ status: 400, profileId: current.id, chat: current.id });
   });
 
-  test("POST /ai/agents - a restricted model at create time is refused, not silently dropped", async ({
+  // Skipped: POST /api/2.0/ai/agents was removed in DocSpace 4.1.0 - it answers 404,
+  // so the route can no longer be validated.
+  test.skip("POST /ai/agents - a restricted model at create time is refused, not silently dropped", async ({
     apiSdk,
     paymentsApi,
   }) => {

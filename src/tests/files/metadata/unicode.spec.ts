@@ -85,7 +85,10 @@ test.describe("Metadata text - characters outside the BMP", () => {
         const api = apiSdk.forRole("owner");
         const name = `${apiSdk.faker.generateString(6)} ${sample}`;
         const { data, status } = await api.metadata.createTemplate({
-          createMetadataTemplateRequestDto: { name },
+          createMetadataTemplateRequestDto: {
+            name,
+            fields: [{ name: "f", type: MetadataFieldType.String }],
+          },
         });
         expect(status).toBe(200);
         // the create answer echoes the input ...
@@ -103,7 +106,9 @@ test.describe("Metadata text - characters outside the BMP", () => {
     "BUG XXXXX: POST /files/metadata/templates/:id/fields - emoji in a field name and in an option value is stored intact",
     async ({ apiSdk }) => {
       const api = apiSdk.forRole("owner");
-      const { id } = await createTemplateWithFields(api, apiSdk, []);
+      const { id } = await createTemplateWithFields(api, apiSdk, [
+        { name: "seed" },
+      ]);
       const { status } = await api.metadata.createField({
         templateId: id,
         metadataFieldRequest: {
