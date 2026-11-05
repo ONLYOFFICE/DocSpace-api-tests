@@ -24,8 +24,8 @@ import { folderIds, roomAccesses } from "@/src/helpers/rooms";
  *
  * Room key sets (GET /privacyroom/{roomId}/access) are MEMBERSHIP-scoped, not
  * role-scoped: a DocSpaceAdmin who is not a member is denied, while any member
- * from Viewer upwards reads the full set. Every entry in that set currently
- * carries the member's privateKeyEnc, which is a leak (BUG 82803).
+ * from Viewer upwards reads the full set. Other members' entries no longer
+ * carry privateKeyEnc (BUG 82803 fixed on 4.1.0, marker removed).
  *
  * The per-role tests for GET /privacyroom/keys/filter were removed on
  * 2026-08-04: the route no longer exists (see the note in privacyroom.spec.ts),
@@ -141,10 +141,6 @@ test.describe("POST /api/2.0/privacyroom/keys - access control", () => {
   test("POST /api/2.0/privacyroom/keys - Owner can set keys", async ({
     apiSdk,
   }) => {
-    test.fail(
-      true,
-      "BUG 82546: setKeys returns 200 on create instead of 201 Created",
-    );
     const owner = apiSdk.forRole("owner");
     const { status } = await owner.privacyroom.setKeys(dto(apiSdk));
     expect((await owner.privacyroom.getUserKeys()).data.count).toBe(1);
@@ -154,10 +150,6 @@ test.describe("POST /api/2.0/privacyroom/keys - access control", () => {
   test("POST /api/2.0/privacyroom/keys - DocSpaceAdmin can set keys", async ({
     apiSdk,
   }) => {
-    test.fail(
-      true,
-      "BUG 82546: setKeys returns 200 on create instead of 201 Created",
-    );
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
     const admin = apiSdk.forRole("docSpaceAdmin");
     const { status } = await admin.privacyroom.setKeys(dto(apiSdk));
@@ -168,10 +160,6 @@ test.describe("POST /api/2.0/privacyroom/keys - access control", () => {
   test("POST /api/2.0/privacyroom/keys - RoomAdmin can set keys", async ({
     apiSdk,
   }) => {
-    test.fail(
-      true,
-      "BUG 82546: setKeys returns 200 on create instead of 201 Created",
-    );
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
     const roomAdmin = apiSdk.forRole("roomAdmin");
     const { status } = await roomAdmin.privacyroom.setKeys(dto(apiSdk));
@@ -182,10 +170,6 @@ test.describe("POST /api/2.0/privacyroom/keys - access control", () => {
   test("POST /api/2.0/privacyroom/keys - User can set keys", async ({
     apiSdk,
   }) => {
-    test.fail(
-      true,
-      "BUG 82546: setKeys returns 200 on create instead of 201 Created",
-    );
     await apiSdk.addAuthenticatedMember("owner", "User");
     const user = apiSdk.forRole("user");
     const { status } = await user.privacyroom.setKeys(dto(apiSdk));
@@ -295,10 +279,6 @@ test.describe("DELETE /api/2.0/privacyroom/keys/{id} - access control", () => {
   test("DELETE /api/2.0/privacyroom/keys/{id} - Owner can delete their key", async ({
     apiSdk,
   }) => {
-    test.fail(
-      true,
-      "BUG 82551: deleteKeys returns 200 on a successful delete instead of 204 No Content",
-    );
     const owner = apiSdk.forRole("owner");
     await owner.privacyroom.setKeys(dto(apiSdk));
     const { status } = await owner.privacyroom.deleteKeys({ id: ZERO_GUID });
@@ -309,10 +289,6 @@ test.describe("DELETE /api/2.0/privacyroom/keys/{id} - access control", () => {
   test("DELETE /api/2.0/privacyroom/keys/{id} - DocSpaceAdmin can delete their key", async ({
     apiSdk,
   }) => {
-    test.fail(
-      true,
-      "BUG 82551: deleteKeys returns 200 on a successful delete instead of 204 No Content",
-    );
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
     const admin = apiSdk.forRole("docSpaceAdmin");
     await admin.privacyroom.setKeys(dto(apiSdk));
@@ -324,10 +300,6 @@ test.describe("DELETE /api/2.0/privacyroom/keys/{id} - access control", () => {
   test("DELETE /api/2.0/privacyroom/keys/{id} - RoomAdmin can delete their key", async ({
     apiSdk,
   }) => {
-    test.fail(
-      true,
-      "BUG 82551: deleteKeys returns 200 on a successful delete instead of 204 No Content",
-    );
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
     const roomAdmin = apiSdk.forRole("roomAdmin");
     await roomAdmin.privacyroom.setKeys(dto(apiSdk));
@@ -341,10 +313,6 @@ test.describe("DELETE /api/2.0/privacyroom/keys/{id} - access control", () => {
   test("DELETE /api/2.0/privacyroom/keys/{id} - User can delete their key", async ({
     apiSdk,
   }) => {
-    test.fail(
-      true,
-      "BUG 82551: deleteKeys returns 200 on a successful delete instead of 204 No Content",
-    );
     await apiSdk.addAuthenticatedMember("owner", "User");
     const user = apiSdk.forRole("user");
     await user.privacyroom.setKeys(dto(apiSdk));
@@ -357,11 +325,9 @@ test.describe("DELETE /api/2.0/privacyroom/keys/{id} - access control", () => {
     apiSdk,
   }) => {
     // A Guest is refused on create by design, so they can never hold a key and
-    // delete has nothing to act on. Delete itself is NOT where a Guest is
-    // stopped: the owner deleting a key they do not have is the control and
-    // answers exactly the same way (200 today — that a missing key is not 404 is
-    // BUG 82552, covered in privacyroom.spec.ts, so the value is compared rather
-    // than hard-coded here).
+    // delete has nothing to act on. The control is the owner deleting a key
+    // they do not have: a 404 "not found" (the key surface is open to them),
+    // whereas the Guest is stopped by role with 403 before any lookup.
     const owner = apiSdk.forRole("owner");
     await apiSdk.addAuthenticatedMember("owner", "Guest");
     const guest = apiSdk.forRole("guest");
@@ -374,7 +340,8 @@ test.describe("DELETE /api/2.0/privacyroom/keys/{id} - access control", () => {
     const { status } = await guest.privacyroom.deleteKeys({ id: ZERO_GUID });
 
     expect((await guest.privacyroom.getUserKeys()).data.count).toBe(0);
-    expect(status).toBe(control.status);
+    expect(control.status).toBe(404);
+    expect(status).toBe(403);
   });
 
   test("DELETE /api/2.0/privacyroom/keys/{id} - Anonymous cannot delete keys", async ({
@@ -629,10 +596,6 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - access control", () =>
     // leave its owner: only publicKey is needed to wrap the room key for a
     // member. The caller's OWN entry is asserted first as the positive control,
     // so an empty or broken read cannot pass this test.
-    test.fail(
-      true,
-      "BUG 82803: getUserKeysForRoom returns other members' privateKeyEnc to every member of the room",
-    );
     const { roomId } = await createPrivateRoomAsOwner(apiSdk);
 
     const { data: memberData, userData } = await apiSdk.addMember(

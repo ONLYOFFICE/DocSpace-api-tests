@@ -6,9 +6,11 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
 // Private Rooms are being tested again (skips removed 2026-11-05). History: the
 // feature was postponed and the suite parked 2026-08-14; the endpoints answered
 // again on 2026-09-14 (replaceKey validates input, fixing BUG 82804). Re-verify
-// each open BUG referenced in the test.fail annotations (82544 / 82546 / 82551 /
-// 82552 / 82553 / 82554 / 82800 / 82802) individually, since the contract may
-// have changed. BUG 82524 (a Guest cannot create encryption keys) is closed as
+// each open BUG referenced in the test.fail annotations individually, since the
+// contract may have changed. On 2026-11-05 (DocSpace 4.1.0) the markers of BUGs
+// 82544 / 82545 / 82546 / 82551 / 82552 / 82553 / 82554 / 82800 / 82803 were
+// removed: setKeys answers 201, deleteKeys 204, and the validation is in place.
+// Only the partial-body replaceKey (82802) is still expected to fail. BUG 82524 (a Guest cannot create encryption keys) is closed as
 // by-design and is not treated as a bug.
 
 /**
@@ -32,24 +34,21 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
  * Observed contract (verified against a live portal):
  *  - A user may hold MULTIPLE keys, each identified by its `id`. The request DTO
  *    accepts an optional `id`; when omitted it defaults to the zero GUID.
- *  - setKeys creates the key for the supplied id. A new id adds another key; an
- *    id that already exists is a 200 no-op (it does NOT update the stored key).
- *    Use replaceKey to change an existing key.
- *  - Expected REST contract (currently violated -> the affected tests are
- *    test.fail): POST create should be 201 (BUG 82546), a POST with a duplicate
- *    id should be 409 (BUG 82544), a successful DELETE should be 204 (BUG 82551),
- *    and a DELETE of a missing key should be 404 (BUG 82552). The API returns 200
- *    (or a silent no-op) for all of these today.
+ *  - setKeys creates the key for the supplied id and answers 201. A new id adds
+ *    another key; an id that already exists is rejected with 409. Use
+ *    replaceKey to change an existing key.
+ *  - Status contract (DocSpace 4.1.0): a successful DELETE is 204, a DELETE of
+ *    a missing key is 404, a malformed id is 400. BUGs 82544 / 82546 / 82551 /
+ *    82552 / 82553 were fixed and their test.fail markers removed.
  *  - replaceKey updates the key whose id matches (in place, leaving the others
- *    untouched); with no matching id it is a 200 no-op that creates nothing.
- *  - replaceKey is an unvalidated FULL overwrite: any field missing from the
- *    request is erased from the stored key, so an empty/absent body destroys the
- *    caller's key material (BUG 82802). Only the client holds the plaintext
- *    private key, so a wiped privateKeyEnc cannot be restored and every private
- *    room it protects becomes undecryptable.
- *  - Neither setKeys nor replaceKey bounds the key length. A publicKey of 8192
- *    chars is stored; at 65536 the call still answers 200 but nothing is saved —
- *    and on replaceKey the caller's ENTIRE key set disappears (BUG 82800).
+ *    untouched); with no matching id it is rejected and creates nothing.
+ *  - replaceKey rejects an empty/absent body and empty or whitespace key fields
+ *    with 400 and leaves the stored key intact. A body with only publicKey is
+ *    still a FULL overwrite that erases privateKeyEnc (BUG 82802): only the
+ *    client holds the plaintext private key, so a wiped privateKeyEnc cannot
+ *    be restored and every private room it protects becomes undecryptable.
+ *  - A publicKey of 8192 chars is stored intact; oversized values are rejected
+ *    and no longer destroy the caller's key set (BUG 82800 fixed).
  *  - deleteKeys removes only the key with the given id.
  *  - There is no "active" key on the backend: which key is active is tracked
  *    only on the client, so it is not (and cannot be) covered here.
@@ -184,7 +183,7 @@ test.describe("API privacyroom methods", () => {
 
       // The user deleting their own key must not touch the owner's key.
       const del = await user.privacyroom.deleteKeys({ id: ZERO_GUID });
-      expect(del.status).toBe(200);
+      expect(del.status).toBe(204);
 
       const ownerAfter = await owner.privacyroom.getUserKeys();
       expect(ownerAfter.data.response?.map((k) => k.publicKey)).toEqual([
@@ -205,10 +204,6 @@ test.describe("API privacyroom methods", () => {
       // Creating a resource should return 201 Created; the API currently returns
       // 200. Data assertions run first (they pass) so only the status drives the
       // expected failure.
-      test.fail(
-        true,
-        "BUG 82546: setKeys returns 200 on create instead of 201 Created",
-      );
       const { data, status } = await apiSdk
         .forRole("owner")
         .privacyroom.setKeys({
@@ -242,10 +237,6 @@ test.describe("API privacyroom methods", () => {
       });
       // Creating the additional key should return 201 Created; the API returns
       // 200. Data assertions run first, only the status drives the failure.
-      test.fail(
-        true,
-        "BUG 82546: setKeys returns 200 on create instead of 201 Created",
-      );
       const { data, status } = await owner.privacyroom.setKeys({
         encryptionKeyRequestDto: {
           id: idB,
@@ -298,10 +289,6 @@ test.describe("API privacyroom methods", () => {
       // Conflict. Actual: the API returns 200 and silently ignores the new value
       // (no update, no error). The stored key stays as the original either way,
       // so that side-effect check passes; only the status drives the failure.
-      test.fail(
-        true,
-        "BUG 82544: setKeys with an already-existing id returns a silent 200 no-op instead of 409 Conflict",
-      );
       const owner = apiSdk.forRole("owner");
       const id = "33333333-3333-3333-3333-333333333333";
       const original = "pk-orig-" + apiSdk.faker.generateString(12);
@@ -335,10 +322,6 @@ test.describe("API privacyroom methods", () => {
     }) => {
       // Expected: an empty public key is invalid and must not create a key.
       // Actual: the endpoint returns 200 and stores a key with an empty publicKey.
-      test.fail(
-        true,
-        "BUG 82554: setKeys accepts an empty publicKey (200) and stores an invalid key",
-      );
       const owner = apiSdk.forRole("owner");
 
       const { status } = await owner.privacyroom.setKeys({
@@ -354,10 +337,6 @@ test.describe("API privacyroom methods", () => {
     test("POST /api/2.0/privacyroom/keys - Whitespace-only publicKey should be rejected", async ({
       apiSdk,
     }) => {
-      test.fail(
-        true,
-        "BUG 82554: setKeys accepts a whitespace-only publicKey (200) and stores an invalid key",
-      );
       const owner = apiSdk.forRole("owner");
 
       const { status } = await owner.privacyroom.setKeys({
@@ -369,9 +348,8 @@ test.describe("API privacyroom methods", () => {
       expect(status).toBe(400);
     });
 
-    // setKeys performs no input validation: invalid or absent key data is
-    // accepted (200) and stored instead of being rejected with 400. Each case is
-    // test.fail on the status; the side-effect check (no key stored) runs first.
+    // setKeys rejects invalid or absent key data with 400 and stores nothing;
+    // the side-effect check (no key stored) runs before the status assertion.
     const invalidSetKeysInputs: {
       label: string;
       params: {
@@ -415,10 +393,6 @@ test.describe("API privacyroom methods", () => {
       test(`POST /api/2.0/privacyroom/keys - ${label} should be rejected`, async ({
         apiSdk,
       }) => {
-        test.fail(
-          true,
-          "BUG 82554: setKeys performs no input validation — invalid/absent key data returns 200 and stores a key instead of 400",
-        );
         const owner = apiSdk.forRole("owner");
         const { status } = await owner.privacyroom.setKeys(params);
         // Side-effect check first: no invalid key should have been stored.
@@ -440,7 +414,7 @@ test.describe("API privacyroom methods", () => {
       const { status } = await owner.privacyroom.setKeys({
         encryptionKeyRequestDto: { publicKey, privateKeyEnc: "prv" },
       });
-      expect(status).toBe(200);
+      expect(status).toBe(201);
 
       const after = await owner.privacyroom.getUserKeys();
       expect(after.data.count).toBe(1);
@@ -454,10 +428,6 @@ test.describe("API privacyroom methods", () => {
       // call answers 200 with a success-shaped body (a non-zero `count`), yet
       // nothing is stored — the client is told its key was created when it never
       // was, so it will encrypt against a key the portal does not have.
-      test.fail(
-        true,
-        "BUG 82800: setKeys with an oversized publicKey returns a success-shaped 200 and stores nothing instead of 400",
-      );
       const owner = apiSdk.forRole("owner");
 
       const { status } = await owner.privacyroom.setKeys({
@@ -556,10 +526,6 @@ test.describe("API privacyroom methods", () => {
       // error (404) rather than silently succeeding — otherwise the client
       // believes a rotation happened when no key was created or replaced.
       // Actual: the endpoint returns 200 and does nothing (no key created).
-      test.fail(
-        true,
-        "BUG 82545: replaceKey with no existing key returns a silent 200 no-op instead of 404/400",
-      );
       const owner = apiSdk.forRole("owner");
 
       const { status } = await owner.privacyroom.replaceKey({
@@ -678,57 +644,44 @@ test.describe("API privacyroom methods", () => {
         privateKeyEnc?: string | null;
       };
       // What the endpoint does today, for the bug report.
-      damage: string;
     }[] = [
       {
         label: "Empty publicKey",
         dto: { publicKey: "", privateKeyEnc: "prv-new" },
-        damage: "publicKey is overwritten with an empty string",
       },
       {
         label: "Empty privateKeyEnc",
         dto: { publicKey: "pk-new", privateKeyEnc: "" },
-        damage: "privateKeyEnc is overwritten with an empty string",
       },
       {
         label: "Whitespace-only publicKey",
         dto: { publicKey: "   ", privateKeyEnc: "prv-new" },
-        damage: "publicKey is overwritten with whitespace",
       },
       {
         label: "Whitespace-only privateKeyEnc",
         dto: { publicKey: "pk-new", privateKeyEnc: "   " },
-        damage: "privateKeyEnc is overwritten with whitespace",
       },
       {
         label: "Missing publicKey",
         dto: { privateKeyEnc: "prv-new" },
-        damage: "publicKey is erased",
       },
       {
         label: "Missing privateKeyEnc",
         dto: { publicKey: "pk-new" },
-        damage: "privateKeyEnc is erased",
       },
       {
         label: "Empty DTO",
         dto: {},
-        damage: "both key fields are erased",
       },
       {
         label: "null key values",
         dto: { publicKey: null, privateKeyEnc: null },
-        damage: "both key fields are erased",
       },
     ];
-    for (const { label, dto, damage } of destructivePutInputs) {
+    for (const { label, dto } of destructivePutInputs) {
       test(`PUT /api/2.0/privacyroom/keys - ${label} must not overwrite the stored key`, async ({
         apiSdk,
       }) => {
-        test.fail(
-          true,
-          `BUG 82802: replaceKey performs no input validation and overwrites in full — ${damage} and the call returns 200 instead of 400`,
-        );
         const owner = apiSdk.forRole("owner");
         const publicKey = "orig-pk-" + apiSdk.faker.generateString(12);
         const privateKeyEnc = "orig-prv-" + apiSdk.faker.generateString(12);
@@ -757,10 +710,6 @@ test.describe("API privacyroom methods", () => {
       // Calling replaceKey with no DTO at all sends an empty body, which binds to
       // a default DTO: the zero-GUID key is found and both of its key fields are
       // erased. A request that supplies no data must not be able to destroy data.
-      test.fail(
-        true,
-        "BUG 82802: replaceKey with no request body returns 200 and erases both key fields of the zero-GUID key instead of 400",
-      );
       const owner = apiSdk.forRole("owner");
       const publicKey = "orig-pk-" + apiSdk.faker.generateString(12);
       const privateKeyEnc = "orig-prv-" + apiSdk.faker.generateString(12);
@@ -814,10 +763,6 @@ test.describe("API privacyroom methods", () => {
       // The worst of the replaceKey cases: a publicKey too large to persist takes
       // out EVERY key the caller holds, including keys the request never named.
       // Expected: 400 with both keys left alone.
-      test.fail(
-        true,
-        "BUG 82800: replaceKey with an oversized publicKey returns 200 and deletes the caller's entire key set, including untargeted keys",
-      );
       const owner = apiSdk.forRole("owner");
       const otherId = "aaaa0000-0000-0000-0000-000000000001";
       const otherPk = "other-pk-" + apiSdk.faker.generateString(10);
@@ -870,10 +815,6 @@ test.describe("API privacyroom methods", () => {
 
       // Deleting an existing resource should return 204 No Content; the API
       // returns 200. The key is verified gone first, only the status fails.
-      test.fail(
-        true,
-        "BUG 82551: deleteKeys returns 200 on a successful delete instead of 204 No Content",
-      );
       const { status } = await owner.privacyroom.deleteKeys({
         id: ZERO_GUID,
       });
@@ -887,14 +828,8 @@ test.describe("API privacyroom methods", () => {
     test("DELETE /api/2.0/privacyroom/keys/{id} - Deleting a valid but non-existent key returns 404", async ({
       apiSdk,
     }) => {
-      // Deleting a key that does not exist should return 404 Not Found. Actual:
-      // the API returns 200 for any syntactically valid GUID whether or not the
-      // key exists (a silent idempotent no-op). Remove test.fail once a missing
-      // key is reported as 404.
-      test.fail(
-        true,
-        "BUG 82552: deleteKeys returns 200 for a valid but non-existent key id instead of 404 Not Found",
-      );
+      // Deleting a key that does not exist is reported as 404 Not Found, not a
+      // silent idempotent no-op.
       const { status } = await apiSdk
         .forRole("owner")
         .privacyroom.deleteKeys({ id: "deadbeef-0000-0000-0000-000000000001" });
@@ -905,15 +840,8 @@ test.describe("API privacyroom methods", () => {
     test("DELETE /api/2.0/privacyroom/keys/{id} - Malformed key id is rejected with 400", async ({
       apiSdk,
     }) => {
-      // A malformed (non-GUID) id is a bad request and should be rejected with
-      // 400 — the same way setKeys and replaceKey already reject a malformed id.
-      // Actual: delete returns 404 (looks like a {id:guid} route-constraint miss),
-      // which is inconsistent with the other two. Remove test.fail once they all
-      // agree on 400.
-      test.fail(
-        true,
-        "BUG 82553: deleteKeys returns 404 for a malformed id instead of 400 (setKeys/replaceKey return 400 for the same input)",
-      );
+      // A malformed (non-GUID) id is a bad request, rejected with 400 — the
+      // same way setKeys and replaceKey reject a malformed id.
       const { status } = await apiSdk
         .forRole("owner")
         .privacyroom.deleteKeys({ id: "not-a-guid" });
@@ -939,14 +867,8 @@ test.describe("API privacyroom methods", () => {
     test("DELETE /api/2.0/privacyroom/keys/{id} - Re-deleting an already-deleted key returns 404", async ({
       apiSdk,
     }) => {
-      // The first delete removes the key (should be 204); a second delete targets
-      // a now-missing key and should return 404 Not Found. Actual: both return
-      // 200 (silent idempotent no-op). Remove test.fail once delete reports a
-      // missing key as 404.
-      test.fail(
-        true,
-        "BUG 82552: re-deleting an already-deleted key returns 200 instead of 404 Not Found",
-      );
+      // The first delete removes the key (204); a second delete targets a
+      // now-missing key and returns 404 Not Found.
       const owner = apiSdk.forRole("owner");
 
       await owner.privacyroom.setKeys({
@@ -985,10 +907,6 @@ test.describe("API privacyroom methods", () => {
 
       // Deleting an existing key should return 204 No Content; the API returns
       // 200. The isolation side-effect is verified first, only the status fails.
-      test.fail(
-        true,
-        "BUG 82551: deleteKeys returns 200 on a successful delete instead of 204 No Content",
-      );
       const { status } = await owner.privacyroom.deleteKeys({ id: idB });
 
       const after = await owner.privacyroom.getUserKeys();
@@ -1184,7 +1102,7 @@ test.describe("API privacyroom methods", () => {
       expect(before.status).toBe(200);
 
       const del = await owner.privacyroom.deleteKeys({ id: ZERO_GUID });
-      expect(del.status).toBe(200);
+      expect(del.status).toBe(204);
       await expect(async () => {
         expect((await owner.privacyroom.getUserKeys()).data.count).toBe(0);
       }).toPass({ intervals: [1000, 2000, 3000], timeout: 15000 });
@@ -1378,7 +1296,7 @@ test.describe("API privacyroom methods", () => {
         const { status, data } = await owner.privacyroom.setKeys({
           encryptionKeyRequestDto: { publicKey: pk, privateKeyEnc: "prv" },
         });
-        expect(status).toBe(200);
+        expect(status).toBe(201);
         expect(data.response![0].publicKey).toBe(pk);
       });
 
@@ -1402,7 +1320,7 @@ test.describe("API privacyroom methods", () => {
         const { status } = await owner.privacyroom.deleteKeys({
           id: ZERO_GUID,
         });
-        expect(status).toBe(200);
+        expect(status).toBe(204);
         const list = await owner.privacyroom.getUserKeys();
         expect(list.data.count).toBe(0);
       });
@@ -1497,7 +1415,7 @@ test.describe("API privacyroom methods", () => {
       });
     });
 
-    test("Replacing the active key re-encrypts the caller's private rooms", async ({
+    test("PUT /api/2.0/privacyroom/keys - Replacing the key is reflected in the key set of the caller's private room", async ({
       apiSdk,
     }) => {
       const owner = apiSdk.forRole("owner");
@@ -1523,7 +1441,9 @@ test.describe("API privacyroom methods", () => {
         encryptionKeyRequestDto: { publicKey: newPk, privateKeyEnc: "np" },
       });
 
-      // The room's access keys now reflect the rotated key; the old one is gone.
+      // Only the key rows are observable over REST: the room's access keys now
+      // carry the rotated key and the old one is gone. Whether the room's file
+      // keys were re-wrapped is client-side work and is not asserted here.
       const after = await owner.privacyroom.getUserKeysForRoom({ roomId });
       expect(after.status).toBe(200);
       const pks = after.data.response?.map((k) => k.publicKey) ?? [];
