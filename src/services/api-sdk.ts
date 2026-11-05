@@ -44,6 +44,8 @@ import { ThreadsApi as ChatApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/
 import { SettingsApi as AiSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/settings-api";
 import { VectorizationApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/vectorization-api";
 import { ToolsApi as MCPApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/tools-api";
+import { ContextApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/context-api";
+import { RoomsAIApi } from "@onlyoffice/docspace-api-sdk/dist/api/rooms/rooms-aiapi";
 import { FilesSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/files/files-settings-api";
 import { PortalGuestsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-guests-api";
 import { ApiKeysApi } from "@onlyoffice/docspace-api-sdk/dist/api/api-keys/api-keys-api";
@@ -229,6 +231,8 @@ export class ApiSDK {
         axiosInstance,
       ),
       chat: new ChatApi(config, undefined, axiosInstance),
+      aiContext: new ContextApi(config, undefined, axiosInstance),
+      roomsAI: new RoomsAIApi(config, undefined, axiosInstance),
       settingsQuota: new SettingsQuotaApi(config, undefined, axiosInstance),
       payment: new SdkPaymentApi(config, undefined, axiosInstance),
       settingsMessages: new MessagesApi(config, undefined, axiosInstance),
@@ -357,6 +361,8 @@ export class ApiSDK {
         axiosInstance,
       ),
       chat: new ChatApi(config, undefined, axiosInstance),
+      aiContext: new ContextApi(config, undefined, axiosInstance),
+      roomsAI: new RoomsAIApi(config, undefined, axiosInstance),
       settingsQuota: new SettingsQuotaApi(config, undefined, axiosInstance),
       settingsMessages: new MessagesApi(config, undefined, axiosInstance),
       commonSettings: new CommonSettingsApi(config, undefined, axiosInstance),

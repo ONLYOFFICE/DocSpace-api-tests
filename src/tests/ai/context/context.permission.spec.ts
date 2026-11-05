@@ -2,11 +2,12 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
 import {
-  AiContext,
-  createTypedRoom,
+  expectActingAs,
   knowledgeRoomIds,
+  knowledgeRooms,
   roomTitle,
 } from "@/src/helpers/ai-context";
+import { createRoomOfType } from "@/src/helpers/rooms";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
 import type { ApiSDK } from "@/src/services/api-sdk";
 
@@ -42,7 +43,7 @@ async function ownerSetup(
 ) {
   const ownerApi = apiSdk.forRole("owner");
   await enableAiGateway(paymentsApi, ownerApi.payment);
-  return new AiContext(apiSdk.request, apiSdk.tokenStore);
+  return ownerApi;
 }
 
 /** Owner invites a member and insists the invite took: no premise, no verdict. */
@@ -57,8 +58,12 @@ async function invite(apiSdk: ApiSDK, roomId: number, userId: string) {
   expect(status, "the owner invites the member to the KnowledgeRoom").toBe(200);
 }
 
-async function expectOwnerSees(context: AiContext, roomId: number) {
-  const { status, data } = await context.getKnowledgeFolders("owner");
+async function expectOwnerSees(
+  ownerApi: ReturnType<ApiSDK["forRole"]>,
+  roomId: number,
+) {
+  const { status, data } =
+    await ownerApi.aiContext.aiContextGetKnowledgeFolders();
   expect(status, "GET get-knowledge-folders as owner").toBe(200);
   expect(knowledgeRoomIds(data), "owner sees the KnowledgeRoom").toContain(
     String(roomId),
@@ -70,28 +75,38 @@ test.describe("GET /ai/context/get-knowledge-folders - authentication", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    const context = await ownerSetup(apiSdk, paymentsApi);
-    const id = await createTypedRoom(
+    const ownerApi = await ownerSetup(apiSdk, paymentsApi);
+    const id = await createRoomOfType(
       apiSdk,
+      "owner",
       roomTitle(apiSdk),
       RoomType.KnowledgeRoom,
     );
-    await expectOwnerSees(context, id);
+    await expectOwnerSees(ownerApi, id);
 
-    const { status, text } = await context.getKnowledgeFolders("anonymous");
+    const { status, data } = await apiSdk
+      .forAnonymous()
+      .aiContext.aiContextGetKnowledgeFolders();
 
     expect(status).toBe(401);
-    expect(text, "the refusal carries no room data").not.toContain(String(id));
+    expect(
+      JSON.stringify(data),
+      "the refusal carries no room data",
+    ).not.toContain(String(id));
   });
 
   test("GET /ai/context/get-context-folders - anonymous is refused with 401", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    const context = await ownerSetup(apiSdk, paymentsApi);
-    expect((await context.getContextFolders("owner")).status).toBe(200);
+    const ownerApi = await ownerSetup(apiSdk, paymentsApi);
+    expect((await ownerApi.aiContext.aiContextGetContextFolders()).status).toBe(
+      200,
+    );
 
-    const { status } = await context.getContextFolders("anonymous");
+    const { status } = await apiSdk
+      .forAnonymous()
+      .aiContext.aiContextGetContextFolders();
 
     expect(status).toBe(401);
   });
@@ -103,38 +118,48 @@ test.describe("GET /ai/context/get-knowledge-folders - members", () => {
       apiSdk,
       paymentsApi,
     }) => {
-      const context = await ownerSetup(apiSdk, paymentsApi);
+      const ownerApi = await ownerSetup(apiSdk, paymentsApi);
       const title = roomTitle(apiSdk);
-      const id = await createTypedRoom(apiSdk, title, RoomType.KnowledgeRoom);
+      const id = await createRoomOfType(
+        apiSdk,
+        "owner",
+        title,
+        RoomType.KnowledgeRoom,
+      );
       const { data: member, userData } = await apiSdk.addMember("owner", type);
       await invite(apiSdk, id, member.response!.id!);
-      await expectOwnerSees(context, id);
+      await expectOwnerSees(ownerApi, id);
 
       await apiSdk.authenticateMember(userData, type);
-      await context.expectActingAs(role, member.response!.id!, label);
-      const { status, data } = await context.getKnowledgeFolders(role);
+      await expectActingAs(apiSdk, role, member.response!.id!, label);
+      const { status, data } = await apiSdk
+        .forRole(role)
+        .aiContext.aiContextGetKnowledgeFolders();
 
       expect(status).toBe(200);
       expect(knowledgeRoomIds(data)).toEqual([String(id)]);
-      expect(data![0].rooms[0].name).toBe(title);
+      expect(knowledgeRooms(data)[0].name).toBe(title);
     });
 
     test(`GET /ai/context/get-knowledge-folders - ${label} not invited ${seesWithoutInvite ? "still sees" : "does not see"} the KnowledgeRoom`, async ({
       apiSdk,
       paymentsApi,
     }) => {
-      const context = await ownerSetup(apiSdk, paymentsApi);
-      const id = await createTypedRoom(
+      const ownerApi = await ownerSetup(apiSdk, paymentsApi);
+      const id = await createRoomOfType(
         apiSdk,
+        "owner",
         roomTitle(apiSdk),
         RoomType.KnowledgeRoom,
       );
       const { data: member, userData } = await apiSdk.addMember("owner", type);
-      await expectOwnerSees(context, id);
+      await expectOwnerSees(ownerApi, id);
 
       await apiSdk.authenticateMember(userData, type);
-      await context.expectActingAs(role, member.response!.id!, label);
-      const { status, data } = await context.getKnowledgeFolders(role);
+      await expectActingAs(apiSdk, role, member.response!.id!, label);
+      const { status, data } = await apiSdk
+        .forRole(role)
+        .aiContext.aiContextGetKnowledgeFolders();
 
       expect(status).toBe(200);
       expect(knowledgeRoomIds(data)).toEqual(
@@ -147,9 +172,10 @@ test.describe("GET /ai/context/get-knowledge-folders - members", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    const context = await ownerSetup(apiSdk, paymentsApi);
-    const id = await createTypedRoom(
+    const ownerApi = await ownerSetup(apiSdk, paymentsApi);
+    const id = await createRoomOfType(
       apiSdk,
+      "owner",
       roomTitle(apiSdk),
       RoomType.KnowledgeRoom,
     );
@@ -158,8 +184,10 @@ test.describe("GET /ai/context/get-knowledge-folders - members", () => {
     await invite(apiSdk, id, userId);
 
     await apiSdk.authenticateMember(userData, "User");
-    await context.expectActingAs("user", userId);
-    const before = await context.getKnowledgeFolders("user");
+    await expectActingAs(apiSdk, "user", userId);
+    const before = await apiSdk
+      .forRole("user")
+      .aiContext.aiContextGetKnowledgeFolders();
     expect(before.status).toBe(200);
     expect(knowledgeRoomIds(before.data), "the invited user sees it").toEqual([
       String(id),
@@ -174,14 +202,20 @@ test.describe("GET /ai/context/get-knowledge-folders - members", () => {
       },
     });
     expect(status, "the owner revokes the access").toBe(200);
-    await expectOwnerSees(context, id);
+    await expectOwnerSees(ownerApi, id);
 
     await apiSdk.authenticateMember(userData, "User");
-    await context.expectActingAs("user", userId);
+    await expectActingAs(apiSdk, "user", userId);
     await expect
       .poll(
         async () =>
-          knowledgeRoomIds((await context.getKnowledgeFolders("user")).data),
+          knowledgeRoomIds(
+            (
+              await apiSdk
+                .forRole("user")
+                .aiContext.aiContextGetKnowledgeFolders()
+            ).data,
+          ),
         { timeout: 30_000 },
       )
       .toEqual([]);
@@ -191,14 +225,16 @@ test.describe("GET /ai/context/get-knowledge-folders - members", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    const context = await ownerSetup(apiSdk, paymentsApi);
-    const roomA = await createTypedRoom(
+    const ownerApi = await ownerSetup(apiSdk, paymentsApi);
+    const roomA = await createRoomOfType(
       apiSdk,
+      "owner",
       roomTitle(apiSdk, "A"),
       RoomType.KnowledgeRoom,
     );
-    const roomB = await createTypedRoom(
+    const roomB = await createRoomOfType(
       apiSdk,
+      "owner",
       roomTitle(apiSdk, "B"),
       RoomType.KnowledgeRoom,
     );
@@ -214,7 +250,9 @@ test.describe("GET /ai/context/get-knowledge-folders - members", () => {
     await invite(apiSdk, roomB, memberB.response!.id!);
     expect(
       [
-        ...knowledgeRoomIds((await context.getKnowledgeFolders("owner")).data),
+        ...knowledgeRoomIds(
+          (await ownerApi.aiContext.aiContextGetKnowledgeFolders()).data,
+        ),
       ].sort(),
       "the owner sees both rooms",
     ).toEqual([String(roomA), String(roomB)].sort());
@@ -222,12 +260,16 @@ test.describe("GET /ai/context/get-knowledge-folders - members", () => {
     // Both are Users, so they share the "user" credential slot: one after the
     // other, each pinned before it is read.
     await apiSdk.authenticateMember(userA, "User");
-    await context.expectActingAs("user", memberA.response!.id!, "user A");
-    const seenByA = await context.getKnowledgeFolders("user");
+    await expectActingAs(apiSdk, "user", memberA.response!.id!, "user A");
+    const seenByA = await apiSdk
+      .forRole("user")
+      .aiContext.aiContextGetKnowledgeFolders();
 
     await apiSdk.authenticateMember(userB, "User");
-    await context.expectActingAs("user", memberB.response!.id!, "user B");
-    const seenByB = await context.getKnowledgeFolders("user");
+    await expectActingAs(apiSdk, "user", memberB.response!.id!, "user B");
+    const seenByB = await apiSdk
+      .forRole("user")
+      .aiContext.aiContextGetKnowledgeFolders();
 
     expect(seenByA.status).toBe(200);
     expect(seenByB.status).toBe(200);
@@ -242,22 +284,35 @@ test.describe("GET /ai/context/get-context-folders - members", () => {
       apiSdk,
       paymentsApi,
     }) => {
-      const context = await ownerSetup(apiSdk, paymentsApi);
+      await ownerSetup(apiSdk, paymentsApi);
       const title = roomTitle(apiSdk);
-      const id = await createTypedRoom(apiSdk, title, RoomType.KnowledgeRoom);
-      await createTypedRoom(apiSdk, title + " custom", RoomType.CustomRoom);
+      const id = await createRoomOfType(
+        apiSdk,
+        "owner",
+        title,
+        RoomType.KnowledgeRoom,
+      );
+      await createRoomOfType(
+        apiSdk,
+        "owner",
+        title + " custom",
+        RoomType.CustomRoom,
+      );
       const { data: member, userData } = await apiSdk.addMember("owner", type);
       await invite(apiSdk, id, member.response!.id!);
 
       await apiSdk.authenticateMember(userData, type);
-      await context.expectActingAs(role, member.response!.id!, label);
-      const { status, data, text } = await context.getContextFolders(role);
+      await expectActingAs(apiSdk, role, member.response!.id!, label);
+      const { status, data } = await apiSdk
+        .forRole(role)
+        .aiContext.aiContextGetContextFolders();
 
       expect(status).toBe(200);
       expect(Array.isArray(data)).toBe(true);
-      expect(text, "no room of the owner in a context list").not.toContain(
-        title,
-      );
+      expect(
+        JSON.stringify(data),
+        "no room of the owner in a context list",
+      ).not.toContain(title);
     });
   }
 });
