@@ -3,22 +3,13 @@ import { test } from "@/src/fixtures/index";
 import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
-// SKIPPED (2026-08-14, re-verified 2026-08-19): the Private Rooms feature was
-// postponed to the next release and temporarily removed, so the whole
-// PrivacyRoomApi surface was unavailable on a release portal. The tests are
-// parked rather than deleted because the feature is expected back.
-//
-// Spot-check on 2026-09-14: the endpoints answer real requests again (not
-// 404/skipped) on the test portal, and replaceKey now validates its input —
-// a missing/empty publicKey is rejected with 400 instead of silently
-// overwriting/erasing, which fixes BUG 82804 (a follow-through of BUG 82802)
-// and several of the BUG 82802/82800/82545 test.fail cases too. This was only
-// a single-test spot-check, not a full sweep — before dropping the .skip on
-// the describe below, re-run the whole file and re-verify each open bug
-// referenced in the test.fail annotations (82544 / 82546 / 82551 / 82552 /
-// 82553 / 82554 / 82800 / 82802) individually, since the contract may have
-// changed further. BUG 82524 (a Guest cannot create encryption keys) is
-// closed as by-design and is no longer treated as a bug.
+// Private Rooms are being tested again (skips removed 2026-11-05). History: the
+// feature was postponed and the suite parked 2026-08-14; the endpoints answered
+// again on 2026-09-14 (replaceKey validates input, fixing BUG 82804). Re-verify
+// each open BUG referenced in the test.fail annotations (82544 / 82546 / 82551 /
+// 82552 / 82553 / 82554 / 82800 / 82802) individually, since the contract may
+// have changed. BUG 82524 (a Guest cannot create encryption keys) is closed as
+// by-design and is not treated as a bug.
 
 /**
  * Functional tests for the PrivacyRoomApi — per-user encryption key management
@@ -81,7 +72,7 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
  */
 const ZERO_GUID = "00000000-0000-0000-0000-000000000000";
 
-test.describe.skip("API privacyroom methods", () => {
+test.describe("API privacyroom methods", () => {
   test.describe("GET /api/2.0/privacyroom/keys - getUserKeys", () => {
     test("GET /api/2.0/privacyroom/keys - Owner has no keys initially", async ({
       apiSdk,

@@ -251,15 +251,57 @@ test.describe("Per-user limits - they must refuse", () => {
       const user = await makeMember("User");
       // About $0.44 is reserved per reply, so $1.10 holds two of them.
       await createCustom(ai.payment, user.id, 1.1);
-
-      const outcomes = await Promise.all(
+      // Threads first, so the sends below leave in one tick and the only thing
+      // racing is the admission check.
+      const profileId = ai.profile.id;
+      const threadIds = await Promise.all(
         Array.from({ length: 6 }, () =>
-          chatOutcome(user.chat, user.role, { profileId: ai.profile.id }),
+          user.chat.createThreadId(user.role, {
+            title: "Limits chat",
+            profileId,
+          }),
         ),
       );
 
-      expect(outcomes.filter((o) => o.kind === "replied")).toHaveLength(2);
-      expect(outcomes.filter((o) => o.kind === "limit")).toHaveLength(4);
+      const startedAt = Date.now();
+      const runs = await Promise.all(
+        threadIds.map(async (threadId) => ({
+          outcome: await chatOutcome(user.chat, user.role, {
+            profileId,
+            threadId,
+          }),
+          finishedAt: Date.now(),
+        })),
+      );
+      const outcomes = runs.map((r) => r.outcome);
+      const replied = runs.filter((r) => r.outcome.kind === "replied");
+
+      await test.step("premise: every send was admitted while the others were still running", async () => {
+        // Admission is decided as the send arrives. If the first reply were done
+        // before the last send arrived, a reservation could have been released
+        // in between and more than two replies would be legitimate.
+        const firstReplyMs =
+          Math.min(...replied.map((r) => r.finishedAt)) - startedAt;
+        test.info().annotations.push({
+          type: "concurrency",
+          description: `first reply after ${firstReplyMs} ms, kinds: ${outcomes.map((o) => o.kind).join(",")}`,
+        });
+        expect(
+          outcomes.filter((o) => o.kind === "error"),
+          "no chat failed for another reason",
+        ).toEqual([]);
+        expect(
+          firstReplyMs,
+          "replies take longer than the sends do",
+        ).toBeGreaterThan(1500);
+      });
+
+      // $1.10 covers two reservations; a third reply means the check read the
+      // limit before the earlier chats had reserved against it.
+      expect(replied.length).toBeLessThanOrEqual(2);
+      expect(outcomes.filter((o) => o.kind === "limit")).toHaveLength(
+        6 - replied.length,
+      );
     },
   );
 });
