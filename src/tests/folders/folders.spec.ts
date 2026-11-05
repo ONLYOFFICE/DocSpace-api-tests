@@ -1734,7 +1734,7 @@ test.describe("GET /api/2.0/files/@root - Get root folders", () => {
     const { data, status } = await ownerApi.folders.getRootFolders({});
 
     expect(status).toBe(200);
-    expect(data.response!.length).toBe(9);
+    expect(data.response!.length).toBe(10);
     const titles = data.response!.map((s) => s.current?.title);
     expect(titles).toContain("Files");
     expect(titles).toContain("Rooms");
@@ -1744,6 +1744,7 @@ test.describe("GET /api/2.0/files/@root - Get root folders", () => {
     expect(titles).toContain("Archive");
     expect(titles).toContain("Shared with me");
     expect(titles).toContain("AI agents");
+    expect(titles).toContain("AI rooms");
     expect(titles).toContain("Forms");
   });
 

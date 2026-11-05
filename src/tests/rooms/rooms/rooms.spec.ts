@@ -8864,12 +8864,11 @@ test.describe("API rooms methods", () => {
       ];
 
       for (const c of sharedToCases) {
-        test.fail(
-          `BUG 84766: GET /files/rooms/:id/share - ${c.label} returns 500 (JsonException: possible object cycle) instead of 200`,
-          async ({ apiSdk }) => {
-            await assertFieldsMatchBaseline(apiSdk, c.fields, c.extra);
-          },
-        );
+        test(`BUG 84766: GET /files/rooms/:id/share - ${c.label} returns 500 (JsonException: possible object cycle) instead of 200`, async ({
+          apiSdk,
+        }) => {
+          await assertFieldsMatchBaseline(apiSdk, c.fields, c.extra);
+        });
       }
 
       test("GET /files/rooms/:id/share - fields without sharedTo still match the full response with filterType and count", async ({

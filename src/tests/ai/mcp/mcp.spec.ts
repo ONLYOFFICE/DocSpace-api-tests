@@ -3840,6 +3840,11 @@ async function serverMap(aiTools: AiTools, agentId: number | string) {
 }
 
 test.describe("MCP - the agent body and the per-entity server map", () => {
+  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
+  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
+  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
+  test.skip(true, "AI agents removed in DocSpace 4.1.0");
+
   test("POST /api/2.0/ai/agents - attachDefaultTools writes nothing into the agent's tool scope", async ({
     apiSdk,
     paymentsApi,

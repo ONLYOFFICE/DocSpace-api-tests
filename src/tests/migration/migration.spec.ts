@@ -224,17 +224,16 @@ test.describe("GET /api/2.0/migration/logs - after a failed job", () => {
   // (An UNRECOGNIZED migrator name does not trigger this - that path 404s
   // correctly, presumably because no job folder is created at all before
   // the name is found to be invalid.)
-  test.fail(
-    "BUG 84791: logs for a job that failed before writing any log crash instead of a clean 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 84791: logs for a job that failed before writing any log crash instead of a clean 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      await ownerApi.migration.uploadAndInitializeMigration({
-        migratorName: "Nextcloud",
-      });
+    await ownerApi.migration.uploadAndInitializeMigration({
+      migratorName: "Nextcloud",
+    });
 
-      const { status } = await ownerApi.migration.getMigrationLogs();
-      expect(status).toBe(404);
-    },
-  );
+    const { status } = await ownerApi.migration.getMigrationLogs();
+    expect(status).toBe(404);
+  });
 });

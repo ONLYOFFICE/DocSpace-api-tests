@@ -74,35 +74,35 @@ test.describe("Service limits - no billing customer", () => {
   // customer either - the reads answer as if it had, and the writes that need one
   // fall over with an unhandled AccountingCustomerNotFoundException. The routes
   // promise 404 for "no billing customer".
-  test.fail(
-    "BUG 84837: POST /portal/payment/servicelimit - a portal with payment set up but no wallet answers 404, not 500",
-    async ({ apiSdk, paymentsApi }) => {
-      await paymentsApi.setupPayment();
-      const payment = apiSdk.forRole("owner").payment;
+  test("BUG 84837: POST /portal/payment/servicelimit - a portal with payment set up but no wallet answers 404, not 500", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const payment = apiSdk.forRole("owner").payment;
 
-      const { status, data } = await payment.createServiceLimit({
-        createServiceLimitRequestDto: {
-          scope: LimitScope.Total,
-          amountValue: 1,
-          period: LimitPeriod.Month,
-        },
-      });
+    const { status, data } = await payment.createServiceLimit({
+      createServiceLimitRequestDto: {
+        scope: LimitScope.Total,
+        amountValue: 1,
+        period: LimitPeriod.Month,
+      },
+    });
 
-      expect(status, errorMessage(data)).toBe(404);
-    },
-  );
+    expect(status, errorMessage(data)).toBe(404);
+  });
 
-  test.fail(
-    "BUG 84837: POST /portal/payment/servicelimit/participants/disable - a portal with payment set up but no wallet answers 404, not 500",
-    async ({ apiSdk, paymentsApi }) => {
-      await paymentsApi.setupPayment();
-      const payment = apiSdk.forRole("owner").payment;
+  test("BUG 84837: POST /portal/payment/servicelimit/participants/disable - a portal with payment set up but no wallet answers 404, not 500", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const payment = apiSdk.forRole("owner").payment;
 
-      const { status, data } = await payment.disableParticipantServiceLimits();
+    const { status, data } = await payment.disableParticipantServiceLimits();
 
-      expect(status, errorMessage(data)).toBe(404);
-    },
-  );
+    expect(status, errorMessage(data)).toBe(404);
+  });
 });
 
 test.describe("Service limits - create validation", () => {
@@ -247,26 +247,23 @@ test.describe("Service limits - create validation", () => {
   // Whether the default is intended needs a product answer - the JSDoc names
   // `scope` as the thing that says whom the limit applies to and documents no
   // default for it.
-  test.fail(
-    "BUG 84839: POST /portal/payment/servicelimit - a request without a scope is refused instead of becoming a portal-wide Total limit",
-    async ({ apiSdk, paymentsApi }) => {
-      await provisionBilling(paymentsApi);
-      const payment = apiSdk.forRole("owner").payment;
+  test("BUG 84839: POST /portal/payment/servicelimit - a request without a scope is refused instead of becoming a portal-wide Total limit", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await provisionBilling(paymentsApi);
+    const payment = apiSdk.forRole("owner").payment;
 
-      const { status } = await payment.createServiceLimit({
-        createServiceLimitRequestDto: {
-          amountValue: 5,
-          period: LimitPeriod.Month,
-        },
-      });
+    const { status } = await payment.createServiceLimit({
+      createServiceLimitRequestDto: {
+        amountValue: 5,
+        period: LimitPeriod.Month,
+      },
+    });
 
-      expect(
-        await readTotal(payment),
-        "no Total limit appeared",
-      ).toBeUndefined();
-      expect(status).toBe(400);
-    },
-  );
+    expect(await readTotal(payment), "no Total limit appeared").toBeUndefined();
+    expect(status).toBe(400);
+  });
 });
 
 test.describe("Service limits - the user of a limit", () => {

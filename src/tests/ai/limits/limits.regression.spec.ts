@@ -28,78 +28,75 @@ import {
 //   6. a new AI Chat request, and 7. an AI Search
 //   8. both must be refused and neither may create a paid operation
 //
-// It reproduces: both calls are served and billed (2026-11-02, every run so far),
-// the user's `amountAvailable` stays at 0 throughout. Marked
-// `test.fail` with the issue id; it fails on step 6, the first refusal that does
-// not come, and the later steps are not reached.
-test.fail(
-  "AI-LIMITS-001 BUG 84836: a user whose Custom limit has been lowered below what they spent is refused AI Chat and AI Search after signing in again",
-  async ({ apiSdk, paymentsApi, makeMember }) => {
-    test.setTimeout(600000);
-    const ai = await provisionAiPortal(apiSdk, paymentsApi);
-    const user = await makeMember("User");
+// It reproduced until BUG 84836 was fixed: both calls were served and billed
+// (2026-11-02, every run), the user's `amountAvailable` staying at 0 throughout.
+// The run of 2026-11-05 refuses both, so the `test.fail` marker is gone and this
+// is a regression test for the fix.
+test("AI-LIMITS-001 BUG 84836: a user whose Custom limit has been lowered below what they spent is refused AI Chat and AI Search after signing in again", async ({
+  apiSdk,
+  paymentsApi,
+  makeMember,
+}) => {
+  test.setTimeout(600000);
+  const ai = await provisionAiPortal(apiSdk, paymentsApi);
+  const user = await makeMember("User");
 
-    const custom = await createCustom(ai.payment, user.id, 1.01);
+  const custom = await createCustom(ai.payment, user.id, 1.01);
 
-    await test.step("the user spends under the limit", async () => {
-      const chat = await chatOutcome(user.chat, user.role, {
-        profileId: ai.profile.id,
-      });
-      expect(chat.kind, chat.errorMessage).toBe("replied");
-      const search = await searchOutcome(user.webSearch, user.role);
-      expect(search.kind, search.errorMessage).toBe("results");
-      await waitForCharges(ai.payment, user.id, 2);
+  await test.step("the user spends under the limit", async () => {
+    const chat = await chatOutcome(user.chat, user.role, {
+      profileId: ai.profile.id,
     });
-    const spent = (await settledUsage(ai.payment, user.id, 2)).amountConsumed!;
-    expect(spent).toBeGreaterThan(0);
+    expect(chat.kind, chat.errorMessage).toBe("replied");
+    const search = await searchOutcome(user.webSearch, user.role);
+    expect(search.kind, search.errorMessage).toBe("results");
+    await waitForCharges(ai.payment, user.id, 2);
+  });
+  const spent = (await settledUsage(ai.payment, user.id, 2)).amountConsumed!;
+  expect(spent).toBeGreaterThan(0);
 
-    await test.step("the limit is lowered below what was spent, and read back", async () => {
-      const lowered = Number((spent / 2).toFixed(9));
-      await updateLimit(ai.payment, { id: custom.id!, amountValue: lowered });
-      expect((await readLimit(ai.payment, custom.id!)).amountValue).toBe(
-        lowered,
-      );
-      const usage = await settledUsage(ai.payment, user.id, 2);
-      expect(usage.amountConsumed, "the counter is untouched").toBeCloseTo(
-        spent,
-        9,
-      );
-      expect(usage.amountAvailable, "nothing is left").toBe(0);
+  await test.step("the limit is lowered below what was spent, and read back", async () => {
+    const lowered = Number((spent / 2).toFixed(9));
+    await updateLimit(ai.payment, { id: custom.id!, amountValue: lowered });
+    expect((await readLimit(ai.payment, custom.id!)).amountValue).toBe(lowered);
+    const usage = await settledUsage(ai.payment, user.id, 2);
+    expect(usage.amountConsumed, "the counter is untouched").toBeCloseTo(
+      spent,
+      9,
+    );
+    expect(usage.amountAvailable, "nothing is left").toBe(0);
+  });
+
+  await user.relogin();
+  const chargesBefore = (await aiCharges(ai.payment, user.id)).length;
+
+  await test.step("a new chat is refused", async () => {
+    const chat = await chatOutcome(user.chat, user.role, {
+      profileId: ai.profile.id,
     });
+    expect(chat.kind, "AI Chat after the limit was exceeded").toBe("limit");
+    expect(chat.errorMessage).toMatch(/^403 Service limit exceeded/);
+  });
 
-    await user.relogin();
-    const chargesBefore = (await aiCharges(ai.payment, user.id)).length;
+  await test.step("AI Search is refused", async () => {
+    const search = await searchOutcome(user.webSearch, user.role);
+    expect(search.kind, "AI Search after the limit was exceeded").toBe("limit");
+    expect(search.status).toBe(403);
+  });
 
-    await test.step("a new chat is refused", async () => {
-      const chat = await chatOutcome(user.chat, user.role, {
-        profileId: ai.profile.id,
-      });
-      expect(chat.kind, "AI Chat after the limit was exceeded").toBe("limit");
-      expect(chat.errorMessage).toMatch(/^403 Service limit exceeded/);
+  await test.step("neither created a paid operation", async () => {
+    // A control spend after the ceiling is lifted: it has to be the only
+    // charge added, so a refused call that was billed would show up.
+    await updateLimit(ai.payment, { id: custom.id!, amountValue: 100 });
+    const control = await chatOutcome(user.chat, user.role, {
+      profileId: ai.profile.id,
     });
-
-    await test.step("AI Search is refused", async () => {
-      const search = await searchOutcome(user.webSearch, user.role);
-      expect(search.kind, "AI Search after the limit was exceeded").toBe(
-        "limit",
-      );
-      expect(search.status).toBe(403);
-    });
-
-    await test.step("neither created a paid operation", async () => {
-      // A control spend after the ceiling is lifted: it has to be the only
-      // charge added, so a refused call that was billed would show up.
-      await updateLimit(ai.payment, { id: custom.id!, amountValue: 100 });
-      const control = await chatOutcome(user.chat, user.role, {
-        profileId: ai.profile.id,
-      });
-      expect(control.kind).toBe("replied");
-      const charges = await waitForCharges(
-        ai.payment,
-        user.id,
-        chargesBefore + 1,
-      );
-      expect(charges).toHaveLength(chargesBefore + 1);
-    });
-  },
-);
+    expect(control.kind).toBe("replied");
+    const charges = await waitForCharges(
+      ai.payment,
+      user.id,
+      chargesBefore + 1,
+    );
+    expect(charges).toHaveLength(chargesBefore + 1);
+  });
+});

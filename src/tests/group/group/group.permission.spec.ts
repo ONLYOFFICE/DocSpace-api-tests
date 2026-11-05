@@ -1350,7 +1350,7 @@ test.describe("GET /api/2.0/group/user/{userid} - validation and negative cases"
       apiSdk
         .forRole("owner")
         .groupApi.getGroupByUserId({ userId: null as unknown as string }),
-    ).rejects.toThrow(/userid/);
+    ).rejects.toThrow(/Required parameter userId/);
   });
 
   test("GET /api/2.0/group/user/{userid} - Throws RequiredError for undefined userId", async ({
@@ -1360,7 +1360,7 @@ test.describe("GET /api/2.0/group/user/{userid} - validation and negative cases"
       apiSdk
         .forRole("owner")
         .groupApi.getGroupByUserId({ userId: undefined as unknown as string }),
-    ).rejects.toThrow(/userid/);
+    ).rejects.toThrow(/Required parameter userId/);
   });
 });
 

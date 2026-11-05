@@ -51,7 +51,9 @@ async function turnAiOn(ownerApi: OwnerApi) {
 }
 
 test.describe("AI Agents - AI Disabled", () => {
-  test("POST /ai/agents - returns 403 when AI access is disabled", async ({
+  // Skipped: the agent routes were removed in DocSpace 4.1.0 - they answer 404,
+  // not the 403 the AI-access guard used to give.
+  test.skip("POST /ai/agents - returns 403 when AI access is disabled", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -89,7 +91,9 @@ test.describe("AI Agents - AI Disabled", () => {
     expect(status).toBe(403);
   });
 
-  test("GET /ai/agents - returns 403 when AI access is disabled", async ({
+  // Skipped: the agent routes were removed in DocSpace 4.1.0 - they answer 404,
+  // not the 403 the AI-access guard used to give.
+  test.skip("GET /ai/agents - returns 403 when AI access is disabled", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -109,7 +113,9 @@ test.describe("AI Agents - AI Disabled", () => {
     expect(status).toBe(403);
   });
 
-  test("GET /ai/agents/news - returns 403 when AI access is disabled", async ({
+  // Skipped: the agent routes were removed in DocSpace 4.1.0 - they answer 404,
+  // not the 403 the AI-access guard used to give.
+  test.skip("GET /ai/agents/news - returns 403 when AI access is disabled", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -341,7 +347,9 @@ test.describe("AI Agents - AI Disabled", () => {
     expect(status).toBe(403);
   });
 
-  test("GET|PUT|DELETE /ai/agents/:id - AI access is checked before the agent is looked up", async ({
+  // Skipped: the agent routes were removed in DocSpace 4.1.0 - they answer 404,
+  // not the 403 the AI-access guard used to give.
+  test.skip("GET|PUT|DELETE /ai/agents/:id - AI access is checked before the agent is looked up", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -397,7 +405,9 @@ test.describe("AI Agents - AI Disabled", () => {
 // back, so a 200 that did nothing cannot pass for "not gated".
 
 test.describe("AI Agents - AI Tools wallet service not paid for", () => {
-  test("GET|POST|PUT|DELETE /ai/agents - the agent surface is not gated by the AI Tools wallet service", async ({
+  // Skipped: the agent routes were removed in DocSpace 4.1.0 - they answer 404,
+  // so what gates them can no longer be observed.
+  test.skip("GET|POST|PUT|DELETE /ai/agents - the agent surface is not gated by the AI Tools wallet service", async ({
     apiSdk,
     paymentsApi,
   }) => {
