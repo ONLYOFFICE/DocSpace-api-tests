@@ -62,7 +62,9 @@ test.describe("POST /ai/agents - Create AI agent access control", () => {
     { label: "User", type: "User" as UserType, role: "user" as AgentRole },
     { label: "Guest", type: "Guest" as UserType, role: "guest" as AgentRole },
   ]) {
-    test(`POST /ai/agents - ${label} cannot create an agent`, async ({
+    // Skipped: POST /api/2.0/ai/agents was removed in DocSpace 4.1.0 - it answers
+    // 404 for every role, so the access control on it cannot be checked.
+    test.skip(`POST /ai/agents - ${label} cannot create an agent`, async ({
       apiSdk,
       paymentsApi,
     }) => {

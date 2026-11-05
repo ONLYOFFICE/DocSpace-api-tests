@@ -26,7 +26,10 @@ test.describe("Metadata templates - management is DocSpace admin only", () => {
       const name = `Autotest perm ${apiSdk.faker.generateString(8)}`;
 
       const { status } = await api.metadata.createTemplate({
-        createMetadataTemplateRequestDto: { name },
+        createMetadataTemplateRequestDto: {
+          name,
+          fields: [{ name: "f", type: MetadataFieldType.String }],
+        },
       });
       expect(status).toBe(expected);
 

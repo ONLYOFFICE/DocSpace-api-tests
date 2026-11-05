@@ -21,18 +21,19 @@ import { twoTextProfiles } from "@/src/helpers/ai-agent-chat";
 // Limits that apply to one user: the personal (Custom) limit and the Global one
 // that stands in for every user who has none.
 //
-// What is true today (measured 2026-11-02): both are stored, listed, shown in the
-// profile, and the user's spending is counted against them - but NEITHER STOPS
-// ANYTHING. A user whose Custom or Global limit is $0 keeps chatting and
-// searching, at the portal's expense, and `usage.amountAvailable` reads 0 while
-// they do. Only the Total limit refuses (limits.enforcement.spec.ts). The same
-// request, with the same user, is refused at once when a Total limit of $0 is in
-// force, so it is the per-user check that is missing, not the refusal path.
+// Until BUG 84836 was fixed (measured 2026-11-02) both were stored, listed, shown
+// in the profile, and the user's spending was counted against them - but NEITHER
+// STOPPED ANYTHING: a user whose Custom or Global limit was $0 kept chatting and
+// searching at the portal's expense, while `usage.amountAvailable` read 0. Only
+// the Total limit refused (limits.enforcement.spec.ts), so what was missing was
+// the per-user check, not the refusal path.
 //
-// The blocking tests below state the documented behaviour ("Zero blocks the AI
-// services completely", "a personal limit applies to its user instead of the one
-// for every user") and are marked `test.fail` under one placeholder; the
-// accounting tests at the end pass today and fence what the fix must not break.
+// The run of 2026-11-05 refuses per-user as well, so the blocking tests below are
+// regression tests for the documented behaviour ("Zero blocks the AI services
+// completely", "a personal limit applies to its user instead of the one for every
+// user"); the accounting tests at the end fence what the fix must not break. The
+// only piece still open is the concurrent one at the end of the first block: the
+// reservation is not taken atomically, so it keeps its flag.
 // Every blocking test asserts the refusal FIRST, so what fails is the missing
 // refusal and not a later, unrelated step.
 
@@ -49,197 +50,198 @@ const searchRefused = (search: SearchOutcome) => {
 };
 
 test.describe("Per-user limits - they must refuse", () => {
-  test.fail(
-    "BUG 84836: a Global limit of zero refuses AI Agent chat and AI Search for a user who has no personal limit",
-    async ({ apiSdk, paymentsApi, makeMember }) => {
-      test.setTimeout(480000);
-      const ai = await provisionAiPortal(apiSdk, paymentsApi);
-      const user = await makeMember("User");
-      await createGlobal(ai.payment, 0);
+  test("BUG 84836: a Global limit of zero refuses AI Agent chat and AI Search for a user who has no personal limit", async ({
+    apiSdk,
+    paymentsApi,
+    makeMember,
+  }) => {
+    test.setTimeout(480000);
+    const ai = await provisionAiPortal(apiSdk, paymentsApi);
+    const user = await makeMember("User");
+    await createGlobal(ai.payment, 0);
 
-      const chat = await chatOutcome(user.chat, user.role, {
+    const chat = await chatOutcome(user.chat, user.role, {
+      profileId: ai.profile.id,
+    });
+    const search = await searchOutcome(user.webSearch, user.role);
+
+    refused(chat);
+    searchRefused(search);
+    expect(await aiCharges(ai.payment, user.id), "nothing was billed").toEqual(
+      [],
+    );
+  });
+
+  test("BUG 84836: a Custom limit of zero refuses AI Agent chat and AI Search for its user", async ({
+    apiSdk,
+    paymentsApi,
+    makeMember,
+  }) => {
+    test.setTimeout(480000);
+    const ai = await provisionAiPortal(apiSdk, paymentsApi);
+    const user = await makeMember("User");
+    await createCustom(ai.payment, user.id, 0);
+
+    const chat = await chatOutcome(user.chat, user.role, {
+      profileId: ai.profile.id,
+    });
+    const search = await searchOutcome(user.webSearch, user.role);
+
+    refused(chat);
+    searchRefused(search);
+    expect(await aiCharges(ai.payment, user.id), "nothing was billed").toEqual(
+      [],
+    );
+  });
+
+  test("BUG 84836: a Custom limit too small for the reservation refuses a chat, as a Total limit of the same size does", async ({
+    apiSdk,
+    paymentsApi,
+    makeMember,
+  }) => {
+    test.setTimeout(480000);
+    const ai = await provisionAiPortal(apiSdk, paymentsApi);
+    const user = await makeMember("User");
+    // $0.10 is under the ~$0.44 a chat reply reserves, which is what a Total
+    // limit of $0.10 refuses on.
+    await createCustom(ai.payment, user.id, 0.1);
+
+    const chat = await chatOutcome(user.chat, user.role, {
+      profileId: ai.profile.id,
+    });
+
+    refused(chat);
+  });
+
+  test("BUG 84836: a Custom limit overrides the Global one in both directions", async ({
+    apiSdk,
+    paymentsApi,
+    makeMember,
+  }) => {
+    test.setTimeout(600000);
+    const ai = await provisionAiPortal(apiSdk, paymentsApi);
+    const personal = await makeMember("User");
+    const bystander = await makeMember("RoomAdmin");
+    const global = await createGlobal(ai.payment, 0);
+    const custom = await createCustom(ai.payment, personal.id, 5);
+    const spend = (member: typeof personal) =>
+      chatOutcome(member.chat, member.role, { profileId: ai.profile.id });
+
+    // Global is closed, Custom is open: the personal limit wins for its user
+    // and the Global one still shuts out everybody else.
+    refused(await spend(bystander));
+    expect((await spend(personal)).kind).toBe("replied");
+
+    // And the other way round.
+    await updateLimit(ai.payment, { id: global.id!, amountValue: 5 });
+    await updateLimit(ai.payment, { id: custom.id!, amountValue: 0 });
+    refused(await spend(personal));
+    expect((await spend(bystander)).kind).toBe("replied");
+  });
+
+  test("BUG 84836: one user's exhausted Custom limit refuses that user and leaves another user working", async ({
+    apiSdk,
+    paymentsApi,
+    makeMember,
+  }) => {
+    test.setTimeout(600000);
+    const ai = await provisionAiPortal(apiSdk, paymentsApi);
+    const limited = await makeMember("User");
+    const other = await makeMember("RoomAdmin");
+    await createCustom(ai.payment, limited.id, 0);
+
+    // The limited user first: without a refusal here the isolation below
+    // proves nothing.
+    refused(
+      await chatOutcome(limited.chat, limited.role, {
         profileId: ai.profile.id,
-      });
-      const search = await searchOutcome(user.webSearch, user.role);
+      }),
+    );
+    searchRefused(await searchOutcome(limited.webSearch, limited.role));
 
-      refused(chat);
-      searchRefused(search);
-      expect(
-        await aiCharges(ai.payment, user.id),
-        "nothing was billed",
-      ).toEqual([]);
-    },
-  );
+    const fine = await chatOutcome(other.chat, other.role, {
+      profileId: ai.profile.id,
+    });
+    expect(fine.kind, fine.errorMessage).toBe("replied");
+    expect((await searchOutcome(other.webSearch, other.role)).kind).toBe(
+      "results",
+    );
+    expect(await aiCharges(ai.payment, limited.id)).toEqual([]);
+  });
 
-  test.fail(
-    "BUG 84836: a Custom limit of zero refuses AI Agent chat and AI Search for its user",
-    async ({ apiSdk, paymentsApi, makeMember }) => {
-      test.setTimeout(480000);
-      const ai = await provisionAiPortal(apiSdk, paymentsApi);
-      const user = await makeMember("User");
-      await createCustom(ai.payment, user.id, 0);
+  test("BUG 84836: a refused user is let back in by raising the Custom limit or deleting it, and out again by lowering it", async ({
+    apiSdk,
+    paymentsApi,
+    makeMember,
+  }) => {
+    test.setTimeout(600000);
+    const ai = await provisionAiPortal(apiSdk, paymentsApi);
+    const user = await makeMember("User");
+    const custom = await createCustom(ai.payment, user.id, 0);
+    const spend = () =>
+      chatOutcome(user.chat, user.role, { profileId: ai.profile.id });
 
-      const chat = await chatOutcome(user.chat, user.role, {
-        profileId: ai.profile.id,
-      });
-      const search = await searchOutcome(user.webSearch, user.role);
+    refused(await spend());
 
-      refused(chat);
-      searchRefused(search);
-      expect(
-        await aiCharges(ai.payment, user.id),
-        "nothing was billed",
-      ).toEqual([]);
-    },
-  );
+    await updateLimit(ai.payment, { id: custom.id!, amountValue: 5 });
+    expect((await spend()).kind).toBe("replied");
 
-  test.fail(
-    "BUG 84836: a Custom limit too small for the reservation refuses a chat, as a Total limit of the same size does",
-    async ({ apiSdk, paymentsApi, makeMember }) => {
-      test.setTimeout(480000);
-      const ai = await provisionAiPortal(apiSdk, paymentsApi);
-      const user = await makeMember("User");
-      // $0.10 is under the ~$0.44 a chat reply reserves, which is what a Total
-      // limit of $0.10 refuses on.
-      await createCustom(ai.payment, user.id, 0.1);
+    await updateLimit(ai.payment, { id: custom.id!, amountValue: 0 });
+    refused(await spend());
 
-      const chat = await chatOutcome(user.chat, user.role, {
-        profileId: ai.profile.id,
-      });
+    await deleteLimit(ai.payment, custom.id!);
+    expect((await spend()).kind).toBe("replied");
+  });
 
-      refused(chat);
-    },
-  );
+  test("BUG 84836: switching a Custom limit off stops restricting its user, switching it on restricts again", async ({
+    apiSdk,
+    paymentsApi,
+    makeMember,
+  }) => {
+    test.setTimeout(600000);
+    const ai = await provisionAiPortal(apiSdk, paymentsApi);
+    const user = await makeMember("User");
+    const custom = await createCustom(ai.payment, user.id, 0);
+    const spend = () =>
+      chatOutcome(user.chat, user.role, { profileId: ai.profile.id });
 
-  test.fail(
-    "BUG 84836: a Custom limit overrides the Global one in both directions",
-    async ({ apiSdk, paymentsApi, makeMember }) => {
-      test.setTimeout(600000);
-      const ai = await provisionAiPortal(apiSdk, paymentsApi);
-      const personal = await makeMember("User");
-      const bystander = await makeMember("RoomAdmin");
-      const global = await createGlobal(ai.payment, 0);
-      const custom = await createCustom(ai.payment, personal.id, 5);
-      const spend = (member: typeof personal) =>
-        chatOutcome(member.chat, member.role, { profileId: ai.profile.id });
+    refused(await spend());
 
-      // Global is closed, Custom is open: the personal limit wins for its user
-      // and the Global one still shuts out everybody else.
-      refused(await spend(bystander));
-      expect((await spend(personal)).kind).toBe("replied");
+    await updateLimit(ai.payment, { id: custom.id!, enabled: false });
+    expect((await spend()).kind).toBe("replied");
 
-      // And the other way round.
-      await updateLimit(ai.payment, { id: global.id!, amountValue: 5 });
-      await updateLimit(ai.payment, { id: custom.id!, amountValue: 0 });
-      refused(await spend(personal));
-      expect((await spend(bystander)).kind).toBe("replied");
-    },
-  );
+    await updateLimit(ai.payment, { id: custom.id!, enabled: true });
+    refused(await spend());
+  });
 
-  test.fail(
-    "BUG 84836: one user's exhausted Custom limit refuses that user and leaves another user working",
-    async ({ apiSdk, paymentsApi, makeMember }) => {
-      test.setTimeout(600000);
-      const ai = await provisionAiPortal(apiSdk, paymentsApi);
-      const limited = await makeMember("User");
-      const other = await makeMember("RoomAdmin");
-      await createCustom(ai.payment, limited.id, 0);
+  test("BUG 84836: a user whose Custom limit has been used up is refused, also after a re-login, in a new chat, with another model", async ({
+    apiSdk,
+    paymentsApi,
+    makeMember,
+  }) => {
+    test.setTimeout(600000);
+    const ai = await provisionAiPortal(apiSdk, paymentsApi);
+    const user = await makeMember("User");
+    const [modelA, modelB] = twoTextProfiles(ai.profiles);
+    const custom = await createCustom(ai.payment, user.id, 100);
+    const first = await chatOutcome(user.chat, user.role, {
+      profileId: modelA.id,
+    });
+    expect(first.kind).toBe("replied");
+    await waitForCharges(ai.payment, user.id, 1);
+    const spent = (await settledUsage(ai.payment, user.id, 1)).amountConsumed!;
 
-      // The limited user first: without a refusal here the isolation below
-      // proves nothing.
-      refused(
-        await chatOutcome(limited.chat, limited.role, {
-          profileId: ai.profile.id,
-        }),
-      );
-      searchRefused(await searchOutcome(limited.webSearch, limited.role));
+    await updateLimit(ai.payment, {
+      id: custom.id!,
+      amountValue: Number(spent.toFixed(9)),
+    });
+    await user.relogin();
 
-      const fine = await chatOutcome(other.chat, other.role, {
-        profileId: ai.profile.id,
-      });
-      expect(fine.kind, fine.errorMessage).toBe("replied");
-      expect((await searchOutcome(other.webSearch, other.role)).kind).toBe(
-        "results",
-      );
-      expect(await aiCharges(ai.payment, limited.id)).toEqual([]);
-    },
-  );
-
-  test.fail(
-    "BUG 84836: a refused user is let back in by raising the Custom limit or deleting it, and out again by lowering it",
-    async ({ apiSdk, paymentsApi, makeMember }) => {
-      test.setTimeout(600000);
-      const ai = await provisionAiPortal(apiSdk, paymentsApi);
-      const user = await makeMember("User");
-      const custom = await createCustom(ai.payment, user.id, 0);
-      const spend = () =>
-        chatOutcome(user.chat, user.role, { profileId: ai.profile.id });
-
-      refused(await spend());
-
-      await updateLimit(ai.payment, { id: custom.id!, amountValue: 5 });
-      expect((await spend()).kind).toBe("replied");
-
-      await updateLimit(ai.payment, { id: custom.id!, amountValue: 0 });
-      refused(await spend());
-
-      await deleteLimit(ai.payment, custom.id!);
-      expect((await spend()).kind).toBe("replied");
-    },
-  );
-
-  test.fail(
-    "BUG 84836: switching a Custom limit off stops restricting its user, switching it on restricts again",
-    async ({ apiSdk, paymentsApi, makeMember }) => {
-      test.setTimeout(600000);
-      const ai = await provisionAiPortal(apiSdk, paymentsApi);
-      const user = await makeMember("User");
-      const custom = await createCustom(ai.payment, user.id, 0);
-      const spend = () =>
-        chatOutcome(user.chat, user.role, { profileId: ai.profile.id });
-
-      refused(await spend());
-
-      await updateLimit(ai.payment, { id: custom.id!, enabled: false });
-      expect((await spend()).kind).toBe("replied");
-
-      await updateLimit(ai.payment, { id: custom.id!, enabled: true });
-      refused(await spend());
-    },
-  );
-
-  test.fail(
-    "BUG 84836: a user whose Custom limit has been used up is refused, also after a re-login, in a new chat, with another model",
-    async ({ apiSdk, paymentsApi, makeMember }) => {
-      test.setTimeout(600000);
-      const ai = await provisionAiPortal(apiSdk, paymentsApi);
-      const user = await makeMember("User");
-      const [modelA, modelB] = twoTextProfiles(ai.profiles);
-      const custom = await createCustom(ai.payment, user.id, 100);
-      const first = await chatOutcome(user.chat, user.role, {
-        profileId: modelA.id,
-      });
-      expect(first.kind).toBe("replied");
-      await waitForCharges(ai.payment, user.id, 1);
-      const spent = (await settledUsage(ai.payment, user.id, 1))
-        .amountConsumed!;
-
-      await updateLimit(ai.payment, {
-        id: custom.id!,
-        amountValue: Number(spent.toFixed(9)),
-      });
-      await user.relogin();
-
-      refused(
-        await chatOutcome(user.chat, user.role, { profileId: modelA.id }),
-      );
-      refused(
-        await chatOutcome(user.chat, user.role, { profileId: modelB.id }),
-      );
-      searchRefused(await searchOutcome(user.webSearch, user.role));
-      expect((await aiCharges(ai.payment, user.id)).length).toBe(1);
-    },
-  );
+    refused(await chatOutcome(user.chat, user.role, { profileId: modelA.id }));
+    refused(await chatOutcome(user.chat, user.role, { profileId: modelB.id }));
+    searchRefused(await searchOutcome(user.webSearch, user.role));
+    expect((await aiCharges(ai.payment, user.id)).length).toBe(1);
+  });
 
   test.fail(
     "BUG 84836: concurrent chats of one user are admitted only as far as the user's Custom limit covers",

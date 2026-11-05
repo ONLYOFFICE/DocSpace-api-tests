@@ -67,8 +67,8 @@ test.describe("POST/DELETE /files/templates - personal template list", () => {
     };
 
     const { data, status } = await ownerApi.files.addTemplates({
-      fileIds: Object.values(files),
-    } as never);
+      templatesRequestDto: { fileIds: Object.values(files) },
+    });
 
     expect(status).toBe(200);
     expect(data.response).toBe(true);
@@ -93,16 +93,30 @@ test.describe("POST/DELETE /files/templates - personal template list", () => {
     const before = await fileInfo(ownerApi, fileId);
 
     const results = [
-      await ownerApi.files.addTemplates({ fileIds: [] } as never),
-      await ownerApi.files.addTemplates({ fileIds: [999999999] } as never),
-      await ownerApi.files.addTemplates({ fileIds: [fileId] } as never),
-      await ownerApi.files.addTemplates({ fileIds: [fileId] } as never),
-      await ownerApi.files.deleteTemplates({ requestBody: [] } as never),
+      await ownerApi.files.addTemplates({
+        templatesRequestDto: { fileIds: [] },
+      }),
+      await ownerApi.files.addTemplates({
+        templatesRequestDto: { fileIds: [999999999] },
+      }),
+      await ownerApi.files.addTemplates({
+        templatesRequestDto: { fileIds: [fileId] },
+      }),
+      await ownerApi.files.addTemplates({
+        templatesRequestDto: { fileIds: [fileId] },
+      }),
       await ownerApi.files.deleteTemplates({
-        requestBody: [999999999],
-      } as never),
-      await ownerApi.files.deleteTemplates({ requestBody: [fileId] } as never),
-      await ownerApi.files.deleteTemplates({ requestBody: [fileId] } as never),
+        deleteTemplateFilesRequestDto: [],
+      }),
+      await ownerApi.files.deleteTemplates({
+        deleteTemplateFilesRequestDto: [999999999],
+      }),
+      await ownerApi.files.deleteTemplates({
+        deleteTemplateFilesRequestDto: [fileId],
+      }),
+      await ownerApi.files.deleteTemplates({
+        deleteTemplateFilesRequestDto: [fileId],
+      }),
     ];
 
     expect(results.map((r) => r.status)).toEqual(Array(8).fill(200));
