@@ -6,6 +6,7 @@ import {
   createPrivateRoom,
   privateSupportedRoomTypes,
 } from "@/src/helpers/rooms";
+import { uploadPrivateRoomFile } from "@/src/helpers/private-rooms";
 
 const ZERO_GUID = "00000000-0000-0000-0000-000000000000";
 
@@ -24,15 +25,12 @@ async function createPrivateRoomWithFile(
   });
   expect(status).toBe(200);
   const roomId = roomData.response!.id!;
-  const { data: fileData } = await ownerApi.files.createFile({
-    folderId: roomId,
-    createFileRequest: { title: "Autotest Encrypted File.docx" },
-  });
+  const fileId = await uploadPrivateRoomFile(ownerApi, roomId);
   const { data: me } = await ownerApi.profiles.getSelfProfile();
   return {
     ownerApi,
     roomId,
-    fileId: fileData.response!.id!,
+    fileId,
     ownerId: me.response!.id!,
   };
 }

@@ -2,6 +2,7 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
 import { createPrivateRoom } from "@/src/helpers/rooms";
+import { uploadPrivateRoomFile } from "@/src/helpers/private-rooms";
 
 const ZERO_GUID = "00000000-0000-0000-0000-000000000000";
 
@@ -78,11 +79,7 @@ test.describe("File encryption - permissions", () => {
         roomType: RoomType.CustomRoom,
       });
       const roomId = roomData.response!.id!;
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileRequest: { title: "Autotest Encrypted File.docx" },
-      });
-      const fileId = fileData.response!.id!;
+      const fileId = await uploadPrivateRoomFile(ownerApi, roomId);
 
       const { api, data: memberData } = await apiSdk.addAuthenticatedMember(
         "owner",
@@ -151,11 +148,10 @@ test.describe("File encryption - permissions", () => {
       title: "Autotest File Encryption Anonymous Room",
       roomType: RoomType.CustomRoom,
     });
-    const { data: fileData } = await ownerApi.files.createFile({
-      folderId: roomData.response!.id!,
-      createFileRequest: { title: "Autotest Encrypted File.docx" },
-    });
-    const fileId = fileData.response!.id!;
+    const fileId = await uploadPrivateRoomFile(
+      ownerApi,
+      roomData.response!.id!,
+    );
     const anonymousApi = apiSdk.forAnonymous();
 
     const { status: getStatus } = await anonymousApi.files.getEncryptionInfo({

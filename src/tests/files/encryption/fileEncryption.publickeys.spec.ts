@@ -11,6 +11,7 @@ import {
   getFilePublicKeys,
   getOwnerId,
   inviteToRoom,
+  uploadPrivateRoomFile,
 } from "@/src/helpers/private-rooms";
 
 /**
@@ -39,7 +40,7 @@ test.describe("GET /files/file/{fileId}/publickeys", () => {
     const [m1] = await addKeyedMembers(apiSdk, 1);
     const ownerId = await getOwnerId(owner);
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    const fileId = await createRoomFile(owner, roomId, "Autotest pk.docx");
+    const fileId = await uploadPrivateRoomFile(owner, roomId);
     await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
 
     const { status, entries } = await getFilePublicKeys(
@@ -71,7 +72,7 @@ test.describe("GET /files/file/{fileId}/publickeys", () => {
     const [m1] = await addKeyedMembers(apiSdk, 1);
     const ownerId = await getOwnerId(owner);
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    const fileId = await createRoomFile(owner, roomId, "Autotest pk.docx");
+    const fileId = await uploadPrivateRoomFile(owner, roomId);
     await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
 
     const { status, entries } = await getFilePublicKeys(
@@ -93,7 +94,7 @@ test.describe("GET /files/file/{fileId}/publickeys", () => {
     const owner = apiSdk.forRole("owner");
     const [m1, outsider] = await addKeyedMembers(apiSdk, 2);
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    const fileId = await createRoomFile(owner, roomId, "Autotest pk.docx");
+    const fileId = await uploadPrivateRoomFile(owner, roomId);
     await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
 
     // Positive control: a member reads the same file.
@@ -114,7 +115,7 @@ test.describe("GET /files/file/{fileId}/publickeys", () => {
     const [m1, m3] = await addKeyedMembers(apiSdk, 2);
     const roomA = await createOwnerPrivateRoom(apiSdk);
     const roomB = await createOwnerPrivateRoom(apiSdk);
-    const fileA = await createRoomFile(owner, roomA, "Autotest a.docx");
+    const fileA = await uploadPrivateRoomFile(owner, roomA);
     await inviteToRoom(owner, roomA, m1.id, FileShare.Read);
     await inviteToRoom(owner, roomB, m3.id, FileShare.Read);
 
@@ -135,7 +136,7 @@ test.describe("GET /files/file/{fileId}/publickeys", () => {
     }) => {
       const owner = apiSdk.forRole("owner");
       const roomId = await createOwnerPrivateRoom(apiSdk);
-      const fileId = await createRoomFile(owner, roomId, "Autotest pk.docx");
+      const fileId = await uploadPrivateRoomFile(owner, roomId);
       const ownerToken = apiSdk.tokenStore.getToken("owner");
       const { userData } = await apiSdk.addMember("owner", type);
       await apiSdk.authenticateMember(userData, type);
@@ -156,7 +157,7 @@ test.describe("GET /files/file/{fileId}/publickeys", () => {
   }) => {
     const owner = apiSdk.forRole("owner");
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    const fileId = await createRoomFile(owner, roomId, "Autotest pk.docx");
+    const fileId = await uploadPrivateRoomFile(owner, roomId);
     expect(
       (
         await getFilePublicKeys(
@@ -189,7 +190,7 @@ test.describe("GET /files/file/{fileId}/publickeys", () => {
   }) => {
     const owner = apiSdk.forRole("owner");
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    const fileId = await createRoomFile(owner, roomId, "Autotest pk.docx");
+    const fileId = await uploadPrivateRoomFile(owner, roomId);
     const ownerId = await getOwnerId(owner);
     await archiveRoomAndWait(apiSdk, roomId);
 
@@ -209,7 +210,7 @@ test.describe("GET /files/file/{fileId}/publickeys", () => {
     const owner = apiSdk.forRole("owner");
     const [m1] = await addKeyedMembers(apiSdk, 1);
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    const fileId = await createRoomFile(owner, roomId, "Autotest pk.docx");
+    const fileId = await uploadPrivateRoomFile(owner, roomId);
     const ownerToken = apiSdk.tokenStore.getToken("owner");
     const holders = async () =>
       (await getFilePublicKeys(apiSdk, ownerToken, fileId)).entries.map(
@@ -236,7 +237,7 @@ test.describe("GET /files/file/{fileId}/publickeys", () => {
     const owner = apiSdk.forRole("owner");
     const [m1] = await addKeyedMembers(apiSdk, 1);
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    const fileId = await createRoomFile(owner, roomId, "Autotest pk.docx");
+    const fileId = await uploadPrivateRoomFile(owner, roomId);
     const ownerToken = apiSdk.tokenStore.getToken("owner");
     await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
 

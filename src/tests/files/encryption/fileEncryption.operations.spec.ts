@@ -10,6 +10,7 @@ import {
   createOwnerPrivateRoom,
   createRoomFile,
   getOwnerId,
+  uploadPrivateRoomFile,
 } from "@/src/helpers/private-rooms";
 
 /**
@@ -34,6 +35,9 @@ import {
  */
 
 type Place = "privateA" | "privateB" | "plain" | "myDocs" | "subOfA";
+
+/** The places that are a private room or sit inside one. */
+const PRIVATE_PLACES: Place[] = ["privateA", "privateB", "subOfA"];
 type Item = "file" | "folder";
 
 const scenarios: {
@@ -140,11 +144,16 @@ test.describe("PUT /files/fileops/{copy,move} - private rooms", () => {
         };
 
         // The item to move, with a file key issued for it when it is private.
+        const keyed = from === "privateA" || from === "privateB";
+        // A private room takes content only as an encrypted upload.
+        const addFile = (parent: number, title: string) =>
+          PRIVATE_PLACES.includes(from)
+            ? uploadPrivateRoomFile(owner, parent)
+            : createRoomFile(owner, parent, title);
         let fileId = 0;
         let folderId = 0;
         if (item === "file") {
-          fileId = await createRoomFile(
-            owner,
+          fileId = await addFile(
             places[from],
             "Autotest item " + apiSdk.faker.generateString(5) + ".docx",
           );
@@ -155,9 +164,8 @@ test.describe("PUT /files/fileops/{copy,move} - private rooms", () => {
               createFolderRequest: { title: "Autotest dir" },
             })
           ).data.response!.id!;
-          fileId = await createRoomFile(owner, folderId, "inside.docx");
+          fileId = await addFile(folderId, "inside.docx");
         }
-        const keyed = from === "privateA" || from === "privateB";
         if (keyed) {
           const set = await owner.files.setEncryptionInfo({
             fileId,
@@ -221,7 +229,7 @@ test.describe("PUT /files/fileops/move - within one private room", () => {
         createFolderRequest: { title: "Autotest sub" },
       })
     ).data.response!.id!;
-    const fileId = await createRoomFile(owner, roomId, "Autotest moved.docx");
+    const fileId = await uploadPrivateRoomFile(owner, roomId);
     const set = await owner.files.setEncryptionInfo({
       fileId,
       accessRequestKeyDto: [
