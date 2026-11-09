@@ -295,20 +295,19 @@ test.describe("updateFile, lockFile and deleteFile - room type and access level 
   });
 
   // The rename is refused as documented, but through an unhandled exception (500).
-  test.fail(
-    "BUG 84842: Custom room - A lock set by the owner blocks a ContentCreator from renaming with a client error, not 500",
-    async ({ apiSdk }) => {
-      const { api, fileId } = await lockedByOwner(apiSdk);
+  test("BUG 84842: Custom room - A lock set by the owner blocks a ContentCreator from renaming with a client error, not 500", async ({
+    apiSdk,
+  }) => {
+    const { api, fileId } = await lockedByOwner(apiSdk);
 
-      const { status } = await api.files.updateFile({
-        fileId,
-        updateFileRequest: { title: "Renamed while locked" },
-      });
+    const { status } = await api.files.updateFile({
+      fileId,
+      updateFileRequest: { title: "Renamed while locked" },
+    });
 
-      expect((await state(apiSdk, fileId)).title).toBe("Locked.html");
-      expect(status).not.toBe(500);
-    },
-  );
+    expect((await state(apiSdk, fileId)).title).toBe("Locked.html");
+    expect(status).not.toBe(500);
+  });
 
   // Documented: "A lock set by somebody else can only be released by a room manager."
   test("Custom room - A ContentCreator cannot release a lock set by the owner", async ({

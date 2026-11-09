@@ -246,31 +246,30 @@ test.describe("POST /files/file/:id/link - recreating a primary link after it wa
   // linkId and primary:true creates a brand-new primary link successfully
   // even after the old one was revoked - but the UI's own button doesn't
   // use it.
-  test.fail(
-    "BUG 84872: creating a file's primary link again after revoking it is refused with 404, with no way to recover from the UI's own button",
-    async ({ apiSdk }) => {
-      const { ownerApi, fileId } = await roomFile(apiSdk, RoomType.CustomRoom);
+  test("BUG 84872: creating a file's primary link again after revoking it is refused with 404, with no way to recover from the UI's own button", async ({
+    apiSdk,
+  }) => {
+    const { ownerApi, fileId } = await roomFile(apiSdk, RoomType.CustomRoom);
 
-      const created = await ownerApi.files.createFilePrimaryExternalLink({
-        id: fileId,
-        fileLinkRequest: { access: FileShare.Read } as never,
-      });
-      const linkId = (created.data.response as LinkEntry).sharedLink!.id!;
+    const created = await ownerApi.files.createFilePrimaryExternalLink({
+      id: fileId,
+      fileLinkRequest: { access: FileShare.Read } as never,
+    });
+    const linkId = (created.data.response as LinkEntry).sharedLink!.id!;
 
-      const revoked = await set(ownerApi, fileId, {
-        linkId,
-        access: FileShare.None,
-      });
-      expect(revoked.status).toBe(200);
+    const revoked = await set(ownerApi, fileId, {
+      linkId,
+      access: FileShare.None,
+    });
+    expect(revoked.status).toBe(200);
 
-      const recreated = await ownerApi.files.createFilePrimaryExternalLink({
-        id: fileId,
-        fileLinkRequest: { access: FileShare.Read } as never,
-      });
+    const recreated = await ownerApi.files.createFilePrimaryExternalLink({
+      id: fileId,
+      fileLinkRequest: { access: FileShare.Read } as never,
+    });
 
-      expect(recreated.status).toBe(200);
-    },
-  );
+    expect(recreated.status).toBe(200);
+  });
 });
 
 test.describe("File links - permissions and isolation in a Custom room", () => {

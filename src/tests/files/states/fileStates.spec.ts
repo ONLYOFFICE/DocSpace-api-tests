@@ -118,21 +118,20 @@ test.describe("State: locked file", () => {
 
   // Documented (lockFile): the lock "blocks editing" for everybody but the setter.
   // The claim is refused, but through an unhandled exception (500).
-  test.fail(
-    "BUG 84768: startedit - Another member cannot claim a locked file and gets a client error, not 500",
-    async ({ apiSdk }) => {
-      const { member, fileId } = await lockedFile(apiSdk);
-      const before = await fileState(apiSdk, fileId);
+  test("BUG 84768: startedit - Another member cannot claim a locked file and gets a client error, not 500", async ({
+    apiSdk,
+  }) => {
+    const { member, fileId } = await lockedFile(apiSdk);
+    const before = await fileState(apiSdk, fileId);
 
-      const { status } = await member.files.startEditFile({
-        fileId,
-        startEditRequest: { editingAlone: true },
-      });
+    const { status } = await member.files.startEditFile({
+      fileId,
+      startEditRequest: { editingAlone: true },
+    });
 
-      expect(await fileState(apiSdk, fileId)).toEqual(before);
-      expect(status).not.toBe(500);
-    },
-  );
+    expect(await fileState(apiSdk, fileId)).toEqual(before);
+    expect(status).not.toBe(500);
+  });
 
   // Documented (lockFile): the lock blocks others, not "the account that set it".
   test("updatefile and deletefile - The account that set the lock can still rename and delete", async ({

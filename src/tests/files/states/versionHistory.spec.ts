@@ -338,19 +338,18 @@ test.describe("restoreFileVersion and changeVersionHistory - file states", () =>
 
   // The refusal of a locked file is a 500 ("The file is currently locked by another
   // user" raised as a plain System.Exception), not a client error.
-  test.fail(
-    "BUG 84771: changeVersionHistory - A file locked by someone else is refused with a client error, not 500",
-    async ({ apiSdk }) => {
-      const { api, fileId } = await heldByOwner(apiSdk, "locked");
+  test("BUG 84771: changeVersionHistory - A file locked by someone else is refused with a client error, not 500", async ({
+    apiSdk,
+  }) => {
+    const { api, fileId } = await heldByOwner(apiSdk, "locked");
 
-      const { status } = await api.files.changeVersionHistory({
-        fileId,
-        changeHistoryRequest: { version: 0, continueVersion: false },
-      });
+    const { status } = await api.files.changeVersionHistory({
+      fileId,
+      changeHistoryRequest: { version: 0, continueVersion: false },
+    });
 
-      expect(status).not.toBe(500);
-    },
-  );
+    expect(status).not.toBe(500);
+  });
 
   // A file open in someone else's editing session is "refused" by the SDK; the call
   // answers 200 although nothing changes.
@@ -463,36 +462,31 @@ test.describe("restoreFileVersion and changeVersionHistory - file states", () =>
   // or edited" a file. A docx created through createFile has its FileCreated entry at
   // once, but an HTML file created or updated through createHtmlFile has an empty
   // log (still empty 26 s later).
-  test.fail(
-    "BUG 84773: getFileHistory - A file created through createHtmlFile has a creation entry",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const roomId = await room(
-        apiSdk,
-        RoomType.CustomRoom,
-        "Autotest Log Html",
-      );
-      const { data } = await ownerApi.files.createHtmlFile({
-        folderId: roomId,
-        createTextOrHtmlFileRequest: {
-          title: "Autotest Log Html",
-          content: "<p/>",
-        },
-      });
-      const fileId = (data.response as { id: number }).id;
+  test("BUG 84773: getFileHistory - A file created through createHtmlFile has a creation entry", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const roomId = await room(apiSdk, RoomType.CustomRoom, "Autotest Log Html");
+    const { data } = await ownerApi.files.createHtmlFile({
+      folderId: roomId,
+      createTextOrHtmlFileRequest: {
+        title: "Autotest Log Html",
+        content: "<p/>",
+      },
+    });
+    const fileId = (data.response as { id: number }).id;
 
-      await expect
-        .poll(
-          async () =>
-            (
-              (await ownerApi.files.getFileHistory({ fileId })).data.response ??
-              []
-            ).length,
-          { timeout: 20_000, intervals: [1000, 2000, 5000] },
-        )
-        .toBeGreaterThan(0);
-    },
-  );
+    await expect
+      .poll(
+        async () =>
+          (
+            (await ownerApi.files.getFileHistory({ fileId })).data.response ??
+            []
+          ).length,
+        { timeout: 20_000, intervals: [1000, 2000, 5000] },
+      )
+      .toBeGreaterThan(0);
+  });
 
   // Documented (getFileVersionInfo): "in a room only its managers and content
   // creators may read the history". An Editing member gets the list.

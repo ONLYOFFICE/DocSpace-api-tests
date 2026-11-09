@@ -386,59 +386,56 @@ test.describe("POST /files/:folderId/html - Create an HTML file", () => {
 
   // A form-filling room only takes PDF forms. The portal reports the rejection as
   // an unhandled System.Exception, i.e. a 500, for every non-PDF creation.
-  test.fail(
-    "BUG 84840: POST /files/:folderId/html - Form-filling room rejects HTML with a client error, not 500",
-    async ({ apiSdk }) => {
-      const roomId = await createRoom(
-        apiSdk,
-        RoomType.FillingFormsRoom,
-        "Autotest Html Forms",
-      );
+  test("BUG 84840: POST /files/:folderId/html - Form-filling room rejects HTML with a client error, not 500", async ({
+    apiSdk,
+  }) => {
+    const roomId = await createRoom(
+      apiSdk,
+      RoomType.FillingFormsRoom,
+      "Autotest Html Forms",
+    );
 
-      const { status } = await apiSdk.forRole("owner").files.createHtmlFile({
-        folderId: roomId,
-        createTextOrHtmlFileRequest: { title: "X", content: "<p/>" },
-      });
+    const { status } = await apiSdk.forRole("owner").files.createHtmlFile({
+      folderId: roomId,
+      createTextOrHtmlFileRequest: { title: "X", content: "<p/>" },
+    });
 
-      expect(status).not.toBe(500);
-    },
-  );
+    expect(status).not.toBe(500);
+  });
 
-  test.fail(
-    "BUG 84840: POST /files/:folderId/text - Form-filling room rejects text files with a client error, not 500",
-    async ({ apiSdk }) => {
-      const roomId = await createRoom(
-        apiSdk,
-        RoomType.FillingFormsRoom,
-        "Autotest Text Forms",
-      );
+  test("BUG 84840: POST /files/:folderId/text - Form-filling room rejects text files with a client error, not 500", async ({
+    apiSdk,
+  }) => {
+    const roomId = await createRoom(
+      apiSdk,
+      RoomType.FillingFormsRoom,
+      "Autotest Text Forms",
+    );
 
-      const { status } = await apiSdk.forRole("owner").files.createTextFile({
-        folderId: roomId,
-        createTextOrHtmlFileRequest: { title: "X", content: "x" },
-      });
+    const { status } = await apiSdk.forRole("owner").files.createTextFile({
+      folderId: roomId,
+      createTextOrHtmlFileRequest: { title: "X", content: "x" },
+    });
 
-      expect(status).not.toBe(500);
-    },
-  );
+    expect(status).not.toBe(500);
+  });
 
-  test.fail(
-    "BUG 84840: POST /files/:folderId/file - Form-filling room rejects a docx with a client error, not 500",
-    async ({ apiSdk }) => {
-      const roomId = await createRoom(
-        apiSdk,
-        RoomType.FillingFormsRoom,
-        "Autotest File Forms",
-      );
+  test("BUG 84840: POST /files/:folderId/file - Form-filling room rejects a docx with a client error, not 500", async ({
+    apiSdk,
+  }) => {
+    const roomId = await createRoom(
+      apiSdk,
+      RoomType.FillingFormsRoom,
+      "Autotest File Forms",
+    );
 
-      const { status } = await apiSdk.forRole("owner").files.createFile({
-        folderId: roomId,
-        createFileRequest: { title: "X.docx" },
-      });
+    const { status } = await apiSdk.forRole("owner").files.createFile({
+      folderId: roomId,
+      createFileRequest: { title: "X.docx" },
+    });
 
-      expect(status).not.toBe(500);
-    },
-  );
+    expect(status).not.toBe(500);
+  });
 });
 
 test.describe("POST /files/@my/html - Create an HTML file in My Documents", () => {
