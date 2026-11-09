@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { expect } from "@playwright/test";
 import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
 import { ApiSDK } from "../services/api-sdk";
@@ -63,6 +64,40 @@ export async function createOwnerPrivateRoom(apiSdk: ApiSDK, title?: string) {
   return data.response!.id!;
 }
 
+/**
+ * Uploads a file into a private room and returns its id. Such a room takes
+ * content only as an upload marked `encrypted` and named with a GUID: the server
+ * sees titles in the clear, so a client sends a generated one.
+ *
+ * The bytes are not real ciphertext - the portal never reads the content, it
+ * only trusts the flag.
+ */
+export async function uploadPrivateRoomFile(api: Api, folderId: number) {
+  const bytes = Buffer.alloc(512, 7);
+  const fileName = `${randomUUID()}.docx`;
+
+  const opened = await api.operations.createUploadSessionInFolder({
+    folderId,
+    sessionRequest: { fileName, fileSize: bytes.length, encrypted: true },
+  });
+  const sessionId = (opened.data.response as { id?: string } | undefined)?.id;
+  expect(
+    sessionId,
+    `opening a session in ${folderId}: ${opened.status}`,
+  ).toBeDefined();
+
+  const sent = await api.operations.uploadSession({
+    folderId,
+    sessionId: sessionId!,
+    file: new File([new Uint8Array(bytes)], fileName),
+  });
+  const stored = sent.data.response as { id?: number; file?: { id?: number } };
+  const fileId = stored?.file?.id ?? stored?.id;
+  expect(fileId, `uploading into ${folderId}: ${sent.status}`).toBeDefined();
+  return fileId!;
+}
+
+/** Creates a file in an ordinary folder; a private room needs uploadPrivateRoomFile. */
 export async function createRoomFile(api: Api, roomId: number, title: string) {
   const { data, status } = await api.files.createFile({
     folderId: roomId,

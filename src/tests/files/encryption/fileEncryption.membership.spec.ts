@@ -7,7 +7,7 @@ import {
   ZERO_GUID,
   addKeyedMembers,
   createOwnerPrivateRoom,
-  createRoomFile,
+  uploadPrivateRoomFile,
   getOwnerId,
   inviteToRoom,
 } from "@/src/helpers/private-rooms";
@@ -47,7 +47,7 @@ test.describe("GET/PUT /files/{fileId}/access - membership", () => {
     const owner = apiSdk.forRole("owner");
     const [m1] = await addKeyedMembers(apiSdk, 1);
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    const fileId = await createRoomFile(owner, roomId, "Autotest fk.docx");
+    const fileId = await uploadPrivateRoomFile(owner, roomId);
     await inviteToRoom(owner, roomId, m1.id, FileShare.ContentCreator);
     expect((await issue(owner, fileId, m1.id, "fk-for-m1")).status).toBe(200);
     expect(
@@ -70,7 +70,7 @@ test.describe("GET/PUT /files/{fileId}/access - membership", () => {
     const owner = apiSdk.forRole("owner");
     const [m1] = await addKeyedMembers(apiSdk, 1);
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    const fileId = await createRoomFile(owner, roomId, "Autotest fk.docx");
+    const fileId = await uploadPrivateRoomFile(owner, roomId);
     await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
 
     await test.step("Read: refused, nothing stored", async () => {
@@ -108,7 +108,7 @@ test.describe("GET/PUT /files/{fileId}/access - membership", () => {
     const [m1] = await addKeyedMembers(apiSdk, 1);
     const ownerId = await getOwnerId(owner);
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    const fileId = await createRoomFile(owner, roomId, "Autotest fk.docx");
+    const fileId = await uploadPrivateRoomFile(owner, roomId);
     await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
     await issue(owner, fileId, ownerId, "fk-owner");
     await issue(owner, fileId, m1.id, "fk-m1");
@@ -135,7 +135,7 @@ test.describe("GET/PUT /files/{fileId}/access - membership", () => {
     const owner = apiSdk.forRole("owner");
     const [m1] = await addKeyedMembers(apiSdk, 1);
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    const fileId = await createRoomFile(owner, roomId, "Autotest fk.docx");
+    const fileId = await uploadPrivateRoomFile(owner, roomId);
     await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
     const before = await m1.api.files.getEncryptionInfo({ fileId });
     expect(before.data.response!.userKeys).toHaveLength(1);
@@ -156,7 +156,7 @@ test.describe("GET/PUT /files/{fileId}/access - membership", () => {
     const owner = apiSdk.forRole("owner");
     const [m1] = await addKeyedMembers(apiSdk, 1);
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    const fileId = await createRoomFile(owner, roomId, "Autotest fk.docx");
+    const fileId = await uploadPrivateRoomFile(owner, roomId);
     await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
     await issue(owner, fileId, m1.id, "fk-issued");
 
@@ -181,7 +181,7 @@ test.describe("GET/PUT /files/{fileId}/access - membership", () => {
     const [m1] = await addKeyedMembers(apiSdk, 1);
     const ownerId = await getOwnerId(owner);
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    const fileId = await createRoomFile(owner, roomId, "Autotest fk.docx");
+    const fileId = await uploadPrivateRoomFile(owner, roomId);
     await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
     const send = (suffix: string) =>
       owner.files.setEncryptionInfo({
@@ -220,8 +220,8 @@ test.describe("GET/PUT /files/{fileId}/access - isolation between private rooms"
     const [m1] = await addKeyedMembers(apiSdk, 1);
     const roomA = await createOwnerPrivateRoom(apiSdk);
     const roomB = await createOwnerPrivateRoom(apiSdk);
-    const fileA = await createRoomFile(owner, roomA, "Autotest a.docx");
-    const fileB = await createRoomFile(owner, roomB, "Autotest b.docx");
+    const fileA = await uploadPrivateRoomFile(owner, roomA);
+    const fileB = await uploadPrivateRoomFile(owner, roomB);
     await inviteToRoom(owner, roomA, m1.id, FileShare.ContentCreator);
 
     // Positive control: m1 works in the room they belong to.
@@ -244,7 +244,7 @@ test.describe("GET/PUT /files/{fileId}/access - isolation between private rooms"
     const [m1] = await addKeyedMembers(apiSdk, 1);
     const roomA = await createOwnerPrivateRoom(apiSdk);
     const roomB = await createOwnerPrivateRoom(apiSdk);
-    const fileB = await createRoomFile(owner, roomB, "Autotest b.docx");
+    const fileB = await uploadPrivateRoomFile(owner, roomB);
     await inviteToRoom(owner, roomA, m1.id, FileShare.Read);
 
     const { status } = await issue(owner, fileB, m1.id, "fk-leak");
@@ -262,7 +262,7 @@ test.describe("GET/PUT /files/{fileId}/access - archived room", () => {
     const owner = apiSdk.forRole("owner");
     const ownerId = await getOwnerId(owner);
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    const fileId = await createRoomFile(owner, roomId, "Autotest fk.docx");
+    const fileId = await uploadPrivateRoomFile(owner, roomId);
     expect((await issue(owner, fileId, ownerId, "fk-before")).status).toBe(200);
 
     await archiveRoomAndWait(apiSdk, roomId);
