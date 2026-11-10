@@ -281,6 +281,7 @@ export type SearchOutcome = {
   kind: "results" | "limit" | "error";
   status: number;
   errorType?: string;
+  errorCode?: string;
   errorMessage?: string;
 };
 
@@ -294,12 +295,15 @@ export async function searchOutcome(
   const { status, data } = await search.passthroughSearch(role, SEARCH_BODY);
   if (status === 200) return { kind: "results", status };
   const error = (
-    data as { error?: { message?: string; type?: string } } | undefined
+    data as
+      | { error?: { message?: string; type?: string; code?: string } }
+      | undefined
   )?.error;
   return {
     kind: LIMIT_EXCEEDED.test(error?.message ?? "") ? "limit" : "error",
     status,
     errorType: error?.type,
+    errorCode: error?.code,
     errorMessage: error?.message,
   };
 }
