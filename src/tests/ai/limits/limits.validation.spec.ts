@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { CreateServiceLimitRequestDto } from "@onlyoffice/docspace-api-sdk";
 import { test, expect } from "./limits-fixtures";
 import {
   LimitPeriod,
@@ -241,12 +242,12 @@ test.describe("Service limits - create validation", () => {
     });
   }
 
-  // `scope` decides whom the limit hits, and leaving it out is not an error: the
-  // server files the limit under Total, the portal-wide ceiling. A client that
-  // meant a personal limit and dropped the field would silently cap everyone.
-  // Whether the default is intended needs a product answer - the JSDoc names
-  // `scope` as the thing that says whom the limit applies to and documents no
-  // default for it.
+  // `scope` decides whom the limit hits, and the server refuses a request that
+  // leaves it out instead of filing the limit under Total, the portal-wide
+  // ceiling, which would have silently capped everyone for a client that meant a
+  // personal limit. The API description now says the same: since SDK cbd0925826
+  // `scope` is a required field. The payload below drops it on purpose, so it is
+  // typed as the DTO without that one field - every other field is still checked.
   test("BUG 84839: POST /portal/payment/servicelimit - a request without a scope is refused instead of becoming a portal-wide Total limit", async ({
     apiSdk,
     paymentsApi,
@@ -254,15 +255,19 @@ test.describe("Service limits - create validation", () => {
     await provisionBilling(paymentsApi);
     const payment = apiSdk.forRole("owner").payment;
 
-    const { status } = await payment.createServiceLimit({
-      createServiceLimitRequestDto: {
-        amountValue: 5,
-        period: LimitPeriod.Month,
-      },
+    const withoutScope: Omit<CreateServiceLimitRequestDto, "scope"> = {
+      amountValue: 5,
+      period: LimitPeriod.Month,
+    };
+
+    const { status, data } = await payment.createServiceLimit({
+      createServiceLimitRequestDto:
+        withoutScope as CreateServiceLimitRequestDto,
     });
 
     expect(await readTotal(payment), "no Total limit appeared").toBeUndefined();
     expect(status).toBe(400);
+    expect(errorMessage(data)).toContain("The Scope field is required");
   });
 });
 

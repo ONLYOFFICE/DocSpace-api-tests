@@ -831,8 +831,9 @@ export class AiAgentChat extends AiHttp {
    *
    * The vocabulary is the SDK's AiChatEventTypeEnum: `user-message-stored`,
    * `message-start`, `message-delta`, `message-end`, `message-incomplete`,
-   * `tool-call-pending`, `thread-title` — plus the `error` frame, which is not
-   * in the enum but is what a failed request answers with instead of a status.
+   * `tool-call-pending`, `thread-title`, `context-compacted` — plus the `error`
+   * frame, which is not in the enum but is what a failed request answers with
+   * instead of a status.
    */
   static streamFrames(body: string): AiStreamFrame[] {
     return body
