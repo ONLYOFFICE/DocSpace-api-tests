@@ -188,7 +188,7 @@ test.describe("AI Editor Tools - GET /list", () => {
 
     const READ = /^(get|download)_/;
     const WRITE =
-      /^(delete|update|create|upload|move|copy|rename|archive|set|onlyoffice_generate)_/;
+      /^(delete|update|create|upload|move|copy|rename|archive|set|run|link|unlink|retry|onlyoffice_generate)_/;
     const wrong = tools
       .filter(
         (t) =>
@@ -321,7 +321,8 @@ test.describe("AI Editor Tools - POST /call executes the tool", () => {
     expect(ids).not.toContain(doomed);
   });
 
-  test("POST /api/2.0/ai/editor-tools/call - a generator creates a document in My Documents", async ({
+  // Skipped: a configured document agent drops the generators from the catalogue.
+  test.skip("POST /api/2.0/ai/editor-tools/call - a generator creates a document in My Documents", async ({
     apiSdk,
   }) => {
     const api = new AiEditorTools(apiSdk.request, apiSdk.tokenStore);
@@ -592,7 +593,8 @@ test.describe("AI Editor Tools - arguments", () => {
     { tool: "onlyoffice_generate_presentation", key: "fileName" },
     { tool: "onlyoffice_generate_form", key: "fileName" },
   ]) {
-    test(`BUG 84396: POST /api/2.0/ai/editor-tools/call - ${tool} with a null ${key} creates a document with an empty name`, async ({
+    // Skipped: a configured document agent drops the generators from the catalogue.
+    test.skip(`BUG 84396: POST /api/2.0/ai/editor-tools/call - ${tool} with a null ${key} creates a document with an empty name`, async ({
       apiSdk,
     }) => {
       const api = new AiEditorTools(apiSdk.request, apiSdk.tokenStore);
@@ -774,7 +776,8 @@ test.describe("AI Editor Tools - /list and /call agree", () => {
   });
 });
 
-test.describe("AI Editor Tools - entityId", () => {
+// Skipped: every case drives a generator, which a configured document agent drops.
+test.describe.skip("AI Editor Tools - entityId", () => {
   const generate = (api: AiEditorTools, fileName: string, entityId?: unknown) =>
     call(api, {
       name: "onlyoffice_generate_docx",
@@ -851,7 +854,10 @@ test.describe("AI Editor Tools - entityId", () => {
       expect(await listFolderFiles(owner, roomId)).toEqual([]);
     });
   }
+});
 
+// Not skipped with the block above: a REST tool, which ignores entityId.
+test.describe("AI Editor Tools - entityId on a REST tool", () => {
   test("POST /api/2.0/ai/editor-tools/call - a REST tool answers the same with and without a made-up entityId", async ({
     apiSdk,
   }) => {

@@ -157,11 +157,6 @@ async function expectNoOperationQueued(api: Api) {
   expect(data.response ?? []).toEqual([]);
 }
 
-/** Called after the setup assertions: from here only the violated condition may fail. */
-function knownDefect(label: string) {
-  test.fail(true, label);
-}
-
 test.describe("destFolderId serialization (SDK regression)", () => {
   for (const kind of ["move", "checkdestfolder"] as const) {
     const call = (api: Api, fileId: number, destFolderId: number | string) =>
@@ -958,7 +953,7 @@ test.describe("checkMoveOrCopyDestFolder", () => {
     expect(JSON.stringify(res.body)).not.toContain("Private Budget");
   });
 
-  test("BUG-PENDING: GET /api/2.0/files/fileops/checkdestfolder - A repeated file id does not turn AllAllowed into PartAllowed", async ({
+  test("GET /api/2.0/files/fileops/checkdestfolder - A repeated file id does not turn AllAllowed into PartAllowed", async ({
     apiSdk,
   }) => {
     const owner = apiSdk.forRole("owner");
@@ -988,9 +983,7 @@ test.describe("checkMoveOrCopyDestFolder", () => {
     });
     expect(twice.status).toBe(200);
 
-    knownDefect(
-      "the repeated id is counted as a refused file: result is PartAllowed (1) though the one real file is accepted",
-    );
+    // Was: the repeated id counted as a refused file, turning AllAllowed into PartAllowed.
     expect(destCheck(twice).result).toBe(CheckDestFolderResult.AllAllowed);
     expect(destCheck(twice).files!.map((f) => f.id)).toEqual([fileId]);
   });
@@ -1130,7 +1123,7 @@ test.describe("Preflight vs the real operation", () => {
   // the same inputs (copy only: nothing is removed), so the contract used here
   // is the operation's own answer, not a guess.
 
-  test("BUG-PENDING: GET /api/2.0/files/fileops/move - content=true reports the clashes that the real copy resolves", async ({
+  test("GET /api/2.0/files/fileops/move - content=true reports the clashes that the real copy resolves", async ({
     apiSdk,
   }) => {
     const owner = apiSdk.forRole("owner");
@@ -1188,9 +1181,7 @@ test.describe("Preflight vs the real operation", () => {
       );
     expect(res.status).toBe(200);
 
-    knownDefect(
-      "content=true is not taken into account: the preflight answers [] although both files clash",
-    );
+    // Was: content=true was ignored and the preflight answered [] despite the clashes.
     expect(titles(clashes({ body: res.data }))).toEqual(["a.docx", "b.docx"]);
   });
 
@@ -1200,7 +1191,7 @@ test.describe("Preflight vs the real operation", () => {
     ["AI agents", FolderType.AiAgents],
   ] as const) {
     for (const kind of ["move", "checkdestfolder"] as const) {
-      test(`BUG-PENDING: GET /api/2.0/files/fileops/${kind} - The ${rootName} section root is refused with 403, as the real copy refuses it`, async ({
+      test(`GET /api/2.0/files/fileops/${kind} - The ${rootName} section root is refused with 403, as the real copy refuses it`, async ({
         apiSdk,
       }) => {
         const owner = apiSdk.forRole("owner");
@@ -1237,9 +1228,7 @@ test.describe("Preflight vs the real operation", () => {
           destFolderId: rootId,
         });
 
-        knownDefect(
-          `the preflight answers ${res.status} for the ${rootName} root, the copy answers 403`,
-        );
+        // Was: the preflight disagreed with the real copy on the section roots.
         expect(res.status).toBe(403);
       });
     }

@@ -29,10 +29,10 @@ import { ApiSDK } from "@/src/services/api-sdk";
 //
 //   refusal, chat    HTTP 200 stream; the assistant message is stored as
 //                    incomplete with error {code:"auth", message:"403 Service
-//                    limit exceeded: ... Service group 'ai-services', amount limit
-//                    <L>, available <A> until <periodEnd>"}
-//   refusal, search  HTTP 403 {error:{type:"payment_error", code:"payment_error",
-//                    message:"Service limit exceeded: ..."}}
+//                    limit exceeded"}
+//   refusal, search  HTTP 403 {error:{type:"payment_error",
+//                    code:"service_limit_exceeded", message:"Service limit
+//                    exceeded"}}
 //   admission        a call is let through only when `available` covers the cost
 //                    the portal RESERVES for it up front - about $0.44 for a chat
 //                    reply, about $0.008 for a search - not merely when `available`
@@ -54,22 +54,18 @@ async function selfId(api: ReturnType<ApiSDK["forRole"]>) {
   return (await api.profiles.getSelfProfile()).data.response!.id!;
 }
 
-function expectChatRefused(outcome: ChatOutcome, amountLimit?: string) {
+function expectChatRefused(outcome: ChatOutcome) {
   expect(outcome.kind, outcome.errorMessage).toBe("limit");
   expect(outcome.errorCode).toBe("auth");
   expect(outcome.errorMessage).toMatch(/^403 Service limit exceeded/);
-  expect(outcome.errorMessage).toContain("Service group 'ai-services'");
-  if (amountLimit) {
-    expect(outcome.errorMessage).toContain(`amount limit ${amountLimit}`);
-  }
 }
 
 function expectSearchRefused(outcome: SearchOutcome) {
   expect(outcome.kind, outcome.errorMessage).toBe("limit");
   expect(outcome.status).toBe(403);
   expect(outcome.errorType).toBe("payment_error");
+  expect(outcome.errorCode).toBe("service_limit_exceeded");
   expect(outcome.errorMessage).toMatch(/^Service limit exceeded/);
-  expect(outcome.errorMessage).toContain("Service group 'ai-services'");
 }
 
 /**
@@ -238,7 +234,7 @@ test.describe("Total limit - refusals", () => {
       profileId: ai.profile.id,
       agentId,
     });
-    expectChatRefused(refused, "0.0000000000");
+    expectChatRefused(refused);
     expect(refused.errorMessage).toContain("available 0.0000000000");
     expect((await readTotal(ai.payment))?.usage?.amountConsumed).toBe(0);
 
@@ -302,7 +298,7 @@ test.describe("Total limit - refusals", () => {
       const chat = await chatOutcome(member.chat, member.role, {
         profileId: ai.profile.id,
       });
-      expectChatRefused(chat, "0.0000000000");
+      expectChatRefused(chat);
       expectSearchRefused(await searchOutcome(member.webSearch, member.role));
     }
     expect((await readTotal(ai.payment))?.usage?.amountConsumed).toBe(0);
