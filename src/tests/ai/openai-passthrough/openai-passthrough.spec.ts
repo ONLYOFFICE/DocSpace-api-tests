@@ -387,25 +387,36 @@ test.describe("POST /ai/openai/:profileId/v1/images/generations", () => {
     });
   }
 
-  // chat answers 400 for every one of these. Images sends them on to the gateway
-  // and reports its decode failure as a 502 — a client mistake surfaced as a
-  // server fault. It used to be a 500 carrying the gateway's own envelope;
-  // BUG 84414 stopped the leak but still does not reject the body here.
-  // Re-measured 2026-11-11 against the CI report.
-  const IMAGE_INVALID_BODIES: Array<{
-    name: string;
-    body: (model: string) => unknown;
-  }> = UNPARSEABLE_BODIES.map(({ name, body }) => ({ name, body: () => body }));
+  // BUG 84414, fixed part: a prompt of the wrong type used to answer 500 and now
+  // answers 400 with the same OpenAI-shaped error as an empty prompt.
+  test("BUG 84414: POST images/generations - a prompt of the wrong type answers 400 from the gateway", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const { imageProfileId, imageModel } = await providePassthrough(
+      apiSdk,
+      paymentsApi,
+    );
 
-  for (const { name, body } of IMAGE_INVALID_BODIES) {
+    const result = await postRaw(apiSdk, "owner", imageProfileId, "images", {
+      model: imageModel,
+      prompt: 123,
+    });
+
+    expect(result.status).toBe(400);
+    expect(result.data?.error).toEqual(PROMPT_REQUIRED);
+  });
+
+  // BUG 84414, still open: chat answers 400 for every one of these. Images
+  // reports the same client mistake as 502 `Upstream request failed`
+  // (`server_error`) — it was 500 before the partial fix. Still a server fault
+  // for a client mistake.
+  for (const { name, body } of UNPARSEABLE_BODIES) {
     test(`BUG 84414: POST images/generations - ${name} answers 502 instead of 400`, async ({
       apiSdk,
       paymentsApi,
     }) => {
-      const { imageProfileId, imageModel } = await providePassthrough(
-        apiSdk,
-        paymentsApi,
-      );
+      const { imageProfileId } = await providePassthrough(apiSdk, paymentsApi);
 
       test.fail();
 
@@ -414,7 +425,7 @@ test.describe("POST /ai/openai/:profileId/v1/images/generations", () => {
         "owner",
         imageProfileId,
         "images",
-        body(imageModel),
+        body,
       );
 
       expect(result.status).toBe(400);
