@@ -237,7 +237,10 @@ test.describe("GET/PUT /files/{fileId}/access - isolation between private rooms"
     expect(await readFileKeys(m1.api, fileB)).toEqual([]);
   });
 
-  test("PUT /files/{fileId}/access - The owner cannot issue a key for an account outside the file's room, and nothing is stored", async ({
+  // The caller's own right is checked first and still refuses with 403 (the
+  // test above). A recipient the caller may not serve is only skipped: the
+  // call answers 200 and names them in `skippedUserIds`.
+  test("PUT /files/{fileId}/access - A key the owner issues for an account outside the file's room is skipped, and nothing is stored", async ({
     apiSdk,
   }) => {
     const owner = apiSdk.forRole("owner");
@@ -247,8 +250,9 @@ test.describe("GET/PUT /files/{fileId}/access - isolation between private rooms"
     const fileB = await uploadPrivateRoomFile(owner, roomB);
     await inviteToRoom(owner, roomA, m1.id, FileShare.Read);
 
-    const { status } = await issue(owner, fileB, m1.id, "fk-leak");
-    expect(status).toBe(403);
+    const { data, status } = await issue(owner, fileB, m1.id, "fk-leak");
+    expect(status).toBe(200);
+    expect(data.response?.skippedUserIds).toEqual([m1.id]);
 
     await inviteToRoom(owner, roomB, m1.id, FileShare.Read);
     expect(await readFileKeys(m1.api, fileB)).toEqual([]);

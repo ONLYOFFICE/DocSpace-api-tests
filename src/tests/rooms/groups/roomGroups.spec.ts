@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
+import { FileShare, RoomType, SearchArea } from "@onlyoffice/docspace-api-sdk";
 import type { ApiSDK } from "@/src/services/api-sdk";
 import { createAllRoomTypes, createPrivateRoom } from "@/src/helpers/rooms";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
@@ -122,6 +122,10 @@ test.describe("API room groups methods", () => {
         }
       });
 
+      // Private rooms left the Rooms section for one of their own, and a group
+      // takes rooms of its own section only, so the group has to name that
+      // section. Without it the request is read against `Active`, where the
+      // room is not, and is refused.
       test("POST /files/group - Owner creates a group with a private room", async ({
         apiSdk,
       }) => {
@@ -132,11 +136,21 @@ test.describe("API room groups methods", () => {
         });
         const roomId = room.response!.id!;
 
+        const wrongArea = await owner.groups.addRoomGroup({
+          roomGroupRequestDto: {
+            name: "Private Group In Rooms",
+            icon: "star",
+            rooms: [roomId],
+          },
+        });
+        expect(wrongArea.status, "the default Active section").toBe(400);
+
         const { data, status } = await owner.groups.addRoomGroup({
           roomGroupRequestDto: {
             name: "Private Group",
             icon: "star",
             rooms: [roomId],
+            searchArea: SearchArea.PrivateRooms,
           },
         });
 

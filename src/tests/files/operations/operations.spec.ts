@@ -4603,9 +4603,13 @@ test.describe("DELETE /api/2.0/files/{folderId}/session/{sessionId} - abortUploa
     expect(status).toBe(404);
   });
 
+  // A session small enough to be stored in one go is removed as soon as the
+  // file is written, so there is nothing left to abort: the call answers 404,
+  // the same as for a session id that never existed. operations.upload.spec.ts
+  // pins the same shift on the finalize and chunk calls.
   test(
     "DELETE /api/2.0/files/{folderId}/session/{sessionId} - Abort already" +
-      " finalized session returns 200",
+      " finalized session returns 404",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: myDocsData } = await ownerApi.folders.getMyFolder();
@@ -4641,7 +4645,7 @@ test.describe("DELETE /api/2.0/files/{folderId}/session/{sessionId} - abortUploa
         folderId,
       });
 
-      expect(status).toBe(200);
+      expect(status).toBe(404);
     },
   );
 

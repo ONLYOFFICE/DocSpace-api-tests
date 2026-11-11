@@ -20,8 +20,9 @@ import {
 //   * the gateway REQUIRES `model` in the body. The SDK says the opposite — "the
 //     model and the credentials come from the profile in the path and must not be
 //     sent here" — pinned as a test.fail below;
-//   * chat answers 400 for every malformed body, images answers 500 for the same
-//     ones (test.fail below);
+//   * chat answers 400 for every malformed body, images forwards the same ones
+//     upstream and relays the failure as a 502 (test.fail below; it was a 500
+//     with the gateway's own body until BUG 84414 was half fixed);
 //   * the whole body is capped at about 30 000 000 bytes. Over it BOTH routes
 //     answer 500 with a stack trace and the internal gateway host:port;
 //   * `stream: true` is supported on chat and answers SSE.
@@ -386,22 +387,18 @@ test.describe("POST /ai/openai/:profileId/v1/images/generations", () => {
     });
   }
 
-  // chat answers 400 for every one of these. Images binds the same body with the
-  // same Go decoder but reports the failure as `internal_server_error` — a
-  // client mistake surfaced as a server fault.
+  // chat answers 400 for every one of these. Images sends them on to the gateway
+  // and reports its decode failure as a 502 — a client mistake surfaced as a
+  // server fault. It used to be a 500 carrying the gateway's own envelope;
+  // BUG 84414 stopped the leak but still does not reject the body here.
+  // Re-measured 2026-11-11 against the CI report.
   const IMAGE_INVALID_BODIES: Array<{
     name: string;
     body: (model: string) => unknown;
-  }> = [
-    ...UNPARSEABLE_BODIES.map(({ name, body }) => ({ name, body: () => body })),
-    {
-      name: "a prompt of the wrong type",
-      body: (model) => ({ model, prompt: 123 }),
-    },
-  ];
+  }> = UNPARSEABLE_BODIES.map(({ name, body }) => ({ name, body: () => body }));
 
   for (const { name, body } of IMAGE_INVALID_BODIES) {
-    test(`BUG 84414: POST images/generations - ${name} answers 500 instead of 400`, async ({
+    test(`BUG 84414: POST images/generations - ${name} answers 502 instead of 400`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -423,6 +420,23 @@ test.describe("POST /ai/openai/:profileId/v1/images/generations", () => {
       expect(result.status).toBe(400);
     });
   }
+
+  test("BUG 84414: POST images/generations - a prompt of the wrong type answers 400", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const { imageProfileId, imageModel } = await providePassthrough(
+      apiSdk,
+      paymentsApi,
+    );
+
+    const result = await postRaw(apiSdk, "owner", imageProfileId, "images", {
+      model: imageModel,
+      prompt: 123,
+    });
+
+    expect(result.status).toBe(400);
+  });
 
   test("POST images/generations - an unauthenticated request answers 401", async ({
     apiSdk,
