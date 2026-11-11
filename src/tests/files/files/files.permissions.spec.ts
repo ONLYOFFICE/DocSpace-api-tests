@@ -6624,7 +6624,11 @@ test.describe("PUT /files/file/:fileId/startfilling - Start filling file permiss
     expect(status).toBe(401);
   });
 
-  test("PUT /files/file/:fileId/startfilling - DocSpaceAdmin returns 200", async ({
+  // The three cases below all start filling a form that lives in the OWNER's
+  // My Documents, so none of the callers has access to it - a DocSpaceAdmin
+  // included, personal sections are not visible to portal admins. All three
+  // used to answer 200; BUG 81400 covered the User and the Guest.
+  test("PUT /files/file/:fileId/startfilling - DocSpaceAdmin without file access returns 403", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -6648,77 +6652,74 @@ test.describe("PUT /files/file/:fileId/startfilling - Start filling file permiss
 
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
 
-    const { data, status } = await apiSdk
+    const { status } = await apiSdk
       .forRole("docSpaceAdmin")
       .files.startFillingFile({ fileId: formId });
 
-    expect(status).toBe(200);
-    expect(data.response!.id).toBe(formId);
+    expect(status).toBe(403);
   });
 
-  test.fail(
-    "BUG 81400: PUT /files/file/:fileId/startfilling - User without file access returns 200 instead of 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
-      const myDocsFolderId = myFolderData.response!.current!.id!;
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest StartFilling User Room",
-          roomType: RoomType.FillingFormsRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
-      const formId = await createOoForm(ownerApi, myDocsFolderId);
-      await ownerApi.files.manageFormFilling({
-        fileId: String(roomId),
-        manageFormFillingDto: {
-          formId,
-          action: FormFillingManageAction.Start,
-        },
-      });
+  test("BUG 81400: PUT /files/file/:fileId/startfilling - User without file access returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
+    const myDocsFolderId = myFolderData.response!.current!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest StartFilling User Room",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const formId = await createOoForm(ownerApi, myDocsFolderId);
+    await ownerApi.files.manageFormFilling({
+      fileId: String(roomId),
+      manageFormFillingDto: {
+        formId,
+        action: FormFillingManageAction.Start,
+      },
+    });
 
-      await apiSdk.addAuthenticatedMember("owner", "User");
+    await apiSdk.addAuthenticatedMember("owner", "User");
 
-      const { status } = await apiSdk
-        .forRole("user")
-        .files.startFillingFile({ fileId: formId });
+    const { status } = await apiSdk
+      .forRole("user")
+      .files.startFillingFile({ fileId: formId });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 
-  test.fail(
-    "BUG 81400: PUT /files/file/:fileId/startfilling - Guest without file access returns 200 instead of 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
-      const myDocsFolderId = myFolderData.response!.current!.id!;
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest StartFilling Guest Room",
-          roomType: RoomType.FillingFormsRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
-      const formId = await createOoForm(ownerApi, myDocsFolderId);
-      await ownerApi.files.manageFormFilling({
-        fileId: String(roomId),
-        manageFormFillingDto: {
-          formId,
-          action: FormFillingManageAction.Start,
-        },
-      });
+  test("BUG 81400: PUT /files/file/:fileId/startfilling - Guest without file access returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
+    const myDocsFolderId = myFolderData.response!.current!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest StartFilling Guest Room",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const formId = await createOoForm(ownerApi, myDocsFolderId);
+    await ownerApi.files.manageFormFilling({
+      fileId: String(roomId),
+      manageFormFillingDto: {
+        formId,
+        action: FormFillingManageAction.Start,
+      },
+    });
 
-      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-      const { status } = await apiSdk
-        .forRole("guest")
-        .files.startFillingFile({ fileId: formId });
+    const { status } = await apiSdk
+      .forRole("guest")
+      .files.startFillingFile({ fileId: formId });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 });
 
 test.describe("PUT /files/file/:fileId/saveediting/form - Save editing file from form permissions", () => {

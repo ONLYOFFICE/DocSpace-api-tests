@@ -1319,7 +1319,11 @@ test.describe("Threads - the room membership is revoked", () => {
     return { roomId, threadId };
   }
 
-  test("BUG 82858: GET /api/2.0/ai/threads/list, POST /api/2.0/ai/threads/create - a removed member crashes both instead of being refused", async ({
+  // BUG 82858 was the 500 both used to answer. The crash is gone, and the two
+  // calls now part ways: listing is one list per user and never scoped to the
+  // room, so the thread they wrote while a member is still theirs and still
+  // listed, while the room is closed to new work in it.
+  test("BUG 82858: GET /api/2.0/ai/threads/list, POST /api/2.0/ai/threads/create - a removed member still lists their own thread but cannot start a new one in the room", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1328,7 +1332,11 @@ test.describe("Threads - the room membership is revoked", () => {
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
     const profileId = await aiChat.defaultProfileId("owner");
-    const { roomId } = await chattedThenRemoved(apiSdk, aiChat, profileId);
+    const { roomId, threadId } = await chattedThenRemoved(
+      apiSdk,
+      aiChat,
+      profileId,
+    );
 
     const listed = await aiChat.listThreads("roomAdmin", roomId);
     const created = await aiChat.createThread("roomAdmin", {
@@ -1345,10 +1353,9 @@ test.describe("Threads - the room membership is revoked", () => {
     );
     expect(bucket.status, "a scope the caller may name").toBe(200);
 
-    // Same defect as an outsider who never was a member: the access check
-    // crashes where it should refuse.
-    expect(listed.status, "listing the threads of a room they left").toBe(403);
-    expect(created.status).toBe(403);
+    expect(listed.status, "listing the threads of a room they left").toBe(200);
+    expect(listed.data.map((thread) => thread.threadId)).toContain(threadId);
+    expect(created.status, "starting a new thread in that room").toBe(403);
   });
 
   test("GET|PUT|POST /api/2.0/ai/threads/* - a removed member keeps the thread they wrote in the room", async ({

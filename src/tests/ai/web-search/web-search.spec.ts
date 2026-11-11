@@ -977,12 +977,15 @@ test.describe("AI Web Search - the AI Features dependency", () => {
 
     // The requirement calls the prerequisite "AI Features" — this is where that
     // name lives, so the two services the dependency is between are identified
-    // by the titles the user reads, not only by ids.
+    // by the titles the user reads, not only by ids. The title is not the
+    // portal's own string: it comes from the billing service, and it was
+    // renamed from "AI features" to "AI agents & tools" there (re-measured
+    // 2026-11-11; "AI search" was left as it was).
     const toolsOff = await readAddon(TenantWalletService.AITools);
     const searchOff = await readAddon(TenantWalletService.AISearch);
     expect(toolsOff.serviceName).toBe("ai-tools");
-    expect(toolsOff.title, "the prerequisite is the AI features add-on").toBe(
-      "AI features",
+    expect(toolsOff.title, "the prerequisite is the AI tools add-on").toBe(
+      "AI agents & tools",
     );
     expect(searchOff.serviceName).toBe("ai-search");
     expect(searchOff.title).toBe("AI search");

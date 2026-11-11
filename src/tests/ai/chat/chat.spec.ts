@@ -3343,7 +3343,13 @@ test.describe("AI Chat - room context across users", () => {
     ]);
   });
 
-  test("BUG 82858: GET /api/2.0/ai/threads/list - listing the threads of a room the user cannot see is refused", async ({
+  // BUG 82858 was the 500 this used to answer, and the crash is gone. What
+  // took its place is not a refusal: the thread list is one list per user and
+  // the entityId is only a hint the storage ignores - the shared bucket the
+  // thirdparty spec pins from the other side - so a room the caller cannot
+  // open gives them their own list, empty here, and nothing of the owner's.
+  // The room stays closed to new work: starting a thread in it is still 403.
+  test("BUG 82858: GET /api/2.0/ai/threads/list - a room the user cannot see yields their own empty list, and no thread can be started in it", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -3351,6 +3357,7 @@ test.describe("AI Chat - room context across users", () => {
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
 
     const { data: room } = await ownerApi.rooms.createRoom({
       createRoomRequestDto: {
@@ -3360,20 +3367,39 @@ test.describe("AI Chat - room context across users", () => {
     });
     const roomId = room.response!.id!;
 
+    const ownerThread = await aiChat.createThreadId("owner", {
+      title: "Autotest owner room thread",
+      profileId,
+      agentId: roomId,
+    });
+    // Positive control, taken before the shared context switches: the owner's
+    // own thread is in the owner's list, so the empty list below is isolation
+    // and not a broken read.
+    const ownerList = await aiChat.listThreads("owner", roomId);
+    expect(ownerList.data.map((thread) => thread.threadId)).toContain(
+      ownerThread,
+    );
+
     const outsider = await apiSdk.addMember("owner", "User");
     const outsiderId = outsider.data.response!.id!;
     await apiSdk.authenticateMember(outsider.userData, "User");
     await aiChat.expectActingAs("user", outsiderId, "the non-member");
 
-    // An id that is not an entity at all is answered normally, so the failure
-    // below is the access check on a real room, not a parsing problem.
+    // An id that is not an entity at all is answered normally, so what the
+    // room id gives below is not a parsing difference.
     const nonsense = await aiChat.listThreads("user", "autotest-not-an-entity");
     expect(nonsense.status, "listing threads for a made-up entity").toBe(200);
 
-    // A room the caller cannot open is refused the way read-messages refuses
-    // another user's thread. It used to crash with a 500.
     const listed = await aiChat.listThreads("user", roomId);
-    expect(listed.status).toBe(403);
+    expect(listed.status).toBe(200);
+    expect(listed.data.map((thread) => thread.threadId)).toEqual([]);
+
+    const created = await aiChat.createThread("user", {
+      title: "Autotest outsider thread",
+      profileId,
+      agentId: roomId,
+    });
+    expect(created.status, "starting a thread in that room").toBe(403);
   });
 
   test("POST /api/2.0/ai/threads/open-or-create, GET get-by-id - a room member reopens their own thread with its history and its model", async ({
