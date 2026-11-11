@@ -676,7 +676,7 @@ test.describe("startFileConversion: converting again and the result's place", ()
     }
   });
 
-  test("BUG-PENDING: PUT /api/2.0/files/file/{fileId}/checkconversion - A format the portal cannot produce is not silently turned into a .docx", async ({
+  test("PUT /api/2.0/files/file/{fileId}/checkconversion - A format the portal cannot produce is not silently turned into a .docx", async ({
     apiSdk,
   }) => {
     const owner = apiSdk.forRole("owner");
@@ -705,14 +705,13 @@ test.describe("startFileConversion: converting again and the result's place", ()
     if (queued.length) await waitConversion(owner, id);
     const after = await listing(owner, myDocs);
 
-    knownDefect(
-      "JSDoc: what the portal cannot produce is answered without work or rejected; outputType zzz is accepted and a .docx is made",
-    );
-    expect(res.status === 200 ? queued : []).toEqual([]);
+    // Was: outputType zzz was accepted and a .docx was made instead.
+    expect(res.status).toBe(400);
+    expect(queued).toEqual([]);
     expect(after).toEqual(before);
   });
 
-  test("BUG-PENDING: PUT /api/2.0/files/file/{fileId}/checkconversion - outputType pdf yields a .pdf result, as the DTO describes", async ({
+  test("PUT /api/2.0/files/file/{fileId}/checkconversion - outputType pdf yields a .pdf result, as the DTO describes", async ({
     apiSdk,
   }) => {
     const owner = apiSdk.forRole("owner");
@@ -739,9 +738,7 @@ test.describe("startFileConversion: converting again and the result's place", ()
     const done = await waitConversion(owner, id);
     expect(done.progress).toBe(100);
 
-    knownDefect(
-      "outputType is ignored: the result of a pdf request is a .docx",
-    );
+    // Was: outputType was ignored and a pdf request produced a .docx.
     expect((done.result as { fileExst?: string } | null)?.fileExst).toBe(
       ".pdf",
     );

@@ -209,108 +209,106 @@ test.describe("POST /api/2.0/settings/ssov2 - Save the SSO settings", () => {
     expect(status).toBe(400);
   });
 
-  // Three bugs, same shape: the SDK doc states a well-formed 400 validation
-  // error for each of these missing/malformed required fields, but the
-  // handler actually throws a raw (unhandled in the entityId/ssoUrl/mapping
-  // cases, truly unhandled NullReferenceException when fieldMapping is left
-  // out entirely) C# exception that the global error handler turns into a
-  // 500, leaking a full .NET stack trace to the client. Filed as BUG 84685,
-  // BUG 84686, BUG 84687 - same root cause (validation not mapped to a 400
-  // response) but three independent code paths, one per field.
+  // Three bugs, same shape: each of these missing or malformed required
+  // fields used to reach the handler and throw a raw C# exception (a bare
+  // NullReferenceException when fieldMapping was left out entirely), which
+  // the global error handler turned into a 500 leaking a full .NET stack
+  // trace. Filed as BUG 84685, BUG 84686 and BUG 84687 - one per field, same
+  // root cause: validation was not mapped to a 400 response. All three now
+  // answer the documented 400.
 
-  test.fail(
-    "BUG 84685: missing entityId crashes with 500 instead of a validation error",
-    async ({ apiSdk, paymentsApi }) => {
-      await paymentsApi.setupPayment();
+  test("BUG 84685: missing entityId is refused as a validation error", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
 
-      const { status } = await apiSdk.forRole("owner").sso.saveSsoSettingsV2({
-        ssoSettingsRequestDto: {
-          serializeSettings: JSON.stringify(
-            validSsoSettings({
-              idpSettings: {
-                ssoUrl: "https://idp.example.com/sso",
-                ssoBinding: VALID_BINDING,
-              },
-            }),
-          ),
-        },
-      });
+    const { status } = await apiSdk.forRole("owner").sso.saveSsoSettingsV2({
+      ssoSettingsRequestDto: {
+        serializeSettings: JSON.stringify(
+          validSsoSettings({
+            idpSettings: {
+              ssoUrl: "https://idp.example.com/sso",
+              ssoBinding: VALID_BINDING,
+            },
+          }),
+        ),
+      },
+    });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 
-  test.fail(
-    "BUG 84686: missing ssoUrl crashes with 500 instead of a validation error",
-    async ({ apiSdk, paymentsApi }) => {
-      await paymentsApi.setupPayment();
+  test("BUG 84686: missing ssoUrl is refused as a validation error", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
 
-      const { status } = await apiSdk.forRole("owner").sso.saveSsoSettingsV2({
-        ssoSettingsRequestDto: {
-          serializeSettings: JSON.stringify(
-            validSsoSettings({
-              idpSettings: {
-                entityId: "https://idp.example.com/entity",
-                ssoBinding: VALID_BINDING,
-              },
-            }),
-          ),
-        },
-      });
+    const { status } = await apiSdk.forRole("owner").sso.saveSsoSettingsV2({
+      ssoSettingsRequestDto: {
+        serializeSettings: JSON.stringify(
+          validSsoSettings({
+            idpSettings: {
+              entityId: "https://idp.example.com/entity",
+              ssoBinding: VALID_BINDING,
+            },
+          }),
+        ),
+      },
+    });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 
-  test.fail(
-    "BUG 84687: an incomplete field mapping crashes with 500 instead of a validation error",
-    async ({ apiSdk, paymentsApi }) => {
-      await paymentsApi.setupPayment();
+  test("BUG 84687: an incomplete field mapping is refused as a validation error", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
 
-      const { status } = await apiSdk.forRole("owner").sso.saveSsoSettingsV2({
-        ssoSettingsRequestDto: {
-          serializeSettings: JSON.stringify(
-            validSsoSettings({
-              fieldMapping: { firstName: "a", lastName: "b" },
-            }),
-          ),
-        },
-      });
+    const { status } = await apiSdk.forRole("owner").sso.saveSsoSettingsV2({
+      ssoSettingsRequestDto: {
+        serializeSettings: JSON.stringify(
+          validSsoSettings({
+            fieldMapping: { firstName: "a", lastName: "b" },
+          }),
+        ),
+      },
+    });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 
-  // Mirrors BUG 84686 on the logout side: a missing sloUrl is silently
-  // accepted (not validated at all), but a malformed one hits the same
-  // "Invalid binding: SLO <binding>" exception and crashes with 500 instead
-  // of a validation error. Filed as its own bug since it's a separate field,
-  // even though the error shape strongly suggests the same underlying
-  // validation function as BUG 84686.
-  test.fail(
-    "BUG 84688: a malformed sloUrl crashes with 500 instead of a validation error",
-    async ({ apiSdk, paymentsApi }) => {
-      await paymentsApi.setupPayment();
+  // The logout side of BUG 84686: a missing sloUrl is silently accepted (not
+  // validated at all), but a malformed one used to hit the same "Invalid
+  // binding: SLO <binding>" exception and crash with a 500. Filed as its own
+  // bug since it is a separate field, even though the error shape strongly
+  // suggested the same validation function as BUG 84686.
+  test("BUG 84688: a malformed sloUrl is refused as a validation error", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
 
-      const { status } = await apiSdk.forRole("owner").sso.saveSsoSettingsV2({
-        ssoSettingsRequestDto: {
-          serializeSettings: JSON.stringify(
-            validSsoSettings({
-              idpSettings: {
-                entityId: "https://idp.example.com/entity",
-                ssoUrl: "https://idp.example.com/sso",
-                ssoBinding: VALID_BINDING,
-                sloUrl: "not-a-url",
-                sloBinding: VALID_BINDING,
-              },
-            }),
-          ),
-        },
-      });
+    const { status } = await apiSdk.forRole("owner").sso.saveSsoSettingsV2({
+      ssoSettingsRequestDto: {
+        serializeSettings: JSON.stringify(
+          validSsoSettings({
+            idpSettings: {
+              entityId: "https://idp.example.com/entity",
+              ssoUrl: "https://idp.example.com/sso",
+              ssoBinding: VALID_BINDING,
+              sloUrl: "not-a-url",
+              sloBinding: VALID_BINDING,
+            },
+          }),
+        ),
+      },
+    });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 });
 
 test.describe("DELETE /api/2.0/settings/ssov2 - Reset the SSO settings", () => {

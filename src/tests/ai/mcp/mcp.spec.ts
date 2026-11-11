@@ -3133,18 +3133,9 @@ test.describe("MCP - custom servers scoped to a room", () => {
     await apiSdk.authenticateMember(outsider.userData, "User");
     await aiChat.expectActingAs("user", outsiderId, "the non-member");
 
-    // Outside the room even the read is refused, which is what tells the 200
-    // above apart from "this route ignores access altogether".
-    const outsiderRead = await aiTools.getCustomServer(
-      "user",
-      "autotest-owner-server",
-      roomId,
-    );
-    expect(outsiderRead.status).toBe(403);
-    // A non-member's write is refused differently from their read, even
-    // though both target the same room and the same actor: the read above
-    // answers 403 (the room is visible enough to refuse), the write answers
-    // 404 as if the room did not resolve at all.
+    // The read above is NOT a membership right: the route ignores the room on
+    // the way in, which the next test pins. Only writes are gated, and a
+    // non-member's write is refused as if the room did not resolve at all.
     const outsiderAdd = await aiTools.addCustomServer("user", {
       name: "autotest-outsider-server",
       config: SERVER_CONFIG,
@@ -3161,6 +3152,70 @@ test.describe("MCP - custom servers scoped to a room", () => {
     expect(survivor.data).toEqual(SERVER_CONFIG);
 
     expect(outsiderAdd.status).toBe(403);
+  });
+
+  // Writing a room's MCP registry is gated (the test above), reading it is not.
+  // Measured 2026-11-11: a portal user who is not a member of the room reads
+  // the room's server by name, finds it in the room's listing, and gets it
+  // even without naming the room at all - the configuration, URL included, of
+  // a room they cannot open. It used to answer 403, so this is the refusal the
+  // route is meant to give, kept as the assertion while the hole is open.
+  test("BUG XXXXX: GET /api/2.0/ai/tools/get-custom-server - a non-member reads the custom MCP server of a room they cannot open", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest MCP Closed Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const outsider = await apiSdk.addMember("owner", "User");
+    const outsiderId = outsider.data.response!.id!;
+
+    const registered = await aiTools.addCustomServer("owner", {
+      name: "autotest-owner-server",
+      config: SERVER_CONFIG,
+      agentId: roomId,
+    });
+    expect(registered.status, "registering the room's server").toBe(200);
+
+    await apiSdk.authenticateMember(outsider.userData, "User");
+    await aiChat.expectActingAs("user", outsiderId, "the non-member");
+
+    // The room itself is closed to them, which is what makes the reads below
+    // a leak rather than an ordinary lookup.
+    const roomRead = await apiSdk
+      .forRole("user")
+      .rooms.getRoomInfo({ id: roomId });
+    expect(roomRead.status, "reading the room as a non-member").toBe(403);
+
+    test.fail();
+
+    const byName = await aiTools.getCustomServer(
+      "user",
+      "autotest-owner-server",
+      roomId,
+    );
+    expect(byName.status).toBe(403);
+    expect(byName.data ?? null).toBeNull();
+
+    const listed = await aiTools.listCustomServers("user", roomId);
+    expect(Object.keys(listed.data)).not.toContain("autotest-owner-server");
+
+    const unscoped = await aiTools.getCustomServer(
+      "user",
+      "autotest-owner-server",
+    );
+    expect(unscoped.data ?? null).toBeNull();
   });
 });
 

@@ -192,11 +192,6 @@ const startDownload = (api: Api, folderIds: number[]) =>
     downloadRequestDto: { folderIds: folderIds as never[] },
   });
 
-/** Called after the setup assertions: from here only the violated condition may fail. */
-function knownDefect(label: string) {
-  test.fail(true, label);
-}
-
 test.describe("getOperationStatuses", () => {
   test("GET /api/2.0/files/fileops - A started operation is Created at progress 0, then reaches Completed at 100 with the same id and no error", async ({
     apiSdk,
@@ -792,7 +787,7 @@ test.describe("terminateTasks", () => {
     expect(byKind.data.response ?? []).toEqual([]);
   });
 
-  test("BUG-PENDING: PUT /api/2.0/files/fileops/terminate/{id} - A cancelled operation reports the Canceled task status", async ({
+  test("PUT /api/2.0/files/fileops/terminate/{id} - A cancelled operation reports the Canceled task status", async ({
     apiSdk,
   }) => {
     const owner = apiSdk.forRole("owner");
@@ -821,9 +816,7 @@ test.describe("terminateTasks", () => {
     expect(record.error).toBeTruthy();
     expect(record.finished).toBe(true);
 
-    knownDefect(
-      "DTO: status tells a cancelled task from one that ran to its end, but a cancelled one reports Completed (2)",
-    );
+    // Was: a cancelled task reported Completed (2), like one that ran to its end.
     expect(record.status).toBe(DistributedTaskStatus.Canceled);
   });
 
@@ -1116,7 +1109,7 @@ test.describe("terminateTasks", () => {
     expect(await countFiles(owner, folderId)).toBe(LONG_FILES);
   });
 
-  test("BUG-PENDING: PUT /api/2.0/files/fileops/terminate/{id} - A whitespace-only id cancels nothing, like any id that is not the caller's operation", async ({
+  test("PUT /api/2.0/files/fileops/terminate/{id} - A whitespace-only id cancels nothing, like any id that is not the caller's operation", async ({
     apiSdk,
   }) => {
     const owner = apiSdk.forRole("owner");
@@ -1143,9 +1136,7 @@ test.describe("terminateTasks", () => {
     expect(res.status).toBe(200);
     const done = await finishedRecord(owner, op.id!);
 
-    knownDefect(
-      "a blank id is read as the omitted id and stops every operation of the caller",
-    );
+    // Was: a blank id was read as the omitted id and stopped every operation of the caller.
     expect(done.error ?? "").toBe("");
     expect(done.status).toBe(DistributedTaskStatus.Completed);
     expect(await countFiles(owner, roomId)).toBe(LONG_FILES);

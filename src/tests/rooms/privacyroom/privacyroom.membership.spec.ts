@@ -6,11 +6,11 @@ import {
   ZERO_GUID,
   addKeyedMembers,
   createOwnerPrivateRoom,
-  createRoomFile,
   getOwnerId,
   inviteToRoom,
   roomKeyHolders,
   roomMemberAccess,
+  uploadPrivateRoomFile,
 } from "@/src/helpers/private-rooms";
 
 /**
@@ -372,7 +372,9 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - ids that are not priva
   }) => {
     const owner = apiSdk.forRole("owner");
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    const fileId = await createRoomFile(owner, roomId, "Autotest id.docx");
+    // A private room keeps plaintext out, so the file has to go in the way a
+    // client would put it there - createFile answers 403 inside one.
+    const fileId = await uploadPrivateRoomFile(owner, roomId);
 
     const { status } = await owner.privacyroom.getUserKeysForRoom({
       roomId: fileId,

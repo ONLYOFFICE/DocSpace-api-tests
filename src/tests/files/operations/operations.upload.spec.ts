@@ -1114,7 +1114,7 @@ test.describe("Upload defects", () => {
   // Every test: setup and precondition assertions first, then knownDefect(),
   // then the single condition the portal violates.
 
-  test("BUG-PENDING: POST /api/2.0/files/{folderId}/session/{sessionId}/upload - A request without the multipart file part is a client error, not a 500", async ({
+  test("POST /api/2.0/files/{folderId}/session/{sessionId}/upload - A request without the multipart file part is a client error, not a 500", async ({
     apiSdk,
   }) => {
     const owner = apiSdk.forRole("owner");
@@ -1133,8 +1133,8 @@ test.describe("Upload defects", () => {
       chunkNumber: 1,
     });
 
-    knownDefect("NullReferenceException: missing multipart file answers 500");
-    expectClientError(res.status);
+    // Was: a missing multipart file answered 500 (NullReferenceException).
+    expect(res.status).toBe(400);
   });
 
   test("BUG-PENDING: PUT /api/2.0/files/{folderId}/session/{sessionId}/finalize - Finalize without any chunk must not report a stored file that does not exist", async ({
@@ -1247,7 +1247,7 @@ test.describe("Upload defects", () => {
   });
 
   for (const chunkNumber of [0, -1]) {
-    test(`BUG-PENDING: POST /api/2.0/files/{folderId}/session/{sessionId}/upload - Chunk number ${chunkNumber} on a large session is a client error, not a 500`, async ({
+    test(`POST /api/2.0/files/{folderId}/session/{sessionId}/upload - Chunk number ${chunkNumber} on a large session is a client error, not a 500`, async ({
       apiSdk,
     }) => {
       const owner = apiSdk.forRole("owner");
@@ -1269,14 +1269,12 @@ test.describe("Upload defects", () => {
         payload.subarray(0, chunkSize),
       );
 
-      knownDefect(
-        "numbering starts at 1, but 0/-1 answer 500 (small sessions accept them)",
-      );
-      expectClientError(res.status);
+      // Was: numbering starts at 1, but 0 and -1 answered 500.
+      expect(res.status).toBe(400);
     });
   }
 
-  test("BUG-PENDING: PUT /api/2.0/files/{folderId}/session/{sessionId}/finalize - A small session finalized once cannot be finalized again", async ({
+  test("PUT /api/2.0/files/{folderId}/session/{sessionId}/finalize - A small session finalized once cannot be finalized again", async ({
     apiSdk,
   }) => {
     const owner = apiSdk.forRole("owner");
@@ -1302,14 +1300,12 @@ test.describe("Upload defects", () => {
       sessionId,
     });
 
-    knownDefect(
-      "JSDoc: finalize ends the session and cannot be repeated; small sessions answer 201 again",
-    );
-    expect(second.status).toBeGreaterThanOrEqual(400);
+    // Was: a small session answered 201 again instead of ending at the first finalize.
+    expect(second.status).toBe(404);
     expect(await filesIn(owner, folderId, fileName)).toHaveLength(1);
   });
 
-  test("BUG-PENDING: POST /api/2.0/files/{folderId}/session/{sessionId}/upload - A small session accepts no chunk after finalize", async ({
+  test("POST /api/2.0/files/{folderId}/session/{sessionId}/upload - A small session accepts no chunk after finalize", async ({
     apiSdk,
   }) => {
     const owner = apiSdk.forRole("owner");
@@ -1338,13 +1334,13 @@ test.describe("Upload defects", () => {
       makeBytes(1000, 57),
     );
 
-    knownDefect("a chunk sent after finalize is accepted by a small session");
-    expect(late.status).toBeGreaterThanOrEqual(400);
+    // Was: a chunk sent after finalize was accepted by a small session.
+    expect(late.status).toBe(404);
     // Whatever the answer, the stored file must not have been rewritten.
     await expectDownloadMatches(apiSdk, "owner", fileId, payload);
   });
 
-  test("BUG-PENDING: DELETE /api/2.0/files/{folderId}/session/{sessionId} - A small session cannot be aborted after finalize", async ({
+  test("DELETE /api/2.0/files/{folderId}/session/{sessionId} - A small session cannot be aborted after finalize", async ({
     apiSdk,
   }) => {
     const owner = apiSdk.forRole("owner");
@@ -1368,10 +1364,8 @@ test.describe("Upload defects", () => {
       sessionId,
     });
 
-    knownDefect(
-      "JSDoc: there is nothing left to abort once the file exists; small sessions answer 200",
-    );
-    expect(abort.status).toBeGreaterThanOrEqual(400);
+    // Was: a small session answered 200 to an abort once the file existed.
+    expect(abort.status).toBe(404);
   });
 
   test("BUG-PENDING: PUT /api/2.0/files/{folderId}/session/{sessionId}/finalize - Repeated chunks into one small session produce a new file at version 1, not extra versions", async ({
@@ -1404,7 +1398,7 @@ test.describe("Upload defects", () => {
     expect(versions.response).toHaveLength(1);
   });
 
-  test("BUG-PENDING: POST /api/2.0/files/{folderId}/session - A negative fileSize is rejected when the session opens", async ({
+  test("POST /api/2.0/files/{folderId}/session - A negative fileSize is rejected when the session opens", async ({
     apiSdk,
   }) => {
     const owner = apiSdk.forRole("owner");
@@ -1421,10 +1415,8 @@ test.describe("Upload defects", () => {
     const leaked = sessionOf(res).id;
     if (leaked) openSessions.push({ api: owner, folderId, sessionId: leaked });
 
-    knownDefect(
-      "fileSize -1 opens a session with bytes_total -1 (finalize fails later with 400)",
-    );
-    expectClientError(res.status);
+    // Was: fileSize -1 opened a session with bytes_total -1.
+    expect(res.status).toBe(400);
     expect(leaked).toBeUndefined();
   });
 

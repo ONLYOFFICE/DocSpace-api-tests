@@ -98,7 +98,7 @@ test.describe("PUT /files/:fileId/access", () => {
         roomType,
       );
 
-      const { status } = await ownerApi.files.setEncryptionInfo({
+      const { data, status } = await ownerApi.files.setEncryptionInfo({
         fileId,
         accessRequestKeyDto: [
           {
@@ -110,6 +110,7 @@ test.describe("PUT /files/:fileId/access", () => {
       });
 
       expect(status).toBe(200);
+      expect(data.response?.skippedUserIds).toEqual([]);
       const fileKeys = await readFileKeys(ownerApi, fileId);
       expect(fileKeys).toHaveLength(1);
       expect(fileKeys[0]).toMatchObject({
@@ -240,24 +241,27 @@ test.describe("PUT /files/:fileId/access", () => {
     expect(status).toBe(400);
   });
 
-  test("PUT /files/:fileId/access - Account that does not exist returns 403 and stores nothing", async ({
+  // Documented: "An account named in the request that cannot read the file is
+  // skipped, nothing is stored for it, and it comes back in `skippedUserIds`".
+  // An id that belongs to nobody cannot read the file either, so it is skipped
+  // like any other. The caller's own right to issue keys is a separate check
+  // and still answers 403 - see fileEncryption.membership.spec.ts.
+  test("PUT /files/:fileId/access - Account that does not exist is skipped and nothing is stored", async ({
     apiSdk,
   }) => {
     const { ownerApi, fileId } = await createPrivateRoomWithFile(apiSdk);
+    const ghost = "11111111-1111-1111-1111-111111111111";
 
-    const { status } = await ownerApi.files.setEncryptionInfo({
+    const { data, status } = await ownerApi.files.setEncryptionInfo({
       fileId,
       accessRequestKeyDto: [
-        {
-          userId: "11111111-1111-1111-1111-111111111111",
-          publicKeyId: ZERO_GUID,
-          privateKeyEnc: "k",
-        },
+        { userId: ghost, publicKeyId: ZERO_GUID, privateKeyEnc: "k" },
       ],
     });
 
+    expect(status).toBe(200);
+    expect(data.response?.skippedUserIds).toEqual([ghost]);
     expect(await readFileKeys(ownerApi, fileId)).toEqual([]);
-    expect(status).toBe(403);
   });
 
   test("PUT /files/:fileId/access - File outside a private room returns 403", async ({
@@ -419,25 +423,25 @@ test.describe("PUT /files/:fileId/access", () => {
     expect(status).toBe(403);
   });
 
-  // Documented: "every account named in the request has to have read access".
-  test("PUT /files/:fileId/access - Account without access to the file returns 403 and stores nothing", async ({
+  // Documented: "An account named in the request that cannot read the file is
+  // skipped, nothing is stored for it, and it comes back in `skippedUserIds`,
+  // while the keys of the others are stored."
+  test("PUT /files/:fileId/access - Account without access to the file is skipped and nothing is stored", async ({
     apiSdk,
   }) => {
     const { ownerApi, fileId } = await createPrivateRoomWithFile(apiSdk);
     const { data: outsider } = await apiSdk.addMember("owner", "User");
+    const outsiderId = outsider.response!.id!;
 
-    const { status } = await ownerApi.files.setEncryptionInfo({
+    const { data, status } = await ownerApi.files.setEncryptionInfo({
       fileId,
       accessRequestKeyDto: [
-        {
-          userId: outsider.response!.id!,
-          publicKeyId: ZERO_GUID,
-          privateKeyEnc: "k",
-        },
+        { userId: outsiderId, publicKeyId: ZERO_GUID, privateKeyEnc: "k" },
       ],
     });
 
+    expect(status).toBe(200);
+    expect(data.response?.skippedUserIds).toEqual([outsiderId]);
     expect(await readFileKeys(ownerApi, fileId)).toEqual([]);
-    expect(status).toBe(403);
   });
 });

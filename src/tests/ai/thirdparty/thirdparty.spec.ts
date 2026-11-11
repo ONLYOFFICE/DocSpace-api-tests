@@ -142,15 +142,14 @@ test.describe("Third-party rooms — AI thread scoping", () => {
     ).toContain(threadId);
   });
 
-  test("GET /api/2.0/ai/threads/list - a non-member of a third-party room gets the same 500 a non-member of an internal room gets", async ({
+  // The other side of the shared bucket pinned above: since the entityId is
+  // ignored, a non-member naming the room gets their own list rather than a
+  // refusal. It used to answer 500 (BUG 82858 on internal rooms); what matters
+  // now is that the room's own threads are not among what they get back.
+  test("GET /api/2.0/ai/threads/list - a non-member of a third-party room gets their own list, not the room's threads", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // Same root cause as the room/folder 500 in
-    // [[ai_entity_context_shared_bucket]] (filed there against internal rooms) —
-    // reusing that number rather than filing a new one, per
-    // [[feedback_bug_placeholder_before_filing]] this is only correct if the
-    // failure mode actually matches once run live.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const { roomId } = await setupThirdPartyRoom(
@@ -160,11 +159,16 @@ test.describe("Third-party rooms — AI thread scoping", () => {
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
     const profileId = await aiChat.defaultProfileId("owner");
-    await aiChat.createThreadId("owner", {
+    const ownerThread = await aiChat.createThreadId("owner", {
       title: "Autotest non-member thread",
       profileId,
       agentId: roomId,
     });
+    // Positive control, taken before the shared context switches.
+    const ownerList = await aiChat.listThreads("owner", roomId);
+    expect(ownerList.data.map((thread) => thread.threadId)).toContain(
+      ownerThread,
+    );
 
     const { status: memberStatus, api: userApi } =
       await apiSdk.addAuthenticatedMember("owner", "User");
@@ -176,9 +180,13 @@ test.describe("Third-party rooms — AI thread scoping", () => {
     });
     expect(roomRead.status, "reading the room as a non-member").toBe(403);
 
-    // ... and asking for its threads is expected to refuse the same way.
+    // ... while asking for its threads answers their own list, which carries
+    // nothing of the room's.
     const list = await aiChat.listThreads("user", roomId);
-    expect(list.status, "listing threads as a non-member").toBe(403);
+    expect(list.status, "listing threads as a non-member").toBe(200);
+    expect(list.data.map((thread) => thread.threadId)).not.toContain(
+      ownerThread,
+    );
   });
 });
 

@@ -23,6 +23,7 @@ import {
 } from "@/src/helpers/authentication";
 
 const LOGIN_FAILED = "User authentication failed";
+const SMS_UNAVAILABLE = "SMS settings are not available";
 
 test.describe("POST /api/2.0/authentication - permissions", () => {
   test("POST /api/2.0/authentication - Cannot authenticate with wrong password", async ({
@@ -964,29 +965,22 @@ test.describe("POST /api/2.0/authentication/sendsms - invalid credentials", () =
     });
   });
 
-  test("BUG 84503: POST /api/2.0/authentication/sendsms - Valid credentials while SMS is not enabled is not an internal error", async ({
+  test("BUG 84503: POST /api/2.0/authentication/sendsms - Valid credentials while SMS is not enabled are refused as unavailable", async ({
     apiSdk,
   }) => {
     const user = await createUser(apiSdk);
-    test.fail(
-      true,
-      "BUG 84503: POST /authentication/sendsms with valid credentials on a portal where SMS 2FA " +
-        "is not enabled answers 500. SmsManager.PutAuthCodeAsync deliberately throws " +
-        "MethodAccessException when SMS settings are not available / TFA is not enabled for the " +
-        "user, and nothing maps it to a client response. The same condition is reported cleanly " +
-        "by PUT /settings/tfaapp (405 'SMS settings are not available'), but the exact status " +
-        "for sendsms is not specified, so the test only asserts it is not a 500. Remove " +
-        "test.fail once it is fixed.",
-    );
 
-    const { status } = await apiSdk.forAnonymous().authentication.sendSmsCode({
-      authRequestDto: {
-        userName: user.email,
-        password: user.password,
-      },
-    });
+    const { data, status } = await apiSdk
+      .forAnonymous()
+      .authentication.sendSmsCode({
+        authRequestDto: {
+          userName: user.email,
+          password: user.password,
+        },
+      });
 
-    expect(status).not.toBe(500);
+    expect(status).toBe(405);
+    expect((data as any)?.error?.message).toBe(SMS_UNAVAILABLE);
   });
 });
 

@@ -5,6 +5,7 @@ import {
   FolderDto,
   RoomPrivacyFilter,
   RoomType,
+  SearchArea,
 } from "@onlyoffice/docspace-api-sdk";
 import { archiveRoomAndWait } from "@/src/helpers/archive-room";
 import {
@@ -70,7 +71,12 @@ test.describe("GET /files/rooms - privacyFilter", () => {
     expect(rooms.map((r) => r.id)).not.toContain(privateId);
   });
 
-  test("GET /files/rooms - privacyFilter=None and no filter return both kinds", async ({
+  // Private rooms have a section of their own now, the way Forms rooms do, and
+  // `searchArea=Active` - what this call defaults to - no longer reaches into
+  // it. So neither privacyFilter=None nor no filter at all brings both kinds
+  // back: privacyFilter=Private is how the client switches sections, and
+  // searchArea=Any is the one listing that carries both.
+  test("GET /files/rooms - privacyFilter=None and no filter stay inside the Rooms section", async ({
     apiSdk,
   }) => {
     const owner = apiSdk.forRole("owner");
@@ -81,9 +87,17 @@ test.describe("GET /files/rooms - privacyFilter", () => {
     );
 
     for (const filter of [RoomPrivacyFilter.None, undefined]) {
-      const ids = (await listRooms(owner, filter)).map((r) => r.id).sort();
-      expect(ids).toEqual([privateId, plainId].sort());
+      const ids = (await listRooms(owner, filter)).map((r) => r.id);
+      expect(ids).toEqual([plainId]);
     }
+
+    const { data, status } = await owner.rooms.getRoomsFolder({
+      searchArea: SearchArea.Any,
+    });
+    expect(status).toBe(200);
+    expect(
+      ((data.response!.folders ?? []) as FolderDto[]).map((r) => r.id).sort(),
+    ).toEqual([privateId, plainId].sort());
   });
 
   test("GET /files/rooms - An archived private room leaves the Private list", async ({
