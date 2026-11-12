@@ -1134,10 +1134,11 @@ test.describe("GET /api/2.0/portal/payment/customer/operations", () => {
         participantName: "nonexistent-participant-xyz",
       });
     expect(status).toBe(200);
-    // An empty page is serialized as {"count":0} with `response` omitted
-    // entirely (null is dropped), not as response.collection = [].
-    expect(data.count, JSON.stringify(data)).toBe(0);
-    expect(data.response?.collection ?? []).toEqual([]);
+    // An empty page is still a page: `response` is there with an empty
+    // collection. `count` is not asserted - it counts the one paging object,
+    // not the rows, so it reads 1 either way and says nothing here.
+    expect(data.response?.collection ?? [], JSON.stringify(data)).toEqual([]);
+    expect(data.response?.totalQuantity).toBe(0);
   });
 });
 

@@ -3518,6 +3518,11 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
       createFileRequest: { title: "Autotest News File By User2.docx" },
     });
 
+    // The shared context's session cookie outranks the owner's bearer
+    // token, so without this the read runs as User2 - who sees User1's file
+    // as new but never their own, hence the half-filled list.
+    await apiSdk.authenticateOwner();
+
     const { data, status } = await ownerApi.folders.getNewFolderItems({
       folderId: roomId,
     });

@@ -150,22 +150,28 @@ test.describe("GET /api/2.0/security/audit/events/last", () => {
       },
     });
 
-    const { data, status } = await apiSdk
-      .forRole("docSpaceAdmin")
-      .auditTrail.getLastAuditEvents();
+    // Audit records are written behind the request, so the create above
+    // reaches the log a moment later - as in the Owner variant.
+    let event: any;
 
-    expect(status).toBe(200);
-    expect(data.response!.length).toBeGreaterThan(0);
+    await expect(async () => {
+      const { data, status } = await apiSdk
+        .forRole("docSpaceAdmin")
+        .auditTrail.getLastAuditEvents();
 
-    const event = data.response![0];
-    expect(typeof event.id).toBe("number");
-    expect(typeof event.userId).toBe("string");
-    expect(typeof event.user).toBe("string");
-    expect(typeof event.action).toBe("string");
-    expect(typeof event.actionId).toBe("number");
-    expect(typeof event.ip).toBe("string");
-    expect(new Date(event.date as string).getTime()).not.toBeNaN();
-    expect(typeof event.context).toBe("string");
+      expect(status).toBe(200);
+      expect(data.response!.length).toBeGreaterThan(0);
+      event = data.response![0];
+    }).toPass({ intervals: [1000, 2000, 3000], timeout: 15000 });
+
+    expect(typeof event!.id).toBe("number");
+    expect(typeof event!.userId).toBe("string");
+    expect(typeof event!.user).toBe("string");
+    expect(typeof event!.action).toBe("string");
+    expect(typeof event!.actionId).toBe("number");
+    expect(typeof event!.ip).toBe("string");
+    expect(new Date(event!.date as string).getTime()).not.toBeNaN();
+    expect(typeof event!.context).toBe("string");
   });
 });
 

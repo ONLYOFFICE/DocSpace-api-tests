@@ -19,6 +19,7 @@ import {
 import { createOoForm, startFormFilling } from "@/src/helpers/files";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { waitForRoomFromTemplate } from "@/src/helpers/wait-for-room-from-template";
+import { waitForRoomsSearch } from "@/src/helpers/wait-for-rooms-search";
 import { waitForRoomTemplate } from "@/src/helpers/wait-for-room-template";
 import type { ApiSDK } from "@/src/services/api-sdk";
 import type { Role } from "@/src/services/token-store";
@@ -194,12 +195,22 @@ test.describe("Rooms / Forms section separation", () => {
         RoomType.FillingFormsRoom,
       );
 
-      const { data, status } = await ownerApi.rooms.getRoomsFolder({
-        filterValue: "Shared Prefix",
-      });
+      // The form filling room must be indexed before its absence from the
+      // Rooms section means anything.
+      await waitForRoomsSearch(
+        () =>
+          ownerApi.rooms.getRoomsFolder({
+            searchArea: SearchArea.Forms,
+            filterValue: "Shared Prefix",
+          }),
+        ({ data: forms }) => expect(folderIds(forms)).toContain(ffrId),
+      );
 
-      expect(status).toBe(200);
-      expect(folderIds(data)).toEqual([customId]);
+      const { data } = await waitForRoomsSearch(
+        () => ownerApi.rooms.getRoomsFolder({ filterValue: "Shared Prefix" }),
+        ({ data: found }) => expect(folderIds(found)).toEqual([customId]),
+      );
+
       expect(folderIds(data)).not.toContain(ffrId);
       expect(data.response!.total).toBe(1);
     });
@@ -216,17 +227,29 @@ test.describe("Rooms / Forms section separation", () => {
         "Control Custom",
         RoomType.CustomRoom,
       );
-      await createRoomOfType(
+      const ffrId = await createRoomOfType(
         apiSdk,
         "owner",
         "Only Form Match",
         RoomType.FillingFormsRoom,
       );
 
-      const { data: control } = await ownerApi.rooms.getRoomsFolder({
-        filterValue: "Control Custom",
-      });
-      expect(folderTitles(control)).toEqual(["Control Custom"]);
+      await waitForRoomsSearch(
+        () => ownerApi.rooms.getRoomsFolder({ filterValue: "Control Custom" }),
+        ({ data: control }) =>
+          expect(folderTitles(control)).toEqual(["Control Custom"]),
+      );
+
+      // The room whose absence is the point must be indexed too, or the
+      // empty answer below proves nothing.
+      await waitForRoomsSearch(
+        () =>
+          ownerApi.rooms.getRoomsFolder({
+            searchArea: SearchArea.Forms,
+            filterValue: "Only Form Match",
+          }),
+        ({ data: forms }) => expect(folderIds(forms)).toEqual([ffrId]),
+      );
 
       const { data, status } = await ownerApi.rooms.getRoomsFolder({
         filterValue: "Only Form Match",
@@ -331,12 +354,14 @@ test.describe("Rooms / Forms section separation", () => {
         "Searchable",
         "searchable form",
       ]) {
-        const { data, status } = await ownerApi.rooms.getRoomsFolder({
-          searchArea: SearchArea.Forms,
-          filterValue,
-        });
-        expect(status).toBe(200);
-        expect(folderIds(data)).toEqual([ffrId]);
+        await waitForRoomsSearch(
+          () =>
+            ownerApi.rooms.getRoomsFolder({
+              searchArea: SearchArea.Forms,
+              filterValue,
+            }),
+          ({ data }) => expect(folderIds(data)).toEqual([ffrId]),
+        );
       }
     });
 
@@ -358,6 +383,25 @@ test.describe("Rooms / Forms section separation", () => {
         RoomType.FillingFormsRoom,
       );
 
+      // Both rooms share the title, so each section's answer excludes the
+      // other room - which only holds once both are indexed.
+      await waitForRoomsSearch(
+        () =>
+          ownerApi.rooms.getRoomsFolder({
+            searchArea: SearchArea.Forms,
+            filterValue: title,
+          }),
+        ({ data: found }) => expect(folderIds(found)).toContain(ffrId),
+      );
+      await waitForRoomsSearch(
+        () =>
+          ownerApi.rooms.getRoomsFolder({
+            searchArea: SearchArea.Active,
+            filterValue: title,
+          }),
+        ({ data: found }) => expect(folderIds(found)).toContain(customId),
+      );
+
       const { data: forms, status } = await ownerApi.rooms.getRoomsFolder({
         searchArea: SearchArea.Forms,
         filterValue: title,
@@ -376,7 +420,7 @@ test.describe("Rooms / Forms section separation", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      await createRoomOfType(
+      const customId = await createRoomOfType(
         apiSdk,
         "owner",
         "Rooms Only Title",
@@ -390,11 +434,25 @@ test.describe("Rooms / Forms section separation", () => {
       );
 
       // positive control on the same area
-      const { data: control } = await ownerApi.rooms.getRoomsFolder({
-        searchArea: SearchArea.Forms,
-        filterValue: "Forms Control Room",
-      });
-      expect(folderIds(control)).toEqual([ffrId]);
+      await waitForRoomsSearch(
+        () =>
+          ownerApi.rooms.getRoomsFolder({
+            searchArea: SearchArea.Forms,
+            filterValue: "Forms Control Room",
+          }),
+        ({ data: control }) => expect(folderIds(control)).toEqual([ffrId]),
+      );
+
+      // ...and the searched-for room is indexed in its own section, so the
+      // empty Forms answer is a boundary, not a late arrival.
+      await waitForRoomsSearch(
+        () =>
+          ownerApi.rooms.getRoomsFolder({
+            searchArea: SearchArea.Active,
+            filterValue: "Rooms Only Title",
+          }),
+        ({ data: found }) => expect(folderIds(found)).toContain(customId),
+      );
 
       const { data, status } = await ownerApi.rooms.getRoomsFolder({
         searchArea: SearchArea.Forms,
@@ -923,18 +981,28 @@ test.describe("Rooms / Forms section separation", () => {
         "At Searchable Form",
         RoomType.FillingFormsRoom,
       );
-      await createRoomOfType(
+      const customId = await createRoomOfType(
         apiSdk,
         "owner",
         "At Searchable Custom",
         RoomType.CustomRoom,
       );
 
-      const { data: hit, status } = await ownerApi.folders.getFormsFolder({
-        filterValue: "At Searchable",
-      });
-      expect(status).toBe(200);
-      expect(folderIds(hit)).toEqual([ffrId]);
+      await waitForRoomsSearch(
+        () => ownerApi.folders.getFormsFolder({ filterValue: "At Searchable" }),
+        ({ data: hit }) => expect(folderIds(hit)).toEqual([ffrId]),
+      );
+
+      // The Custom room must be indexed before the Forms folder's silence
+      // about it counts as a boundary.
+      await waitForRoomsSearch(
+        () =>
+          ownerApi.rooms.getRoomsFolder({
+            searchArea: SearchArea.Active,
+            filterValue: "At Searchable Custom",
+          }),
+        ({ data: found }) => expect(folderIds(found)).toContain(customId),
+      );
 
       const { data: miss } = await ownerApi.folders.getFormsFolder({
         filterValue: "At Searchable Custom",
