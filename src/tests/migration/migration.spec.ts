@@ -152,9 +152,13 @@ test.describe("POST /api/2.0/migration/init/:migratorName", () => {
     });
     expect(status).toBe(200);
 
-    const { data } = await ownerApi.migration.getMigrationStatus();
-    expect(data.response?.isCompleted).toBe(true);
-    expect(data.response?.error).toBeTruthy();
+    // The parse is accepted first and fails only once it runs, so the
+    // status has to be read until it settles.
+    await expect(async () => {
+      const { data } = await ownerApi.migration.getMigrationStatus();
+      expect(data.response?.isCompleted).toBe(true);
+      expect(data.response?.error).toBeTruthy();
+    }).toPass({ intervals: [500, 1000, 2000], timeout: 20000 });
   });
 
   test("Owner's parse queues and then fails cleanly for an unknown migrator name", async ({
@@ -167,9 +171,13 @@ test.describe("POST /api/2.0/migration/init/:migratorName", () => {
     });
     expect(status).toBe(200);
 
-    const { data } = await ownerApi.migration.getMigrationStatus();
-    expect(data.response?.isCompleted).toBe(true);
-    expect(data.response?.error).toBeTruthy();
+    // The parse is accepted first and fails only once it runs, so the
+    // status has to be read until it settles.
+    await expect(async () => {
+      const { data } = await ownerApi.migration.getMigrationStatus();
+      expect(data.response?.isCompleted).toBe(true);
+      expect(data.response?.error).toBeTruthy();
+    }).toPass({ intervals: [500, 1000, 2000], timeout: 20000 });
   });
 });
 

@@ -230,23 +230,13 @@ test.describe("PUT /files/file/:id/links - links of a room file", () => {
 });
 
 test.describe("POST /files/file/:id/link - recreating a primary link after it was revoked", () => {
-  // Confirmed live in the real product UI (2026-11-03): the "create external
-  // link" button calls exactly this endpoint
-  // (POST /api/2.0/files/file/{id}/link). Once a file's primary link has
-  // ever been revoked, this endpoint permanently answers 404 for that file -
-  // matches the SDK's own doc comment ("a link that was deliberately
-  // revoked is not recreated but answered with 404"), and the same
-  // restriction exists for folders too, so this is a deliberate, consistent
-  // API design, not an accidental crash.
-  //
-  // But the UI has no fallback: clicking "create link" again after revoking
-  // one leaves the user stuck with a visible error and no way to re-share
-  // the file from the product itself. There IS a working alternative at the
-  // API level - PUT /files/file/:id/links (setFileExternalLink) with no
-  // linkId and primary:true creates a brand-new primary link successfully
-  // even after the old one was revoked - but the UI's own button doesn't
-  // use it.
-  test("BUG 84872: creating a file's primary link again after revoking it is refused with 404, with no way to recover from the UI's own button", async ({
+  // The UI's "create external link" button calls exactly this endpoint
+  // (confirmed live 2026-11-03). It used to answer 404 for good once a
+  // file's primary link had been revoked, leaving the button dead. Fixed
+  // since: the create route recreates the link and clears the revocation
+  // marker, while a read of a revoked link still refuses - that split is
+  // pinned in files.spec.ts, this test holds the UI's own path open.
+  test("BUG 84872: creating a file's primary link again after revoking it succeeds, so the UI's own button is not left dead", async ({
     apiSdk,
   }) => {
     const { ownerApi, fileId } = await roomFile(apiSdk, RoomType.CustomRoom);

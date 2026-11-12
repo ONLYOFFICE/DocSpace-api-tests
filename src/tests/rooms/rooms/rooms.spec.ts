@@ -23,6 +23,7 @@ import {
 } from "@/src/helpers/rooms";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { waitForRoomFromTemplate } from "@/src/helpers/wait-for-room-from-template";
+import { waitForRoomsSearch } from "@/src/helpers/wait-for-rooms-search";
 import { waitForRoomTemplate } from "@/src/helpers/wait-for-room-template";
 import { createTestImageBuffer } from "@/src/utils/test-image";
 
@@ -3550,11 +3551,12 @@ test.describe("API rooms methods", () => {
 
         await ownerApi.rooms.pinRoom({ id: r1 });
 
-        const { data } = await ownerApi.rooms.getRoomsFolder({
-          filterValue: marker,
-        });
+        const { data } = await waitForRoomsSearch(
+          () => ownerApi.rooms.getRoomsFolder({ filterValue: marker }),
+          ({ data: found }) =>
+            expect(found.response!.folders!.length).toBeGreaterThanOrEqual(3),
+        );
         const folders = data.response!.folders!;
-        expect(folders.length).toBeGreaterThanOrEqual(3);
         const r1Index = folders.findIndex((f) => (f as any).id === r1);
         const firstUnpinned = folders.findIndex((f) => !(f as any).pinned);
 
@@ -3851,11 +3853,16 @@ test.describe("API rooms methods", () => {
         // asserting a specific (alphabetical) place would only re-test the
         // broken title sort of BUG 81809, not the pin round-trip.
         const order = async () => {
-          const { data } = await ownerApi.rooms.getRoomsFolder({
-            filterValue: marker,
-            sortBy: "AZ",
-            sortOrder: SortOrder.Ascending,
-          });
+          const { data } = await waitForRoomsSearch(
+            () =>
+              ownerApi.rooms.getRoomsFolder({
+                filterValue: marker,
+                sortBy: "AZ",
+                sortOrder: SortOrder.Ascending,
+              }),
+            ({ data: found }) =>
+              expect(found.response!.folders!).toHaveLength(3),
+          );
           const folders = data.response!.folders!;
           return {
             ids: folders.map((f) => (f as any).id),
@@ -3864,7 +3871,6 @@ test.describe("API rooms methods", () => {
         };
 
         const before = await order();
-        expect(before.ids).toHaveLength(3);
 
         // Pinning floats Z to the top...
         await ownerApi.rooms.pinRoom({ id: z });
@@ -21016,13 +21022,14 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
       });
       const roomId = created.response!.id!;
 
-      const { data, status } = await ownerApi.rooms.getRoomsFolder({
-        filterValue: exactTitle,
-      });
+      const { data } = await waitForRoomsSearch(
+        () => ownerApi.rooms.getRoomsFolder({ filterValue: exactTitle }),
+        ({ data: found }) =>
+          expect((found.response!.folders as any[]).map((f) => f.id)).toContain(
+            roomId,
+          ),
+      );
 
-      expect(status).toBe(200);
-      const ids = (data.response!.folders as any[]).map((f) => f.id);
-      expect(ids).toContain(roomId);
       expect((data.response!.folders as any[])[0].title).toBe(exactTitle);
     });
 
@@ -21037,13 +21044,16 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
         },
       });
 
-      const { data, status } = await ownerApi.rooms.getRoomsFolder({
-        filterValue: "autotest casesensitive",
-      });
-
-      expect(status).toBe(200);
-      const titles = (data.response!.folders as any[]).map((f) => f.title);
-      expect(titles).toContain("Autotest CaseSensitive Room");
+      await waitForRoomsSearch(
+        () =>
+          ownerApi.rooms.getRoomsFolder({
+            filterValue: "autotest casesensitive",
+          }),
+        ({ data: found }) =>
+          expect(
+            (found.response!.folders as any[]).map((f) => f.title),
+          ).toContain("Autotest CaseSensitive Room"),
+      );
     });
 
     test("GET /files/rooms - filterValue with no matches returns empty folders", async ({
@@ -21090,13 +21100,22 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
         },
       });
 
-      const { data, status } = await ownerApi.rooms.getRoomsFolder({
-        filterValue: shared,
-        type: [RoomType.CustomRoom],
-      });
+      // Both rooms must be indexed first, or "narrowed down to one" could
+      // just be the Public room not having arrived yet.
+      await waitForRoomsSearch(
+        () => ownerApi.rooms.getRoomsFolder({ filterValue: shared }),
+        ({ data: found }) => expect(found.response!.folders!.length).toBe(2),
+      );
 
-      expect(status).toBe(200);
-      expect(data.response!.folders!.length).toBe(1);
+      const { data } = await waitForRoomsSearch(
+        () =>
+          ownerApi.rooms.getRoomsFolder({
+            filterValue: shared,
+            type: [RoomType.CustomRoom],
+          }),
+        ({ data: found }) => expect(found.response!.folders!.length).toBe(1),
+      );
+
       const folder = (data.response!.folders as any[])[0];
       expect(folder.title).toBe(`${shared} Custom`);
       expect(folder.roomType).toBe(RoomType.CustomRoom);
@@ -22037,19 +22056,22 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
         updateRoomRequest: { title: "Autotest Renamed Title" },
       });
 
+      // Read the new title first: finding it proves the rename reached the
+      // index, which is what makes the old title's absence meaningful.
+      await waitForRoomsSearch(
+        () => ownerApi.rooms.getRoomsFolder({ filterValue: "Renamed Title" }),
+        ({ data: found }) =>
+          expect((found.response!.folders as any[]).map((f) => f.id)).toContain(
+            roomId,
+          ),
+      );
+
       const { data: oldSearch } = await ownerApi.rooms.getRoomsFolder({
         filterValue: "Original Title",
       });
       expect(
         (oldSearch.response!.folders as any[]).map((f) => f.id),
       ).not.toContain(roomId);
-
-      const { data: newSearch, status } = await ownerApi.rooms.getRoomsFolder({
-        filterValue: "Renamed Title",
-      });
-      expect(status).toBe(200);
-      const ids = (newSearch.response!.folders as any[]).map((f) => f.id);
-      expect(ids).toContain(roomId);
     });
 
     test.fail(

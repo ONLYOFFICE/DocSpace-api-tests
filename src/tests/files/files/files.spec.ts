@@ -6539,9 +6539,15 @@ test.describe("POST /files/file/:id/link - Create primary external link", () => 
     expect(second.response!.sharedLink!.denyDownload).toBe(true);
   });
 
-  // Documented: "a link that was deliberately revoked is not recreated but
-  // answered with 404".
-  test("POST /files/file/:id/link - Revoked primary link is not recreated and answers 404", async ({
+  // Documented: "A primary link that was revoked is created anew by this
+  // call, with a new identifier, while GET api/2.0/files/file/{id}/link keeps
+  // answering such a link with 404."
+  //
+  // Revoking writes a PrimaryLinkRevoked marker: a read honours it and
+  // refuses (BUG 81807), while the create route asks for a recreate, so it
+  // makes a new link and clears the marker (BUG 84872, whose own test is in
+  // fileExternalLinks.spec.ts).
+  test("POST /files/file/:id/link - A revoked primary link is recreated with a new id, while GET keeps answering 404", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -6566,14 +6572,26 @@ test.describe("POST /files/file/:id/link - Create primary external link", () => 
 
     const { status: getStatus } =
       await ownerApi.files.getFilePrimaryExternalLink({ id: fileId });
-    const { status: createStatus } =
+    expect(getStatus).toBe(404);
+
+    const { data: recreated, status: createStatus } =
       await ownerApi.files.createFilePrimaryExternalLink({
         id: fileId,
         fileLinkRequest: { access: FileShare.Read },
       });
+    expect(createStatus).toBe(200);
+    expect(
+      recreated.response!.sharedLink!.id,
+      "the link is a new one, not the revoked link handed back",
+    ).not.toBe(created.response!.sharedLink!.id);
 
-    expect(getStatus).toBe(404);
-    expect(createStatus).toBe(404);
+    // The marker is cleared, so the reader sees the link again - the new one.
+    const { data: afterCreate, status: getAfterCreate } =
+      await ownerApi.files.getFilePrimaryExternalLink({ id: fileId });
+    expect(getAfterCreate).toBe(200);
+    expect(afterCreate.response!.sharedLink!.id).toBe(
+      recreated.response!.sharedLink!.id,
+    );
   });
 
   // Documented: "a PDF form gets the rights it needs for filling out whatever
