@@ -198,13 +198,13 @@ test.describe("PUT /people/thirdparty/linkaccount - Link a third-party account",
     expect(status).toBe(400);
   });
 
-  // BUG TBD: confirmed live - a serializedProfile that isn't valid Base64
+  // BUG 85084: confirmed live - a serializedProfile that isn't valid Base64
   // crashes with 500 ("System.FormatException: The input is not a valid
   // Base-64 string...") instead of the clean 400 a malformed request body
   // should get. A completely missing serializedProfile is handled fine
   // (400, see the test above) - only a non-empty-but-garbled one crashes.
   test.fail(
-    "BUG TBD: a non-Base64 serializedProfile crashes linkThirdPartyAccount with 500 instead of 400",
+    "BUG 85084: a non-Base64 serializedProfile crashes linkThirdPartyAccount with 500 instead of 400",
     async ({ apiSdk }) => {
       const { status } = await apiSdk
         .forRole("owner")
@@ -239,15 +239,15 @@ test.describe("POST /people/thirdparty/signup - Sign up with a provider", () => 
     expect(status).toBe(400);
   });
 
-  // BUG TBD: same root cause as the linkThirdPartyAccount crash above (both
+  // BUG 85085: same root cause as BUG 85084 (linkThirdPartyAccount) - both
   // controllers call the same ASC.FederatedLogin.Profile.LoginProfileTransport
-  // .FromTransport parser) - a non-Base64 serializedProfile crashes with 500
+  // .FromTransport parser - a non-Base64 serializedProfile crashes with 500
   // instead of 400. Confirmed this happens regardless of whether the
   // invitation key is valid or not: the profile is parsed before the key is
   // ever checked, so an invalid key never gets the chance to answer its own
   // documented 403.
   test.fail(
-    "BUG TBD: a non-Base64 serializedProfile crashes signupThirdPartyAccount with 500 instead of 400",
+    "BUG 85085: a non-Base64 serializedProfile crashes signupThirdPartyAccount with 500 instead of 400",
     async ({ apiSdk }) => {
       const { status } = await apiSdk
         .forAnonymous()
