@@ -1029,7 +1029,6 @@ test.describe("DELETE /api/2.0/files/share - Remove security info - access contr
     expect(status).toBe(403);
   });
 
-  // BUG 83262: DELETE /api/2.0/files/share - Guest can remove their own access to shared file
   test("BUG 83262: DELETE /api/2.0/files/share - Guest can remove their own access to shared file", async ({
     apiSdk,
   }) => {
@@ -1092,7 +1091,6 @@ test.describe("DELETE /api/2.0/files/share - Remove security info - access contr
     expect(status).toBe(403);
   });
 
-  // BUG 83262: DELETE /api/2.0/files/share - User with read access cannot remove shared file from own list (returns 403 instead of 200)
   test("BUG 83262: DELETE /api/2.0/files/share - User with read access removes shared file from own list returns 200", async ({
     apiSdk,
   }) => {
@@ -1122,7 +1120,6 @@ test.describe("DELETE /api/2.0/files/share - Remove security info - access contr
     expect(status).toBe(200);
   });
 
-  // BUG 83262: DELETE /api/2.0/files/share - RoomAdmin with read access cannot remove shared file from own list (returns 403 instead of 200)
   test("BUG 83262: DELETE /api/2.0/files/share - RoomAdmin with read access removes shared file from own list returns 200", async ({
     apiSdk,
   }) => {
