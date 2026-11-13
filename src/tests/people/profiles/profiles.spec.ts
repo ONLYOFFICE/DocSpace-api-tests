@@ -1634,6 +1634,102 @@ test.describe("POST /api/2.0/people/invite - Admin count limit", () => {
   );
 });
 
+test.describe("GET /people/exists - Check whether an email is taken", () => {
+  test("GET /people/exists - An address nobody holds answers exists false and no status", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .profiles.checkUserExistsByEmail({
+        email: faker.internet.email(),
+      });
+
+    expect(status).toBe(200);
+    expect(data.response!.exists).toBe(false);
+    // Left out entirely for a free address, not reported as some empty state.
+    expect(data.response!.status).toBeUndefined();
+  });
+
+  test("GET /people/exists - The address of a member answers exists true and Active", async ({
+    apiSdk,
+  }) => {
+    const { userData } = await apiSdk.addMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .profiles.checkUserExistsByEmail({
+        email: userData.email,
+      });
+
+    expect(status).toBe(200);
+    expect(data.response!.exists).toBe(true);
+    expect(data.response!.status).toBe(EmployeeStatus.Active);
+  });
+
+  test("GET /people/exists - An invited address that has not been accepted answers Pending", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const email = faker.internet.email();
+    const { status: invited } = await ownerApi.profiles.inviteUsers({
+      inviteUsersRequestDto: {
+        invitations: [{ type: EmployeeType.User, email }],
+      },
+    });
+    expect(invited).toBe(200);
+
+    const { data, status } = await ownerApi.profiles.checkUserExistsByEmail({
+      email,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.exists).toBe(true);
+    // Taken, but nobody is behind it yet - what a sign-up screen must tell
+    // apart from a working account.
+    expect(data.response!.status).toBe(EmployeeStatus.Pending);
+  });
+
+  test("GET /people/exists - A deactivated profile still holds its address and answers Terminated", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created, userData } = await apiSdk.addMember("owner", "User");
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: {
+        userIds: [created.response!.id!],
+        resendAll: false,
+      },
+    });
+
+    const { data, status } = await ownerApi.profiles.checkUserExistsByEmail({
+      email: userData.email,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.exists).toBe(true);
+    expect(data.response!.status).toBe(EmployeeStatus.Terminated);
+  });
+
+  test("GET /people/exists - A malformed address and a request without one are refused", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status: malformed } =
+      await ownerApi.profiles.checkUserExistsByEmail({
+        email: "not-an-address",
+      });
+    expect(malformed).toBe(400);
+
+    // Neither form of the address given, so there is nothing to look up.
+    const { status: missing } = await ownerApi.profiles.checkUserExistsByEmail(
+      {},
+    );
+    expect(missing).toBe(400);
+  });
+});
+
 /* TODO: - Need email integration to this methods to be able to test them properly
 DELETE /people/@self
 GET /people/tokendiagnostics

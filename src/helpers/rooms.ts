@@ -128,6 +128,10 @@ export function folderRoomTypes(data: FolderContentResponse): number[] {
   );
 }
 
+export function fileIds(data: FolderContentResponse): number[] {
+  return ((data.response?.files ?? []) as { id: number }[]).map((f) => f.id);
+}
+
 export function fileTitles(data: FolderContentResponse): string[] {
   return ((data.response?.files ?? []) as { title: string }[]).map(
     (f) => f.title,
