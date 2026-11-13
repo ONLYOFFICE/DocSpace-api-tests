@@ -74,6 +74,7 @@ import { NotificationsApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings
 import { OwnerApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/owner-api";
 import { PortalQuotaApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-quota-api";
 import { PortalSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-settings-api";
+import { ModuleEventsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/module-events-api";
 import { QuotaApi } from "@onlyoffice/docspace-api-sdk/dist/api/files/quota-api";
 import { PrivacyRoomApi } from "@onlyoffice/docspace-api-sdk/dist/api/rooms/privacy-room-api";
 import { DocsCloudApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/docs-cloud-api";
@@ -246,6 +247,7 @@ export class ApiSDK {
       apps: new AppsApi(config, undefined, axiosInstance),
       portalQuota: new PortalQuotaApi(config, undefined, axiosInstance),
       portalSettings: new PortalSettingsApi(config, undefined, axiosInstance),
+      moduleEvents: new ModuleEventsApi(config, undefined, axiosInstance),
       authentication: new AuthenticationApi(config, undefined, axiosInstance),
       tfaSettings: new TFASettingsApi(config, undefined, axiosInstance),
       webhooks: new WebhooksApi(config, undefined, axiosInstance),
@@ -375,6 +377,7 @@ export class ApiSDK {
       apps: new AppsApi(config, undefined, axiosInstance),
       portalQuota: new PortalQuotaApi(config, undefined, axiosInstance),
       portalSettings: new PortalSettingsApi(config, undefined, axiosInstance),
+      moduleEvents: new ModuleEventsApi(config, undefined, axiosInstance),
       payment: new SdkPaymentApi(config, undefined, axiosInstance),
       authentication: new AuthenticationApi(config, undefined, axiosInstance),
       capabilities: new CapabilitiesApi(config, undefined, axiosInstance),

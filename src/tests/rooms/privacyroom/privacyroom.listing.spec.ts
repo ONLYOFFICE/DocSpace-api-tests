@@ -142,3 +142,55 @@ test.describe("GET /files/rooms - privacyFilter", () => {
     expect(await listRooms(m1.api, RoomPrivacyFilter.Private)).toEqual([]);
   });
 });
+
+/** The dedicated private rooms section. */
+test.describe("GET /files/@private - The private rooms section", () => {
+  async function listPrivateSection(api: Api) {
+    const { data, status } = await api.folders.getPrivateRoomsFolder({});
+    expect(status).toBe(200);
+    return data;
+  }
+
+  test("GET /files/@private - Lists the caller's private rooms and leaves the ordinary ones out", async ({
+    apiSdk,
+  }) => {
+    const owner = apiSdk.forRole("owner");
+    const privateId = await createOwnerPrivateRoom(apiSdk);
+    const plainId = await createPlainRoom(
+      owner,
+      "Autotest plain " + apiSdk.faker.generateString(6),
+    );
+
+    const data = await listPrivateSection(owner);
+
+    const rooms = (data.response!.folders ?? []) as FolderDto[];
+    expect(rooms.map((r) => r.id)).toEqual([privateId]);
+    expect(rooms[0].private).toBe(true);
+    expect(rooms.map((r) => r.id)).not.toContain(plainId);
+    // The section holds rooms, not their content.
+    expect(data.response!.files ?? []).toEqual([]);
+    expect(data.response!.current?.id).toBeDefined();
+    expect(data.response!.total).toBe(1);
+  });
+
+  test("GET /files/@private - A member sees a room here only after being invited", async ({
+    apiSdk,
+  }) => {
+    const owner = apiSdk.forRole("owner");
+    const [m1] = await addKeyedMembers(apiSdk, 1);
+    const roomId = await createOwnerPrivateRoom(apiSdk);
+
+    expect((await listPrivateSection(m1.api)).response!.folders ?? []).toEqual(
+      [],
+    );
+
+    expect(
+      (await inviteToRoom(owner, roomId, m1.id, FileShare.Read)).status,
+    ).toBe(200);
+
+    const data = await listPrivateSection(m1.api);
+    expect(
+      ((data.response!.folders ?? []) as FolderDto[]).map((r) => r.id),
+    ).toEqual([roomId]);
+  });
+});
