@@ -3179,26 +3179,24 @@ test.describe("PUT /api/2.0/files/settings/defaulttemplate - Validation", () => 
 });
 
 test.describe("POST /api/2.0/files/settings/defaulttemplate - Upload default template", () => {
-  // BUG 79837: POST /api/2.0/files/settings/defaulttemplate - Uploading template larger than 100 MB returns 400 without error message in response body
-  test(
-    "BUG 79837: POST /api/2.0/files/settings/defaulttemplate - Uploading template larger than" +
-      " 100 MB returns 400 with error message",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const fileSizeBytes = 101 * 1024 * 1024;
-      const file = new File([new Uint8Array(fileSizeBytes)], "template.docx", {
-        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      });
-      const { data, status } =
-        await ownerApi.filesSettings.uploadDefaultTemplate({
-          fileExtension: ".docx",
-          file,
-        });
-      expect(status).toBe(400);
-      expect((data as any).error).toBeDefined();
-      expect((data as any).error).not.toBe("");
-    },
-  );
+  test("BUG 79837: POST /api/2.0/files/settings/defaulttemplate - Uploading template larger than 100 MB returns 400 with error message", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const fileSizeBytes = 101 * 1024 * 1024;
+    const file = new File([new Uint8Array(fileSizeBytes)], "template.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+    const { data, status } = await ownerApi.filesSettings.uploadDefaultTemplate(
+      {
+        fileExtension: ".docx",
+        file,
+      },
+    );
+    expect(status).toBe(400);
+    expect((data as any).error).toBeDefined();
+    expect((data as any).error).not.toBe("");
+  });
 
   test("BUG 79975: POST /api/2.0/files/settings/defaulttemplate - Uploading .pdf file as .docx template returns 400", async ({
     apiSdk,
