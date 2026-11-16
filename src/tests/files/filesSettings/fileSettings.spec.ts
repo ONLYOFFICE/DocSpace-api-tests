@@ -1,7 +1,12 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { DateToAutoCleanUp, FileShare } from "@onlyoffice/docspace-api-sdk";
+import {
+  DateToAutoCleanUp,
+  DefaultTemplateItemDto,
+  FileShare,
+} from "@onlyoffice/docspace-api-sdk";
 import config from "@/config";
+import { ApiSDK } from "@/src/services/api-sdk";
 
 test.describe("PUT /api/2.0/files/thirdparty - Change third-party settings access", () => {
   test("PUT /api/2.0/files/thirdparty - Owner enables third-party access", async ({
@@ -3238,5 +3243,142 @@ test.describe("POST /api/2.0/files/settings/defaulttemplate - Upload default tem
       file,
     });
     expect(status).toBe(400);
+  });
+});
+
+/**
+ * The blank document the portal creates for each format. Until now this
+ * feature was described only by its refusals - every assertion in the two
+ * describes above is a 400 or a 404 - so nothing here had ever been seen to
+ * work. These cover the way through: choose a blank, read it back, drop it.
+ *
+ * Reading it back matters more than it looks. The PUT and the DELETE both
+ * answer with the whole set as it now stands, so their answers alone cannot
+ * tell a stored setting from an echo.
+ */
+test.describe("GET and DELETE /api/2.0/files/settings/defaulttemplate", () => {
+  const DOCX = ".docx";
+
+  /** Creates a .docx and makes it the portal's blank for that extension. */
+  async function blankFromNewFile(apiSdk: ApiSDK, title: string) {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileRequest: { title },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.filesSettings.setDefaultTemplate({
+      defaultTemplateSettingsRequestDto: {
+        selectedFile: fileId,
+        fileExtension: DOCX,
+      },
+    });
+    expect(status).toBe(200);
+
+    return { fileId, items: data.response!.items! };
+  }
+
+  function entryFor(items: DefaultTemplateItemDto[], extension: string) {
+    const entry = items.find((item) => item.fileExtension === extension);
+    expect(entry, JSON.stringify(items)).toBeDefined();
+    return entry!;
+  }
+
+  test("GET /api/2.0/files/settings/defaulttemplate - A fresh portal uses the built-in blank for every extension", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getDefaultTemplates();
+
+    expect(status).toBe(200);
+    const items = data.response!.items!;
+    expect(items.length).toBeGreaterThan(0);
+
+    // Nothing has been chosen on this portal, so every extension still starts
+    // from the portal's own blank, which is what a null `selectedFile` says.
+    const withCustomBlank = items.filter((item) => item.selectedFile);
+    expect(withCustomBlank.map((item) => item.fileExtension)).toEqual([]);
+  });
+
+  test("GET /api/2.0/files/settings/defaulttemplate - A chosen blank is still there when the setting is read back", async ({
+    apiSdk,
+  }) => {
+    const sourceTitle = "Autotest Default Template Source.docx";
+    const { fileId, items } = await blankFromNewFile(apiSdk, sourceTitle);
+    const ownerApi = apiSdk.forRole("owner");
+
+    const justSet = entryFor(items, DOCX);
+    expect(justSet.selectedFile).toBeTruthy();
+    // The blank is a copy taken into the portal's template storage, not the
+    // document that was chosen, so it carries an identifier of its own.
+    expect(justSet.selectedFile).not.toBe(fileId);
+
+    // The half that was missing: the answer to the PUT could be right while
+    // nothing was stored.
+    const { data: reread, status } =
+      await ownerApi.filesSettings.getDefaultTemplates();
+
+    expect(status).toBe(200);
+    const stored = entryFor(reread.response!.items!, DOCX);
+    expect(stored.selectedFile).toBe(justSet.selectedFile);
+    expect(stored.fileTitle).toBe(sourceTitle);
+
+    await test.step("the document that was chosen can change without the blank following it", async () => {
+      const { status: renameStatus } = await ownerApi.files.updateFile({
+        fileId,
+        updateFileRequest: {
+          title: "Autotest Renamed Away From Template.docx",
+        },
+      });
+      expect(renameStatus).toBe(200);
+
+      // What makes the copy worth having: new documents keep starting from
+      // the blank as it was taken, whatever becomes of the original.
+      const { data: afterRename } =
+        await ownerApi.filesSettings.getDefaultTemplates();
+      const entry = entryFor(afterRename.response!.items!, DOCX);
+      expect(entry.fileTitle).toBe(sourceTitle);
+      expect(entry.selectedFile).toBe(justSet.selectedFile);
+    });
+  });
+
+  test("DELETE /api/2.0/files/settings/defaulttemplate - Resetting puts the extension back on the built-in blank", async ({
+    apiSdk,
+  }) => {
+    await blankFromNewFile(apiSdk, "Autotest Default Template To Reset.docx");
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.filesSettings.resetDefaultTemplate({
+      defaultTemplateSettingsResetRequestDto: { fileExtension: DOCX },
+    });
+
+    expect(status).toBe(200);
+    expect(
+      entryFor(data.response!.items!, DOCX).selectedFile ?? null,
+    ).toBeNull();
+
+    const { data: reread } = await ownerApi.filesSettings.getDefaultTemplates();
+    expect(
+      entryFor(reread.response!.items!, DOCX).selectedFile ?? null,
+    ).toBeNull();
+  });
+
+  test("DELETE /api/2.0/files/settings/defaulttemplate - Resetting an extension that has no custom blank changes nothing", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: before } = await ownerApi.filesSettings.getDefaultTemplates();
+
+    const { data, status } = await ownerApi.filesSettings.resetDefaultTemplate({
+      defaultTemplateSettingsResetRequestDto: { fileExtension: DOCX },
+    });
+
+    // Resetting what was never set is accepted rather than refused, which is
+    // what makes a repeated reset safe to send.
+    expect(status).toBe(200);
+    expect(data.response!.items).toEqual(before.response!.items);
   });
 });

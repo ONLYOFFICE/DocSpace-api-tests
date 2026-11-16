@@ -1,6 +1,10 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { RoomType } from "@onlyoffice/docspace-api-sdk";
+import {
+  DistributedTaskStatus,
+  DocumentBuilderTaskDto,
+  RoomType,
+} from "@onlyoffice/docspace-api-sdk";
 
 test.describe("POST /api/2.0/security/audit/events/report", () => {
   test("POST /api/2.0/security/audit/events/report - Owner generates audit trail report", async ({
@@ -36,6 +40,168 @@ test.describe("POST /api/2.0/security/audit/events/report", () => {
     expect(data.response).toBeDefined();
     expect(typeof (data.response as any).id).toBe("string");
     expect((data.response as any).id.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * The half of the audit trail report that happens after the POST. The POST
+ * only queues a build and hands back a job id, so everything the feature is
+ * for - the file being written, the job being cancelled, one administrator's
+ * report staying out of another's status - lives behind these two operations.
+ *
+ * Jobs are kept per caller and per report kind, which is why every check for
+ * an empty status is paired with a positive control: without one, "nothing
+ * here" is indistinguishable from "nothing was ever started".
+ */
+test.describe("GET /api/2.0/security/audit/events/report", () => {
+  test("GET /api/2.0/security/audit/events/report - The report is built and its file lands in the caller's documents", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status: createStatus } =
+      await ownerApi.auditTrail.createAuditTrailReport();
+    expect(createStatus).toBe(200);
+
+    let finished: DocumentBuilderTaskDto | undefined;
+    await expect(async () => {
+      const { data, status } = await ownerApi.auditTrail.getAuditTrailReport();
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.isCompleted).toBe(true);
+      finished = data.response!;
+    }).toPass({ intervals: [500, 1_000, 2_000, 5_000], timeout: 120_000 });
+
+    expect(finished!.error).toBeFalsy();
+    expect(finished!.percentage).toBe(100);
+    expect(finished!.resultFileName).toMatch(/\.xlsx$/);
+
+    // The status claims a file was written. This is the only check that the
+    // file is really there and carries the name the status promised.
+    const { data: file, status: fileStatus } = await ownerApi.files.getFileInfo(
+      { fileId: finished!.resultFileId },
+    );
+    expect(fileStatus).toBe(200);
+    expect(file.response!.title).toBe(finished!.resultFileName);
+  });
+
+  test("GET /api/2.0/security/audit/events/report - A caller with no report gets an empty answer", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .auditTrail.getAuditTrailReport();
+
+    expect(status).toBe(200);
+    // Nothing was started on this portal, and the absence is reported as an
+    // empty answer rather than as an error.
+    expect(data.response ?? null).toBeNull();
+  });
+
+  test("GET /api/2.0/security/audit/events/report - One administrator's report is not visible to another", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { status: createStatus } =
+      await adminApi.auditTrail.createAuditTrailReport();
+    expect(createStatus).toBe(200);
+
+    // The owner may read every audit event of the portal, and still somebody
+    // else's report is not theirs to see.
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .auditTrail.getAuditTrailReport();
+    expect(status).toBe(200);
+    expect(data.response ?? null).toBeNull();
+
+    await test.step("while the administrator who started it still sees it", async () => {
+      const { data: own } = await adminApi.auditTrail.getAuditTrailReport();
+      expect(own.response).toBeDefined();
+    });
+  });
+});
+
+test.describe("DELETE /api/2.0/security/audit/events/report", () => {
+  test("DELETE /api/2.0/security/audit/events/report - Cancelling after the report was built leaves its file alone", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.auditTrail.createAuditTrailReport();
+
+    let built: DocumentBuilderTaskDto | undefined;
+    await expect(async () => {
+      const { data } = await ownerApi.auditTrail.getAuditTrailReport();
+      expect(data.response).toBeDefined();
+      expect(data.response!.status).toBe(DistributedTaskStatus.Completed);
+      built = data.response!;
+    }).toPass({ intervals: [500, 1_000, 2_000, 5_000], timeout: 120_000 });
+
+    const { status } = await ownerApi.auditTrail.terminateAuditTrailReport();
+    expect(status).toBe(200);
+
+    // Cancelling is aimed at a build in progress. A report that is already
+    // written is a file in the caller's documents like any other, and
+    // cancelling must not reach back and take it away.
+    const { data: file, status: fileStatus } = await ownerApi.files.getFileInfo(
+      { fileId: built!.resultFileId },
+    );
+    expect(fileStatus).toBe(200);
+    expect(file.response!.title).toBe(built!.resultFileName);
+  });
+
+  test("DELETE /api/2.0/security/audit/events/report - A cancelled report is eventually gone from the status", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.auditTrail.createAuditTrailReport();
+
+    const { status } = await ownerApi.auditTrail.terminateAuditTrailReport();
+    expect(status).toBe(200);
+
+    // How long this takes depends on a race that cannot be steered from here,
+    // and both of its outcomes end the same way, which is what makes the wait
+    // safe to assert. A cancel that arrives before the build starts takes the
+    // job straight out of the queue and the status is empty at once; a cancel
+    // that catches a running build leaves the job behind in Canceled, because
+    // it republishes its final state, and the queue drops it about a minute
+    // later - measured at roughly 70 seconds, which is the queue's own minute
+    // plus its ten-second sweep. The generous timeout is the point of this
+    // test: shortening it to the bare minute brings back a job that is still
+    // there and a failure that has nothing to do with the product.
+    await expect(async () => {
+      const { data } = await ownerApi.auditTrail.getAuditTrailReport();
+      expect(data.response ?? null).toBeNull();
+    }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 150_000 });
+  });
+
+  test("DELETE /api/2.0/security/audit/events/report - Cancelling when nothing is running is not an error", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const { status } = await apiSdk
+      .forRole("owner")
+      .auditTrail.terminateAuditTrailReport();
+
+    expect(status).toBe(200);
   });
 });
 
