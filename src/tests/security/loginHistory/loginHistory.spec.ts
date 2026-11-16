@@ -1,6 +1,9 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { MessageAction } from "@onlyoffice/docspace-api-sdk";
+import {
+  DocumentBuilderTaskDto,
+  MessageAction,
+} from "@onlyoffice/docspace-api-sdk";
 
 test.describe("POST /api/2.0/security/audit/login/report", () => {
   test("POST /api/2.0/security/audit/login/report - Owner creates login history report", async ({
@@ -34,6 +37,68 @@ test.describe("POST /api/2.0/security/audit/login/report", () => {
     expect(data.response).toBeDefined();
     expect(typeof (data.response as any).id).toBe("string");
     expect((data.response as any).id.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * The login history report after the POST has queued it. The build itself is
+ * a different job from the audit trail one, so it is checked here on its own
+ * rather than taken on trust from the audit trail tests; what those do not
+ * cover at all is that the two kinds never stand in for each other.
+ */
+test.describe("GET /api/2.0/security/audit/login/report", () => {
+  test("GET /api/2.0/security/audit/login/report - The report is built and its file lands in the caller's documents", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status: createStatus } =
+      await ownerApi.loginHistory.createLoginHistoryReport();
+    expect(createStatus).toBe(200);
+
+    let finished: DocumentBuilderTaskDto | undefined;
+    await expect(async () => {
+      const { data, status } =
+        await ownerApi.loginHistory.getLoginHistoryReport();
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.isCompleted).toBe(true);
+      finished = data.response!;
+    }).toPass({ intervals: [500, 1_000, 2_000, 5_000], timeout: 120_000 });
+
+    expect(finished!.error).toBeFalsy();
+    expect(finished!.percentage).toBe(100);
+    expect(finished!.resultFileName).toMatch(/\.xlsx$/);
+
+    const { data: file, status: fileStatus } = await ownerApi.files.getFileInfo(
+      { fileId: finished!.resultFileId },
+    );
+    expect(fileStatus).toBe(200);
+    expect(file.response!.title).toBe(finished!.resultFileName);
+  });
+
+  test("GET /api/2.0/security/audit/login/report - A login history report is not reported as the audit trail one", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status: createStatus } =
+      await ownerApi.loginHistory.createLoginHistoryReport();
+    expect(createStatus).toBe(200);
+
+    const { data: login } = await ownerApi.loginHistory.getLoginHistoryReport();
+    expect(login.response).toBeDefined();
+
+    // Jobs are kept per caller and per kind. Were they not, one report would
+    // be read as the other and a stale status would pass for a current one.
+    const { data: audit, status } =
+      await ownerApi.auditTrail.getAuditTrailReport();
+    expect(status).toBe(200);
+    expect(audit.response ?? null).toBeNull();
   });
 });
 

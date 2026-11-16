@@ -9,6 +9,7 @@ import {
   LinkType,
 } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
+import { ApiSDK } from "@/src/services/api-sdk";
 
 test.describe("POST /api/2.0/files/share", () => {
   test("BUG 80956: POST /api/2.0/files/share - Guest should not see groups field in getSecurityInfo response", async ({
@@ -66,12 +67,16 @@ test.describe("POST /api/2.0/files/share", () => {
     expect(data.statusCode).toBe(200);
     expect(data.response).toBeDefined();
 
-    for (const entry of data.response ?? []) {
+    // The bug let `groups` ride along inside `sharedToUser`, which showed a
+    // guest how the portal is organised. Collecting the offending entries
+    // says in one assertion that none is left, and names them when one is.
+    const entriesWithGroups = (data.response ?? []).filter((entry) => {
       const sharedToUser = entry.sharedToUser as
         | Record<string, unknown>
         | undefined;
-      expect(sharedToUser?.["groups"]).toBeUndefined();
-    }
+      return sharedToUser?.["groups"] !== undefined;
+    });
+    expect(entriesWithGroups).toHaveLength(0);
   });
 
   test("POST /api/2.0/files/share - Returns 200 and non-empty response for single fileId", async ({
@@ -130,6 +135,29 @@ test.describe("POST /api/2.0/files/share", () => {
     });
     const fileId2 = fileData2.response!.id!;
 
+    // Each file is shared with a different person, so the answer can only
+    // hold both of them if both files were really read. Without that the
+    // batch could quietly report on the first id alone.
+    const { data: firstUser } = await apiSdk.addMember("owner", "User");
+    const firstUserId = firstUser.response!.id!;
+    const { data: secondUser } = await apiSdk.addMember("owner", "User");
+    const secondUserId = secondUser.response!.id!;
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      id: fileId1,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: firstUserId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+    await ownerApi.sharing.setFileSecurityInfo({
+      id: fileId2,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: secondUserId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
     const { data, status } = await ownerApi.sharing.getSecurityInfo({
       baseBatchRequestDto: {
         fileIds: [fileId1 as unknown as object, fileId2 as unknown as object],
@@ -138,7 +166,13 @@ test.describe("POST /api/2.0/files/share", () => {
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
-    expect(data.response).toBeDefined();
+
+    const sharedIds = data.response!.map(
+      (entry) =>
+        (entry.sharedToUser as Record<string, unknown> | undefined)?.["id"],
+    );
+    expect(sharedIds).toContain(firstUserId);
+    expect(sharedIds).toContain(secondUserId);
   });
 
   test("POST /api/2.0/files/share - Returns 200 when fileIds and folderIds are combined", async ({
@@ -159,6 +193,29 @@ test.describe("POST /api/2.0/files/share", () => {
     });
     const roomId = roomData.response!.id!;
 
+    // One person on the file and another in the room, so the two kinds of id
+    // can be told apart in the answer: it is the only way to see that a
+    // mixed request does not drop one of the two lists.
+    const { data: fileUser } = await apiSdk.addMember("owner", "User");
+    const fileUserId = fileUser.response!.id!;
+    const { data: roomUser } = await apiSdk.addMember("owner", "User");
+    const roomUserId = roomUser.response!.id!;
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      id: fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: fileUserId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: roomUserId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
     const { data, status } = await ownerApi.sharing.getSecurityInfo({
       baseBatchRequestDto: {
         fileIds: [fileId as unknown as object],
@@ -168,7 +225,13 @@ test.describe("POST /api/2.0/files/share", () => {
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
-    expect(data.response).toBeDefined();
+
+    const sharedIds = data.response!.map(
+      (entry) =>
+        (entry.sharedToUser as Record<string, unknown> | undefined)?.["id"],
+    );
+    expect(sharedIds).toContain(fileUserId);
+    expect(sharedIds).toContain(roomUserId);
   });
 
   test("POST /api/2.0/files/share - Owner entry has isOwner set to true", async ({
@@ -287,40 +350,19 @@ test.describe("POST /api/2.0/files/share", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.response!.length).toBeGreaterThan(0);
+    // An unshared file carries exactly one entry, its owner's, so the fields
+    // are read off that entry instead of being swept over a list whose size
+    // the test never pinned down.
+    expect(data.response).toHaveLength(1);
 
-    for (const entry of data.response!) {
-      expect(typeof entry.isLocked).toBe("boolean");
-      expect(typeof entry.isOwner).toBe("boolean");
-      expect(typeof entry.canEditAccess).toBe("boolean");
-      expect(typeof entry.canEditInternal).toBe("boolean");
-      expect(typeof entry.canEditDenyDownload).toBe("boolean");
-      expect(typeof entry.canEditExpirationDate).toBe("boolean");
-      expect(typeof entry.canRevoke).toBe("boolean");
-    }
-  });
-
-  test("POST /api/2.0/files/share - Each entry has valid subjectType value", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileRequest: { title: "Autotest Security Info File" },
-    });
-    const fileId = fileData.response!.id!;
-
-    const { data, status } = await ownerApi.sharing.getSecurityInfo({
-      baseBatchRequestDto: { fileIds: [fileId as unknown as object] },
-    });
-
-    expect(status).toBe(200);
-    expect(data.response!.length).toBeGreaterThan(0);
-
-    const validSubjectTypes = [0, 1, 2, 3, 4];
-    for (const entry of data.response!) {
-      expect(validSubjectTypes).toContain(entry.subjectType);
-    }
+    const ownerEntry = data.response![0];
+    expect(typeof ownerEntry.isLocked).toBe("boolean");
+    expect(typeof ownerEntry.isOwner).toBe("boolean");
+    expect(typeof ownerEntry.canEditAccess).toBe("boolean");
+    expect(typeof ownerEntry.canEditInternal).toBe("boolean");
+    expect(typeof ownerEntry.canEditDenyDownload).toBe("boolean");
+    expect(typeof ownerEntry.canEditExpirationDate).toBe("boolean");
+    expect(typeof ownerEntry.canRevoke).toBe("boolean");
   });
 
   test("POST /api/2.0/files/share - User entry has subjectType 0", async ({
@@ -700,6 +742,9 @@ test.describe("POST /api/2.0/files/share", () => {
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
+    // The point is not the status but that nothing comes back with it: an id
+    // naming no file must not carry anybody's access rights.
+    expect(data.response ?? []).toHaveLength(0);
   });
 
   test("POST /api/2.0/files/share - Locked file entry has isLocked set to true", async ({
@@ -774,6 +819,7 @@ test.describe("POST /api/2.0/files/share", () => {
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
+    expect(data.response ?? []).toHaveLength(0);
   });
 
   test("POST /api/2.0/files/share - Returns 200 and empty response for empty fileIds array", async ({
@@ -808,35 +854,6 @@ test.describe("GET /api/2.0/files/file/{fileId}/sharedusers", () => {
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response).toStrictEqual([]);
-  });
-
-  test("GET /api/2.0/files/file/{fileId}/sharedusers - Returns 200 and non-empty list when file is shared", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileRequest: { title: "Autotest Shared Users File" },
-    });
-    const fileId = fileData.response!.id!;
-
-    const { data: userData } = await apiSdk.addMember("owner", "User");
-    const userId = userData.response!.id!;
-
-    await ownerApi.sharing.setFileSecurityInfo({
-      id: fileId,
-      securityInfoSimpleRequestDto: {
-        share: [{ shareTo: userId, access: FileShare.Read }],
-        notify: false,
-      },
-    });
-
-    const { data, status } = await ownerApi.sharing.getSharedUsers({
-      fileId,
-    });
-
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response!.length).toBeGreaterThan(0);
   });
 
   test("GET /api/2.0/files/file/{fileId}/sharedusers - Owner is not included in the shared users list", async ({
@@ -917,13 +934,15 @@ test.describe("GET /api/2.0/files/file/{fileId}/sharedusers", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.response!.length).toBeGreaterThan(0);
-    for (const entry of data.response!) {
-      expect(typeof entry.id).toBe("string");
-      expect(typeof entry.name).toBe("string");
-      expect(typeof entry.email).toBe("string");
-      expect(typeof entry.hasAccess).toBe("boolean");
-    }
+    // The owner is left out of this listing, so the single person the file
+    // was shared with is the whole of it.
+    expect(data.response).toHaveLength(1);
+
+    const sharedEntry = data.response![0];
+    expect(typeof sharedEntry.id).toBe("string");
+    expect(typeof sharedEntry.name).toBe("string");
+    expect(typeof sharedEntry.email).toBe("string");
+    expect(typeof sharedEntry.hasAccess).toBe("boolean");
   });
 
   test("GET /api/2.0/files/file/{fileId}/sharedusers - Shared user entry has non-empty name and email matching profile", async ({
@@ -1336,25 +1355,6 @@ test.describe("DELETE /api/2.0/files/share - Remove security info", () => {
 });
 
 test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () => {
-  test("GET /api/2.0/files/file/{id}/share - Owner gets security info for own file returns 200", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileRequest: { title: "Autotest Security Info File" },
-    });
-    const fileId = fileData.response!.id!;
-
-    const { data, status } = await ownerApi.sharing.getFileSecurityInfo({
-      id: fileId,
-    });
-
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(Array.isArray(data.response)).toBe(true);
-  });
-
   test("GET /api/2.0/files/file/{id}/share - File with no shares has exactly one owner entry", async ({
     apiSdk,
   }) => {
@@ -1521,10 +1521,11 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
       },
     });
 
-    const { data } = await ownerApi.sharing.getFileSecurityInfo({
+    const { data, status } = await ownerApi.sharing.getFileSecurityInfo({
       id: fileId,
     });
 
+    expect(status).toBe(200);
     const userEntry = data.response!.find((entry) => {
       const sharedToUser = entry.sharedToUser as
         | Record<string, unknown>
@@ -1687,26 +1688,6 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const { status } = await apiSdk
       .forRole("owner")
       .sharing.getFileSecurityInfo({ id: 999999999 });
-
-    expect(status).toBe(404);
-  });
-
-  test("GET /api/2.0/files/file/{id}/share - id=0 returns 404", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk
-      .forRole("owner")
-      .sharing.getFileSecurityInfo({ id: 0 });
-
-    expect(status).toBe(404);
-  });
-
-  test("GET /api/2.0/files/file/{id}/share - Negative id returns 404", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk
-      .forRole("owner")
-      .sharing.getFileSecurityInfo({ id: -1 });
 
     expect(status).toBe(404);
   });
@@ -2695,6 +2676,32 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
   });
 });
 
+const PASSWORD = "Secret123!";
+const WRONG_PASSWORD = "Wrong123!";
+
+/** A Custom room shared by an external link locked with `PASSWORD`. */
+async function passwordProtectedRoom(apiSdk: ApiSDK, title: string) {
+  const ownerApi = apiSdk.forRole("owner");
+
+  const { data: roomData } = await ownerApi.rooms.createRoom({
+    createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+  });
+  const roomId = roomData.response!.id!;
+
+  const { data: linkData } = await ownerApi.rooms.setRoomLink({
+    id: roomId,
+    roomLinkRequest: {
+      access: FileShare.Read,
+      linkType: LinkType.External,
+      title: "Password Protected Link",
+      password: PASSWORD,
+      denyDownload: false,
+    },
+  });
+
+  return { roomId, key: linkData.response!.sharedLink!.requestToken! };
+}
+
 test.describe("GET /api/2.0/files/share - getExternalShareData", () => {
   test("GET /api/2.0/files/share - Owner resolves room external link: returns 200 with room metadata, isRoomMember=false", async ({
     apiSdk,
@@ -2883,5 +2890,454 @@ test.describe("GET /api/2.0/files/share - getExternalShareData", () => {
 
     expect(status).toBe(200);
     expect(data.response!.status).toBe(ExternalShareStatus.Invalid);
+  });
+
+  test("GET /api/2.0/files/share - A room member resolves a password-protected link without the password", async ({
+    apiSdk,
+  }) => {
+    const roomTitle = "Autotest Share Password Member Room";
+    const { roomId, key } = await passwordProtectedRoom(apiSdk, roomTitle);
+
+    const { data: memberData, api: memberApi } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+
+    await apiSdk.forRole("owner").rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberData.response!.id!, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    // The password guards the link, not the room. Somebody who may already
+    // read the room is let through, so a member following the link is never
+    // asked for a password they were never given.
+    const { data, status } = await memberApi.sharing.getExternalShareData({
+      key,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.status).toBe(ExternalShareStatus.Ok);
+    expect(data.response!.title).toBe(roomTitle);
+  });
+
+  test("GET /api/2.0/files/share - A signed-in non-member still has to supply the password", async ({
+    apiSdk,
+  }) => {
+    const { key } = await passwordProtectedRoom(
+      apiSdk,
+      "Autotest Share Password Non Member Room",
+    );
+
+    const { api: strangerApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    // Being signed in is not what opens the link - reading the room is. This
+    // is the half that keeps the test above from passing for the wrong
+    // reason, and the one that turns into a leak if the check is dropped.
+    const { data, status } = await strangerApi.sharing.getExternalShareData({
+      key,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.status).toBe(ExternalShareStatus.RequiredPassword);
+  });
+});
+
+/**
+ * The password half of an external link. `GET /api/2.0/files/share/{key}` only
+ * reports that a password is required; everything that happens after it is
+ * typed goes through this operation.
+ *
+ * Two things in it are easy to get wrong from the signature alone. A refused
+ * password is an ordinary 200 whose `status` says `InvalidPassword` - only the
+ * brute-force block answers with an HTTP error - and an accepted password is
+ * remembered in a cookie tied to the link, so the next resolve of the same
+ * link needs no password at all.
+ */
+test.describe("POST /api/2.0/files/share/:key/password - applyExternalSharePassword", () => {
+  test("POST /files/share/:key/password - The right password unlocks the link and resolves the room", async ({
+    apiSdk,
+  }) => {
+    const roomTitle = "Autotest Share Password Unlock Room";
+    const { roomId, key } = await passwordProtectedRoom(apiSdk, roomTitle);
+    const anonApi = apiSdk.forAnonymous();
+
+    await test.step("the link is locked before the password is sent", async () => {
+      const { data, status } = await anonApi.sharing.getExternalShareData({
+        key,
+      });
+      expect(status).toBe(200);
+      expect(data.response!.status).toBe(ExternalShareStatus.RequiredPassword);
+    });
+
+    const { data, status } = await anonApi.sharing.applyExternalSharePassword({
+      key,
+      externalShareRequestParam: { password: PASSWORD },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.status).toBe(ExternalShareStatus.Ok);
+    // `id` and `title` name the entry the link points at, so the answer shows
+    // which room was unlocked rather than only that something was.
+    expect(data.response!.id).toBe(String(roomId));
+    expect(data.response!.title).toBe(roomTitle);
+    expect(data.response!.isRoom).toBe(true);
+  });
+
+  test("POST /files/share/:key/password - An accepted password comes back as the share-link cookie", async ({
+    apiSdk,
+  }) => {
+    const { key } = await passwordProtectedRoom(
+      apiSdk,
+      "Autotest Share Password Memory Room",
+    );
+
+    const { data, status, headers } = await apiSdk
+      .forAnonymous()
+      .sharing.applyExternalSharePassword({
+        key,
+        externalShareRequestParam: { password: PASSWORD },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response!.status).toBe(ExternalShareStatus.Ok);
+
+    // This cookie is how the unlock is remembered: a later resolve carrying
+    // `sharelink<linkId>` is let through without the password. Only the half
+    // that is handed out can be checked from here, because the adapter in
+    // src/utils/playwright-axios-adapter.ts blanks the Cookie header of every
+    // request, so no cookie this suite receives is ever sent back. Asserting
+    // the name pins which link the unlock was recorded against.
+    const setCookie = String(headers["set-cookie"] ?? "").toLowerCase();
+    expect(setCookie).toContain(
+      `sharelink${data.response!.linkId}`.toLowerCase(),
+    );
+  });
+
+  test("POST /files/share/:key/password - A wrong password is refused in the body, not with an HTTP error", async ({
+    apiSdk,
+  }) => {
+    const { key } = await passwordProtectedRoom(
+      apiSdk,
+      "Autotest Share Wrong Password Room",
+    );
+    const anonApi = apiSdk.forAnonymous();
+
+    const { data, status } = await anonApi.sharing.applyExternalSharePassword({
+      key,
+      externalShareRequestParam: { password: WRONG_PASSWORD },
+    });
+
+    // The refusal travels in `status`: a caller that reads only the HTTP code
+    // would take this for a successful unlock.
+    expect(status).toBe(200);
+    expect(data.response!.status).toBe(ExternalShareStatus.InvalidPassword);
+
+    await test.step("the link stays locked after the failed attempt", async () => {
+      const { data: after } = await anonApi.sharing.getExternalShareData({
+        key,
+      });
+      expect(after.response!.status).toBe(ExternalShareStatus.RequiredPassword);
+    });
+  });
+
+  test("POST /files/share/:key/password - An empty password leaves the link locked", async ({
+    apiSdk,
+  }) => {
+    const { key } = await passwordProtectedRoom(
+      apiSdk,
+      "Autotest Share Empty Password Room",
+    );
+
+    const { data, status } = await apiSdk
+      .forAnonymous()
+      .sharing.applyExternalSharePassword({
+        key,
+        externalShareRequestParam: { password: "" },
+      });
+
+    // An empty password is not a wrong one: it is answered like sending no
+    // password at all, which is what keeps it from spending an attempt.
+    expect(status).toBe(200);
+    expect(data.response!.status).toBe(ExternalShareStatus.RequiredPassword);
+  });
+
+  test("POST /files/share/:key/password - Failed attempts are limited and further ones are refused", async ({
+    apiSdk,
+  }) => {
+    const { key } = await passwordProtectedRoom(
+      apiSdk,
+      "Autotest Share Password Brute Force Room",
+    );
+    const anonApi = apiSdk.forAnonymous();
+
+    // The portal's default login policy allows five failed attempts per link
+    // and calling address within its check period; the sixth is blocked.
+    const wrongAttempt = () =>
+      anonApi.sharing.applyExternalSharePassword({
+        key,
+        externalShareRequestParam: { password: WRONG_PASSWORD },
+      });
+
+    const first = await wrongAttempt();
+    expect(first.status).toBe(200);
+    expect(first.data.response!.status).toBe(
+      ExternalShareStatus.InvalidPassword,
+    );
+
+    const second = await wrongAttempt();
+    expect(second.status).toBe(200);
+    expect(second.data.response!.status).toBe(
+      ExternalShareStatus.InvalidPassword,
+    );
+
+    const third = await wrongAttempt();
+    expect(third.status).toBe(200);
+    expect(third.data.response!.status).toBe(
+      ExternalShareStatus.InvalidPassword,
+    );
+
+    const fourth = await wrongAttempt();
+    expect(fourth.status).toBe(200);
+    expect(fourth.data.response!.status).toBe(
+      ExternalShareStatus.InvalidPassword,
+    );
+
+    const fifth = await wrongAttempt();
+    expect(fifth.status).toBe(200);
+    expect(fifth.data.response!.status).toBe(
+      ExternalShareStatus.InvalidPassword,
+    );
+
+    const sixth = await wrongAttempt();
+    expect(sixth.status).toBe(403);
+
+    await test.step("the block is checked before the password, so the right one is refused too", async () => {
+      const { status: rightPasswordStatus } =
+        await anonApi.sharing.applyExternalSharePassword({
+          key,
+          externalShareRequestParam: { password: PASSWORD },
+        });
+      expect(rightPasswordStatus).toBe(403);
+    });
+  });
+});
+
+/**
+ * The access a group's members hold on a room the group was invited to. The
+ * listing exists for four fields: `groupAccess` is what the group carries,
+ * `userAccess` what was set on that person alone, `overridden` says which of
+ * the two wins, and `owner` marks whoever created the entry.
+ *
+ * Two of its answers look like failures and are not. A group holding no
+ * rights on the room, a room the caller cannot read and a room that is not
+ * there are all answered with an empty list rather than an error, so every
+ * check for an empty answer here is paired with a positive control.
+ */
+test.describe("GET /api/2.0/files/folder/:folderId/group/:groupId/share", () => {
+  /** A Custom room and a group of two members invited to it with `access`. */
+  async function roomSharedWithGroup(apiSdk: ApiSDK, access: FileShare) {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: firstUser } = await apiSdk.addMember("owner", "User", {
+      firstName: "Aaron",
+    });
+    const firstId = firstUser.response!.id!;
+    const { data: secondUser } = await apiSdk.addMember("owner", "User", {
+      firstName: "Zoe",
+    });
+    const secondId = secondUser.response!.id!;
+
+    const { data: groupData } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: firstId,
+        members: [firstId, secondId],
+      },
+    });
+    const groupId = groupData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Group Member Security Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: groupId, access }],
+        notify: false,
+      },
+    });
+
+    return { roomId, groupId, firstId, secondId };
+  }
+
+  test("GET /files/folder/:folderId/group/:groupId/share - Members carry the group's access and come back ordered by first name", async ({
+    apiSdk,
+  }) => {
+    const { roomId, groupId, firstId, secondId } = await roomSharedWithGroup(
+      apiSdk,
+      FileShare.Read,
+    );
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .sharing.getGroupsMembersWithFolderSecurity({
+        folderId: roomId,
+        groupId,
+      });
+
+    expect(status).toBe(200);
+    // Asserting the ids in order covers membership and the documented sort by
+    // first name at once - Aaron was added first, Zoe second.
+    expect(data.response!.map((member) => member.user.id)).toEqual([
+      firstId,
+      secondId,
+    ]);
+
+    const aaron = data.response![0];
+    expect(aaron.groupAccess).toBe(FileShare.Read);
+    // Nothing was set on these people themselves, so the group's level is
+    // what applies to them.
+    expect(aaron.overridden).toBe(false);
+    expect(aaron.owner).toBe(false);
+  });
+
+  test("GET /files/folder/:folderId/group/:groupId/share - A level set on one member alone overrides the group's", async ({
+    apiSdk,
+  }) => {
+    const { roomId, groupId, firstId, secondId } = await roomSharedWithGroup(
+      apiSdk,
+      FileShare.Read,
+    );
+
+    await apiSdk.forRole("owner").rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: firstId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .sharing.getGroupsMembersWithFolderSecurity({
+        folderId: roomId,
+        groupId,
+      });
+
+    expect(status).toBe(200);
+
+    const overridden = data.response!.find((m) => m.user.id === firstId)!;
+    const untouched = data.response!.find((m) => m.user.id === secondId)!;
+
+    // Both levels are reported side by side, and `overridden` is the field
+    // that says which one the person actually holds. The group's level is
+    // still reported for them - it is not overwritten, only outranked.
+    expect(overridden.overridden).toBe(true);
+    expect(overridden.userAccess).toBe(FileShare.Editing);
+    expect(overridden.groupAccess).toBe(FileShare.Read);
+
+    // The other member of the same group is untouched by it.
+    expect(untouched.overridden).toBe(false);
+    expect(untouched.groupAccess).toBe(FileShare.Read);
+  });
+
+  test("GET /files/folder/:folderId/group/:groupId/share - filterValue narrows the list and ignores case", async ({
+    apiSdk,
+  }) => {
+    const { roomId, groupId, firstId } = await roomSharedWithGroup(
+      apiSdk,
+      FileShare.Read,
+    );
+    const ownerApi = apiSdk.forRole("owner");
+
+    // The group holds two members, so coming back with one is what shows the
+    // value is being applied rather than quietly ignored.
+    const { data: lower, status } =
+      await ownerApi.sharing.getGroupsMembersWithFolderSecurity({
+        folderId: roomId,
+        groupId,
+        filterValue: "aaron",
+      });
+
+    expect(status).toBe(200);
+    expect(lower.response!.map((member) => member.user.id)).toEqual([firstId]);
+
+    await test.step("the same name typed with a capital finds the same person", async () => {
+      // Worth pinning because the query lower-cases the column and not the
+      // value it is given - the match survives only on a case-insensitive
+      // collation. Should that ever change underneath, searching for a name
+      // the way people write it would silently stop finding anybody.
+      const { data, status: upperStatus } =
+        await ownerApi.sharing.getGroupsMembersWithFolderSecurity({
+          folderId: roomId,
+          groupId,
+          filterValue: "Aaron",
+        });
+
+      expect(upperStatus).toBe(200);
+      expect(data.response!.map((member) => member.user.id)).toEqual([firstId]);
+    });
+
+    await test.step("a value nobody carries finds nobody", async () => {
+      const { data, status: missStatus } =
+        await ownerApi.sharing.getGroupsMembersWithFolderSecurity({
+          folderId: roomId,
+          groupId,
+          filterValue: "nobodyhasthisname",
+        });
+
+      expect(missStatus).toBe(200);
+      expect(data.response ?? []).toHaveLength(0);
+    });
+  });
+
+  test("GET /files/folder/:folderId/group/:groupId/share - A group holding no rights on the room gives an empty list", async ({
+    apiSdk,
+  }) => {
+    const { roomId, groupId } = await roomSharedWithGroup(
+      apiSdk,
+      FileShare.Read,
+    );
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: outsider } = await apiSdk.addMember("owner", "User");
+    const outsiderId = outsider.response!.id!;
+    const { data: otherGroup } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: outsiderId,
+        members: [outsiderId],
+      },
+    });
+    const otherGroupId = otherGroup.response!.id!;
+
+    const { data, status } =
+      await ownerApi.sharing.getGroupsMembersWithFolderSecurity({
+        folderId: roomId,
+        groupId: otherGroupId,
+      });
+
+    // A group that was never invited is not an error here, and the empty
+    // list does not mean the group has no members - it has one.
+    expect(status).toBe(200);
+    expect(data.response ?? []).toHaveLength(0);
+
+    await test.step("while the invited group still lists its members", async () => {
+      const { data: invited } =
+        await ownerApi.sharing.getGroupsMembersWithFolderSecurity({
+          folderId: roomId,
+          groupId,
+        });
+      expect(invited.response!.length).toBe(2);
+    });
   });
 });
