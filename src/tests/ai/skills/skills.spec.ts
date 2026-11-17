@@ -8,6 +8,7 @@ import {
   expectHealthyAssistantReply,
 } from "@/src/helpers/ai-agent-chat";
 import { uploadFileToFolder } from "@/src/helpers/upload-file";
+import { getRoomAiFolder, setupSkillsRoom } from "@/src/helpers/room-skills";
 import { ApiSDK } from "@/src/services/api-sdk";
 
 // AI Skills: a `.ai` folder's files become a per-room skill catalogue, but
@@ -64,40 +65,9 @@ const GENERIC_FILE_TOOLS = [
   "get_rooms_folder",
 ];
 
-async function setupSkillsRoom(
-  apiSdk: ApiSDK,
-): Promise<{ roomId: number; aiFolderId: number }> {
-  const ownerApi = apiSdk.forRole("owner");
-  const { data: roomData, status: roomStatus } =
-    await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `Autotest Skills Room ${apiSdk.faker.generateString(6)}`,
-        roomType: RoomType.CustomRoom,
-      },
-    });
-  if (roomStatus !== 200 || !roomData.response?.id) {
-    throw new Error(
-      `createRoom failed: ${roomStatus} ${JSON.stringify(roomData)}`,
-    );
-  }
-  const roomId = roomData.response.id;
-
-  const { data: aiFolder, status: aiFolderStatus } =
-    await ownerApi.folders.createFolder({
-      folderId: roomId,
-      createFolderRequest: { title: ".ai" },
-    });
-  if (aiFolderStatus !== 200 || !aiFolder.response?.id) {
-    throw new Error(
-      `createFolder('.ai') failed: ${aiFolderStatus} ${JSON.stringify(aiFolder)}`,
-    );
-  }
-  return { roomId, aiFolderId: aiFolder.response.id };
-}
-
 async function uploadSkill(
   apiSdk: ApiSDK,
-  aiFolderId: number,
+  skillsFolderId: number,
   fileName: string,
   skill: { name: string; description: string; body: string },
 ): Promise<SkillCatalogueEntry> {
@@ -105,7 +75,7 @@ async function uploadSkill(
   const upload = await uploadFileToFolder(
     apiSdk,
     "owner",
-    aiFolderId,
+    skillsFolderId,
     Buffer.from(content, "utf8"),
     fileName,
     { mimeType: "text/markdown" },
@@ -123,8 +93,19 @@ async function uploadSkill(
   };
 }
 
-test.describe("AI Skills - .ai folder catalogue + read_skill contract", () => {
-  test("POST /api/2.0/ai/ai/send-with-stream - a matching prompt makes the model call read_skill for the right skill", async ({
+// Skipped while the AI tool surface is under active development. What is
+// observed, 2026-11-17: the model answers but calls nothing at all - not
+// `read_skill`, and not the generic DocSpace file tools these tests assume the
+// happy path could have fallen back on. Alongside that,
+// `GET /ai/tools/list-system-tools` answers `{"groups":{},"errors":{},
+// "system":[]}` on a fresh portal, reporting no tools and no error fetching
+// them. The two fit together but the link is not proven here: the MCP suite
+// has the model reaching for a server-side tool of its own accord, so an empty
+// answer from that endpoint is not on its own the whole story.
+//
+// Nothing below needs changing when tools come back - re-enable and run.
+test.describe("AI Skills - the room skills catalogue + read_skill contract", () => {
+  test.skip("POST /api/2.0/ai/ai/send-with-stream - a matching prompt makes the model call read_skill for the right skill", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -132,10 +113,13 @@ test.describe("AI Skills - .ai folder catalogue + read_skill contract", () => {
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
 
-    const { roomId, aiFolderId } = await setupSkillsRoom(apiSdk);
+    const { roomId, skillsFolderId } = await setupSkillsRoom(
+      apiSdk,
+      "Autotest Skills Room",
+    );
     const qaSkill = await uploadSkill(
       apiSdk,
-      aiFolderId,
+      skillsFolderId,
       "qa-happy-path-skill.md",
       QA_SKILL,
     );
@@ -186,7 +170,10 @@ test.describe("AI Skills - .ai folder catalogue + read_skill contract", () => {
     expect(AiAgentChat.assistantText(messages)).toContain(CANARY);
   });
 
-  test("POST /api/2.0/ai/ai/send-with-stream - an unrelated prompt does not read the skill", async ({
+  // Skipped with its positive twin above, and for a sharper reason: with no
+  // tool to call, "the model did not read the skill" holds whatever the model
+  // does. Left running it would be a green that cannot turn red.
+  test.skip("POST /api/2.0/ai/ai/send-with-stream - an unrelated prompt does not read the skill", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -194,10 +181,13 @@ test.describe("AI Skills - .ai folder catalogue + read_skill contract", () => {
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
 
-    const { roomId, aiFolderId } = await setupSkillsRoom(apiSdk);
+    const { roomId, skillsFolderId } = await setupSkillsRoom(
+      apiSdk,
+      "Autotest Skills Room",
+    );
     const qaSkill = await uploadSkill(
       apiSdk,
-      aiFolderId,
+      skillsFolderId,
       "qa-happy-path-skill.md",
       QA_SKILL,
     );
@@ -232,7 +222,7 @@ test.describe("AI Skills - .ai folder catalogue + read_skill contract", () => {
     ).toHaveLength(0);
   });
 
-  test("POST /api/2.0/ai/ai/send-with-stream - among several skills, the model reads only the one matching the prompt", async ({
+  test.skip("POST /api/2.0/ai/ai/send-with-stream - among several skills, the model reads only the one matching the prompt", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -240,16 +230,19 @@ test.describe("AI Skills - .ai folder catalogue + read_skill contract", () => {
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
 
-    const { roomId, aiFolderId } = await setupSkillsRoom(apiSdk);
+    const { roomId, skillsFolderId } = await setupSkillsRoom(
+      apiSdk,
+      "Autotest Skills Room",
+    );
     const qaSkill = await uploadSkill(
       apiSdk,
-      aiFolderId,
+      skillsFolderId,
       "qa-happy-path-skill.md",
       QA_SKILL,
     );
     const dummySkill = await uploadSkill(
       apiSdk,
-      aiFolderId,
+      skillsFolderId,
       "weather-briefing.md",
       DUMMY_SKILL,
     );
@@ -299,48 +292,40 @@ test.describe("AI Skills - .ai folder catalogue + read_skill contract", () => {
 });
 
 test.describe("GET /files/rooms/{id}/ai - the room's skills folder listing", () => {
-  // Not in the generated SDK yet, so called raw, same pattern as other
-  // not-yet-wired endpoints in this suite (see ai-http.ts).
-  async function getRoomAiFolder(apiSdk: ApiSDK, roomId: number) {
-    const { tokenStore, request } = apiSdk;
-    const res = await request.fetch(
-      `${tokenStore.portalBaseUrl}/api/2.0/files/rooms/${roomId}/ai?filterType=1&count=100`,
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${tokenStore.getToken("owner")}`,
-          Origin: `http://${tokenStore.newTenantDomain}`,
-        },
-      },
-    );
-    return { status: res.status(), data: JSON.parse(await res.text()) };
-  }
+  test("GET /files/rooms/{id}/ai - An Instructions room returns its (empty) skills listing", async ({
+    apiSdk,
+  }) => {
+    const { roomId } = await setupSkillsRoom(apiSdk, "Autotest Skills Room");
 
-  test("BUG 84329: GET /files/rooms/{id}/ai - a room with no .ai folder yet returns 404 instead of an empty listing", async ({
+    const { status, data } = await getRoomAiFolder(apiSdk, roomId);
+    expect(status).toBe(200);
+    expect(data.response?.files).toEqual([]);
+  });
+
+  test("BUG 84329: GET /files/rooms/{id}/ai - A room of any other kind has no skills folder to list", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: roomData } = await ownerApi.rooms.createRoom({
       createRoomRequestDto: {
-        title: `Autotest Skills No AI Folder ${apiSdk.faker.generateString(6)}`,
+        title: `Autotest Skills Not Instructions ${apiSdk.faker.generateString(6)}`,
         roomType: RoomType.CustomRoom,
       },
     });
     const roomId = roomData.response!.id!;
 
-    // The UI calls this on every room it opens, regardless of whether a
-    // .ai folder was ever created - most rooms never have one.
+    // Skills belong to Instructions rooms, and the listing is scoped to them
+    // rather than to a folder anyone may create. Putting a folder named `.ai`
+    // in this room by hand - which used to be the mechanism, and is what BUG
+    // 84329's workaround relied on - does not open it either.
     const { status } = await getRoomAiFolder(apiSdk, roomId);
-    expect(status).toBe(200);
-  });
+    expect(status).toBe(404);
 
-  test("GET /files/rooms/{id}/ai - a room with a .ai folder returns its (empty) listing", async ({
-    apiSdk,
-  }) => {
-    const { roomId } = await setupSkillsRoom(apiSdk);
-
-    const { status, data } = await getRoomAiFolder(apiSdk, roomId);
-    expect(status).toBe(200);
-    expect(data.response?.files).toEqual([]);
+    const { status: created } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolderRequest: { title: ".ai" },
+    });
+    expect(created).toBe(200);
+    expect((await getRoomAiFolder(apiSdk, roomId)).status).toBe(404);
   });
 });

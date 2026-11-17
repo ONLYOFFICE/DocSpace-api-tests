@@ -250,9 +250,14 @@ test.describe("getOperationStatuses", () => {
     const res = await startCopy(owner, folderId, roomId);
     const op = startedOperation(res.data.response, FileOperationType.Copy);
 
+    // The budget is the portal's slowest plausible copy of LONG_FILES, not its
+    // usual one: under a loaded CI run this went past a minute and the test
+    // read the giving-up as "the copy never finished", which is what the
+    // message below now says instead.
+    const BUDGET_MS = 180_000;
     const samples: FileOperationDto[] = [];
     const started = Date.now();
-    while (Date.now() - started < 60_000) {
+    while (Date.now() - started < BUDGET_MS) {
       // Two reads in a row: the second must not differ in identity or lose the record.
       const [first] = await operations(owner, op.id!);
       const [second] = await operations(owner, op.id!);
@@ -285,7 +290,10 @@ test.describe("getOperationStatuses", () => {
       );
     }
     const last = samples[samples.length - 1];
-    expect(last.finished).toBe(true);
+    expect(
+      last.finished,
+      `the copy of ${LONG_FILES} files was still running after ${BUDGET_MS / 1000}s`,
+    ).toBe(true);
     expect(last.progress).toBe(100);
     expect(last.status).toBe(DistributedTaskStatus.Completed);
     expect(last.error ?? "").toBe("");
@@ -374,6 +382,25 @@ test.describe("getOperationStatuses", () => {
       (await startCopy(owner, folderId, roomId)).data.response,
       FileOperationType.Copy,
     );
+    // Started right after the copy, ahead of the other short ones: it is the
+    // only operation this test needs FINISHED at the single read below, and it
+    // cannot be waited for - any extra read would hand out, and so drop,
+    // whichever short operations had finished by then, and the list would no
+    // longer hold all five.
+    //
+    // The long copy stays first for a different reason: the answer to a start
+    // hands out finished records of the same group, and moves and copies share
+    // one, so a copy started after the move would swallow the move's record.
+    const download = startedOperation(
+      (
+        await owner.operations.bulkDownload({
+          downloadRequestDto: {
+            fileConvertIds: [{ key: toDownload as never, value: "" }],
+          },
+        })
+      ).data.response,
+      FileOperationType.Download,
+    );
     const move = startedOperation(
       (
         await owner.operations.moveBatchItems({
@@ -406,16 +433,6 @@ test.describe("getOperationStatuses", () => {
         })
       ).data.response,
       FileOperationType.Duplicate,
-    );
-    const download = startedOperation(
-      (
-        await owner.operations.bulkDownload({
-          downloadRequestDto: {
-            fileConvertIds: [{ key: toDownload as never, value: "" }],
-          },
-        })
-      ).data.response,
-      FileOperationType.Download,
     );
 
     // The long copy is still running, the short ones have left unread records.

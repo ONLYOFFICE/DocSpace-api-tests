@@ -6675,6 +6675,38 @@ test.describe("GET /api/2.0/files/folder/{id}/link - Get folder primary external
   });
 });
 
+type FolderHistoryEntry = NonNullable<
+  Awaited<ReturnType<FoldersApi["getFolderHistory"]>>["data"]["response"]
+>[number];
+
+/**
+ * The entry a given action left in a folder's history.
+ *
+ * The log is written behind the request that caused it, so reading it once
+ * straight after an action can miss the entry that is on its way - which is
+ * what made several of these tests flake rather than fail. Waits for it and
+ * hands it back, so the caller can still check who the initiator was.
+ *
+ * Only for an entry that must appear. Absence cannot be waited for - "not
+ * written yet" and "never written" look alike - so a test asserting that an
+ * action left NO entry has to wait for some other entry it does expect, and
+ * read the log once that one is there.
+ */
+async function waitForHistoryAction(
+  folders: FoldersApi,
+  folderId: number,
+  actionId: MessageAction,
+): Promise<FolderHistoryEntry> {
+  let entry: FolderHistoryEntry | undefined;
+  await expect(async () => {
+    const { data, status } = await folders.getFolderHistory({ folderId });
+    expect(status).toBe(200);
+    entry = data.response?.find((e) => e.action?.id === actionId);
+    expect(entry, `no history entry for action ${actionId}`).toBeDefined();
+  }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
+  return entry!;
+}
+
 test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", () => {
   test("GET /api/2.0/files/folder/{folderId}/log - Owner gets room history with correct structure", async ({
     apiSdk,
@@ -6951,15 +6983,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       createFolderRequest: { title: "New Subfolder In Room" },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const folderEntry = data.response!.find(
-      (e) => e.action?.id === MessageAction.FolderCreated,
+    const folderEntry = await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.FolderCreated,
     );
-    expect(folderEntry).toBeDefined();
-    expect(folderEntry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(folderEntry.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - Non-existent folderId returns 404", async ({
@@ -7046,12 +7075,11 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const actionIds = data.response!.map((e) => e.action?.id);
-    expect(actionIds).toContain(MessageAction.RoomCreateUser);
+    await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.RoomCreateUser,
+    );
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomRemoveUser after user is removed from room", async ({
@@ -7092,12 +7120,11 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const actionIds = data.response!.map((e) => e.action?.id);
-    expect(actionIds).toContain(MessageAction.RoomRemoveUser);
+    await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.RoomRemoveUser,
+    );
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomUpdateAccessForUser after user role is changed", async ({
@@ -7138,12 +7165,11 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const actionIds = data.response!.map((e) => e.action?.id);
-    expect(actionIds).toContain(MessageAction.RoomUpdateAccessForUser);
+    await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.RoomUpdateAccessForUser,
+    );
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - User type change does not create room history entry", async ({
@@ -7272,12 +7298,11 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     });
     await waitForOperation(ownerApi.operations);
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const actionIds = data.response!.map((e) => e.action?.id);
-    expect(actionIds).toContain(MessageAction.FolderMovedToTrash);
+    await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.FolderMovedToTrash,
+    );
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains FolderDeleted after subfolder is permanently deleted", async ({
@@ -7314,15 +7339,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     });
     await waitForOperation(ownerApi.operations);
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const folderEntry = data.response!.find(
-      (e) => e.action?.id === MessageAction.FolderDeleted,
+    const folderEntry = await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.FolderDeleted,
     );
-    expect(folderEntry).toBeDefined();
-    expect(folderEntry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(folderEntry.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains FileMovedToTrash after file is deleted to trash", async ({
@@ -7356,12 +7378,11 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     });
     await waitForOperation(ownerApi.operations);
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const actionIds = data.response!.map((e) => e.action?.id);
-    expect(actionIds).toContain(MessageAction.FileMovedToTrash);
+    await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.FileMovedToTrash,
+    );
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains FolderMoved after subfolder is moved to another room", async ({
@@ -7406,12 +7427,11 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     });
     await waitForOperation(ownerApi.operations);
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: sourceRoomId,
-    });
-    expect(status).toBe(200);
-    const actionIds = data.response!.map((e) => e.action?.id);
-    expect(actionIds).toContain(MessageAction.FolderMoved);
+    await waitForHistoryAction(
+      ownerApi.folders,
+      sourceRoomId,
+      MessageAction.FolderMoved,
+    );
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains FolderCopied after subfolder is copied to another room", async ({
@@ -7456,12 +7476,11 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     });
     await waitForOperation(ownerApi.operations);
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: sourceRoomId,
-    });
-    expect(status).toBe(200);
-    const actionIds = data.response!.map((e) => e.action?.id);
-    expect(actionIds).toContain(MessageAction.FolderCopied);
+    await waitForHistoryAction(
+      ownerApi.folders,
+      sourceRoomId,
+      MessageAction.FolderCopied,
+    );
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains FileMoved after file is moved to another room", async ({
@@ -7506,12 +7525,11 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     });
     await waitForOperation(ownerApi.operations);
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: sourceRoomId,
-    });
-    expect(status).toBe(200);
-    const actionIds = data.response!.map((e) => e.action?.id);
-    expect(actionIds).toContain(MessageAction.FileMoved);
+    await waitForHistoryAction(
+      ownerApi.folders,
+      sourceRoomId,
+      MessageAction.FileMoved,
+    );
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains FileCopied after file is copied to another room", async ({
@@ -7556,12 +7574,11 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     });
     await waitForOperation(ownerApi.operations);
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: sourceRoomId,
-    });
-    expect(status).toBe(200);
-    const actionIds = data.response!.map((e) => e.action?.id);
-    expect(actionIds).toContain(MessageAction.FileCopied);
+    await waitForHistoryAction(
+      ownerApi.folders,
+      sourceRoomId,
+      MessageAction.FileCopied,
+    );
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomChangeOwner after room owner is changed", async ({
@@ -7593,12 +7610,11 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const actionIds = data.response!.map((e) => e.action?.id);
-    expect(actionIds).toContain(MessageAction.RoomChangeOwner);
+    await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.RoomChangeOwner,
+    );
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains FolderRenamed after subfolder is renamed", async ({
@@ -7634,15 +7650,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       createFolderRequest: { title: "Subfolder After Rename" },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const folderEntry = data.response!.find(
-      (e) => e.action?.id === MessageAction.FolderRenamed,
+    const folderEntry = await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.FolderRenamed,
     );
-    expect(folderEntry).toBeDefined();
-    expect(folderEntry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(folderEntry.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains FileCreated after file is created in room", async ({
@@ -7669,12 +7682,11 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       createFileRequest: { title: "New File In Room" },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const actionIds = data.response!.map((e) => e.action?.id);
-    expect(actionIds).toContain(MessageAction.FileCreated);
+    await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.FileCreated,
+    );
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains AddedRoomTags after tag is added to room", async ({
@@ -7708,15 +7720,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       batchTagsRequestDto: { names: ["AutotestHistoryTag"] },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const tagEntry = data.response!.find(
-      (e) => e.action?.id === MessageAction.AddedRoomTags,
+    const tagEntry = await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.AddedRoomTags,
     );
-    expect(tagEntry).toBeDefined();
-    expect(tagEntry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(tagEntry.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains DeletedRoomTags after tag is removed from room", async ({
@@ -7851,15 +7860,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     });
     expect(deleteData.response!.logo?.original).toBeFalsy();
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const logoEntry = data.response!.find(
-      (e) => e.action?.id === MessageAction.RoomLogoDeleted,
+    const logoEntry = await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.RoomLogoDeleted,
     );
-    expect(logoEntry).toBeDefined();
-    expect(logoEntry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(logoEntry.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomColorChanged after room icon color is changed", async ({
@@ -7972,15 +7978,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const groupEntry = data.response!.find(
-      (e) => e.action?.id === MessageAction.RoomGroupAdded,
+    const groupEntry = await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.RoomGroupAdded,
     );
-    expect(groupEntry).toBeDefined();
-    expect(groupEntry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(groupEntry.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomUpdateAccessForGroup after group role is changed", async ({
@@ -8030,15 +8033,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const groupEntry = data.response!.find(
-      (e) => e.action?.id === MessageAction.RoomUpdateAccessForGroup,
+    const groupEntry = await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.RoomUpdateAccessForGroup,
     );
-    expect(groupEntry).toBeDefined();
-    expect(groupEntry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(groupEntry.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomGroupRemove after group is removed from room", async ({
@@ -8088,15 +8088,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const groupEntry = data.response!.find(
-      (e) => e.action?.id === MessageAction.RoomGroupRemove,
+    const groupEntry = await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.RoomGroupRemove,
     );
-    expect(groupEntry).toBeDefined();
-    expect(groupEntry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(groupEntry.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomUnarchived after room is restored from archive", async ({
@@ -8133,15 +8130,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     });
     await waitForOperation(ownerApi.operations);
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const entry = data.response!.find(
-      (e) => e.action?.id === MessageAction.RoomUnarchived,
+    const entry = await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.RoomUnarchived,
     );
-    expect(entry).toBeDefined();
-    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(entry.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomInviteResend after invitations are resent", async ({
@@ -8188,15 +8182,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       userInvitation: { resendAll: true },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const entry = data.response!.find(
-      (e) => e.action?.id === MessageAction.RoomInviteResend,
+    const entry = await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.RoomInviteResend,
     );
-    expect(entry).toBeDefined();
-    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(entry.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomLifeTimeSet after file lifetime is set for room", async ({
@@ -8285,15 +8276,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       updateRoomRequest: { lifetime: { enabled: false } },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const entry = data.response!.find(
-      (e) => e.action?.id === MessageAction.RoomLifeTimeDisabled,
+    const entry = await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.RoomLifeTimeDisabled,
     );
-    expect(entry).toBeDefined();
-    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(entry.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomIndexingEnabled after file indexing is enabled in room", async ({
@@ -8368,15 +8356,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       updateRoomRequest: { indexing: false },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const entry = data.response!.find(
-      (e) => e.action?.id === MessageAction.RoomIndexingDisabled,
+    const entry = await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.RoomIndexingDisabled,
     );
-    expect(entry).toBeDefined();
-    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(entry.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains FolderIndexReordered after room index is reordered", async ({
@@ -8710,15 +8695,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       });
     expect(finalizeStatus).toBe(201);
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const fileEntry = data.response!.find(
-      (e) => e.action?.id === MessageAction.FileUploaded,
+    const fileEntry = await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.FileUploaded,
     );
-    expect(fileEntry).toBeDefined();
-    expect(fileEntry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(fileEntry.initiator.displayName).toBe(ownerDisplayName);
   });
 
   // BUG 81623: POST /api/2.0/files/{folderId}/upload does not write FileUploaded event to room history
@@ -8758,15 +8740,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     );
     expect(uploadStatus).toBe(200);
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const fileEntry = data.response!.find(
-      (e) => e.action?.id === MessageAction.FileUploaded,
+    const fileEntry = await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.FileUploaded,
     );
-    expect(fileEntry).toBeDefined();
-    expect(fileEntry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(fileEntry.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains FileRenamed after file is renamed in room", async ({
@@ -8849,15 +8828,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     });
     await waitForOperation(ownerApi.operations);
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const fileEntry = data.response!.find(
-      (e) => e.action?.id === MessageAction.FileDeleted,
+    const fileEntry = await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.FileDeleted,
     );
-    expect(fileEntry).toBeDefined();
-    expect(fileEntry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(fileEntry.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains FileLocked after file is locked in room", async ({
@@ -8893,15 +8869,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       lockFileRequest: { lockFile: true },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const entry = data.response!.find(
-      (e) => e.action?.id === MessageAction.FileLocked,
+    const entry = await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.FileLocked,
     );
-    expect(entry).toBeDefined();
-    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(entry.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains FileUnlocked after file is unlocked in room", async ({
@@ -8942,15 +8915,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       lockFileRequest: { lockFile: false },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const entry = data.response!.find(
-      (e) => e.action?.id === MessageAction.FileUnlocked,
+    const entry = await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.FileUnlocked,
     );
-    expect(entry).toBeDefined();
-    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(entry.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains FileIndexChanged after file order is set via PUT /files/:fileId/order", async ({
@@ -8987,15 +8957,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       orderRequestDto: { order: 5 },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const entry = data.response!.find(
-      (e) => e.action?.id === MessageAction.FileIndexChanged,
+    const entry = await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.FileIndexChanged,
     );
-    expect(entry).toBeDefined();
-    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(entry.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains FolderIndexChanged after folder order is set via PUT /files/:folderId/order", async ({
@@ -9032,16 +8999,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       orderRequestDto: { order: 5 },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: subfolderId,
-    });
-    expect(status).toBe(200);
-    const actionIds = data.response!.map((e) => e.action?.id);
-    expect(actionIds).toContain(MessageAction.FolderIndexChanged);
-    const entry = data.response!.find(
-      (e) => e.action?.id === MessageAction.FolderIndexChanged,
+    const entry = await waitForHistoryAction(
+      ownerApi.folders,
+      subfolderId,
+      MessageAction.FolderIndexChanged,
     );
-    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(entry.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomExternalLinkCreated after room link is created", async ({
@@ -9059,15 +9022,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     });
     const roomId = roomData.response!.id!;
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const entry = data.response!.find(
-      (e) => e.action?.id === MessageAction.RoomExternalLinkCreated,
+    const entry = await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.RoomExternalLinkCreated,
     );
-    expect(entry).toBeDefined();
-    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(entry.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomExternalLinkRenamed after room link is renamed", async ({
@@ -9114,15 +9074,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const entry = data.response!.find(
-      (e) => e.action?.id === MessageAction.RoomExternalLinkRenamed,
+    const entry = await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.RoomExternalLinkRenamed,
     );
-    expect(entry).toBeDefined();
-    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(entry.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomExternalLinkRevoked after room link is revoked", async ({
@@ -9154,17 +9111,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const actionIds = data.response!.map((e) => e.action?.id);
-    expect(actionIds).toContain(MessageAction.RoomExternalLinkRevoked);
-    const entry = data.response!.find(
-      (e) => e.action?.id === MessageAction.RoomExternalLinkRevoked,
+    const entry = await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.RoomExternalLinkRevoked,
     );
-    expect(entry).toBeDefined();
-    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(entry.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomExternalLinkDeleted after room link is deleted", async ({
@@ -9204,15 +9156,12 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const entry = data.response!.find(
-      (e) => e.action?.id === MessageAction.RoomExternalLinkDeleted,
+    const entry = await waitForHistoryAction(
+      ownerApi.folders,
+      roomId,
+      MessageAction.RoomExternalLinkDeleted,
     );
-    expect(entry).toBeDefined();
-    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+    expect(entry.initiator.displayName).toBe(ownerDisplayName);
   });
 });
 

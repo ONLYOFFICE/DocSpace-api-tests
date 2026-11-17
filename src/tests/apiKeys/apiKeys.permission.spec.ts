@@ -11,6 +11,17 @@ import {
   toTime,
 } from "@/src/helpers/api-keys";
 
+/**
+ * A key name the portal will accept. `faker.lorem.words(3)` overruns the
+ * 30-character ceiling it enforces ("Incorrect name. Length must be less than
+ * 30") about once in a hundred draws - 41 characters seen - and the call then
+ * answers 400. Spread over the ~40 names this file draws, that is roughly one
+ * random failure per full run, which is what the nightly reports had been
+ * showing: a 400 here, and elsewhere a setup whose key never got created and
+ * whose test then died inside the SDK on an undefined keyId.
+ */
+const keyName = () => faker.lorem.words(3).slice(0, 30).trim();
+
 test.describe("POST /api/2.0/keys - permissions", () => {
   test("BUG 81236: POST /api/2.0/keys - Guest cannot create an API key", async ({
     apiSdk,
@@ -176,7 +187,7 @@ test.describe("GET /api/2.0/keys - permissions", () => {
     await apiSdk.addAuthenticatedMember("owner", "Guest");
 
     await apiSdk.forRole("owner").apiKeys.createApiKey({
-      createApiKeyRequestDto: { name: faker.lorem.words(3) },
+      createApiKeyRequestDto: { name: keyName() },
     });
 
     const { data, status } = await apiSdk.forRole("guest").apiKeys.getApiKeys();
@@ -190,12 +201,18 @@ test.describe("PUT /api/2.0/keys/{keyId} - permissions", () => {
   let keyId: string;
 
   test.beforeEach(async ({ apiSdk }) => {
-    const { data: created } = await apiSdk
+    const { data: created, status } = await apiSdk
       .forRole("owner")
       .apiKeys.createApiKey({
-        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+        createApiKeyRequestDto: { name: keyName() },
       });
 
+    // Checked here, not assumed: `!` is a compile-time claim, so a creation
+    // that failed leaves `keyId` undefined at runtime and every test below
+    // dies inside the SDK on a missing parameter, naming neither the status
+    // the portal answered nor the step that really broke.
+    expect(status, JSON.stringify(created)).toBe(200);
+    expect(created.response?.id).toBeTruthy();
     keyId = created.response!.id!;
   });
 
@@ -204,7 +221,7 @@ test.describe("PUT /api/2.0/keys/{keyId} - permissions", () => {
   }) => {
     const { status } = await apiSdk.forAnonymous().apiKeys.updateApiKey({
       keyId,
-      updateApiKeyRequest: { name: faker.lorem.words(3) },
+      updateApiKeyRequest: { name: keyName() },
     });
 
     expect(status).toBe(401);
@@ -219,7 +236,7 @@ test.describe("PUT /api/2.0/keys/{keyId} - permissions", () => {
       .forRole("roomAdmin")
       .apiKeys.updateApiKey({
         keyId,
-        updateApiKeyRequest: { name: faker.lorem.words(3) },
+        updateApiKeyRequest: { name: keyName() },
       });
 
     expect(status).toBe(403);
@@ -233,7 +250,7 @@ test.describe("PUT /api/2.0/keys/{keyId} - permissions", () => {
 
     const { data, status } = await apiSdk.forRole("user").apiKeys.updateApiKey({
       keyId,
-      updateApiKeyRequest: { name: faker.lorem.words(3) },
+      updateApiKeyRequest: { name: keyName() },
     });
 
     expect(status).toBe(403);
@@ -249,7 +266,7 @@ test.describe("PUT /api/2.0/keys/{keyId} - permissions", () => {
       .forRole("guest")
       .apiKeys.updateApiKey({
         keyId,
-        updateApiKeyRequest: { name: faker.lorem.words(3) },
+        updateApiKeyRequest: { name: keyName() },
       });
 
     expect(status).toBe(403);
@@ -261,12 +278,18 @@ test.describe("DELETE /api/2.0/keys/{keyId} - permissions", () => {
   let keyId: string;
 
   test.beforeEach(async ({ apiSdk }) => {
-    const { data: created } = await apiSdk
+    const { data: created, status } = await apiSdk
       .forRole("owner")
       .apiKeys.createApiKey({
-        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+        createApiKeyRequestDto: { name: keyName() },
       });
 
+    // Checked here, not assumed: `!` is a compile-time claim, so a creation
+    // that failed leaves `keyId` undefined at runtime and every test below
+    // dies inside the SDK on a missing parameter, naming neither the status
+    // the portal answered nor the step that really broke.
+    expect(status, JSON.stringify(created)).toBe(200);
+    expect(created.response?.id).toBeTruthy();
     keyId = created.response!.id!;
   });
 

@@ -221,25 +221,45 @@ test.describe("POST /api/2.0/migration/clear", () => {
 });
 
 test.describe("GET /api/2.0/migration/logs - after a failed job", () => {
-  // BUG 84791: confirmed live for a RECOGNIZED migrator name, reproducible
-  // both with a synthetic failure (no backup ever uploaded) and a realistic
-  // one (a real but invalid archive, failing with "Archive must be .zip").
-  // A job that failed before ever writing a log file should sensibly answer
-  // 404 (same as the no-job-at-all case right above), but instead answers
-  // 403 with a body that isn't even a normal error response - it's a raw
-  // Kestrel-level crash ("System.InvalidOperationException: Response
-  // Content-Length mismatch: too many bytes written"), reproduced 3/3 times.
-  // (An UNRECOGNIZED migrator name does not trigger this - that path 404s
-  // correctly, presumably because no job folder is created at all before
-  // the name is found to be invalid.)
+  /**
+   * A job that failed before `SaveLogAsync` ever ran should answer 404, the
+   * same as no job at all. It answers 403 instead, and not with an error body
+   * but with a raw Kestrel crash: "Response Content-Length mismatch: too many
+   * bytes written (167 of 0)". The handler sets `Content-Length` from
+   * `stream.Length` before writing the body, so once that header is out an
+   * error body no longer fits (MigrationController.cs, MigrationLogger.cs).
+   * Whoever clicks "download log" after a failed migration gets a permission
+   * error for something nothing forbids. 6 runs out of 6.
+   *
+   * The wait below is what makes that reachable at all. The parse runs behind
+   * the request, so right after init the job is queued with an empty `error`
+   * and the endpoint answers a perfectly correct 404 - there is nothing to
+   * report yet. Without the wait this test passed in CI for two nights
+   * running, reporting an unexpected pass while never reaching the case it is
+   * named after; locally, on a quicker portal, it reproduced every time. The
+   * endpoint was never the unstable part.
+   *
+   * Caveat of `test.fail`: it counts ANY throw as the expected one, in a hook
+   * as well as in the body (checked 2026-11-17), so a setup that broke outright
+   * would still read green here. What guards against that is the rest of this
+   * file - several tests drive the same init and would go red first.
+   */
   test.fail(
     "BUG 84791: logs for a job that failed before writing any log crash instead of a clean 404",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      await ownerApi.migration.uploadAndInitializeMigration({
-        migratorName: "Nextcloud",
-      });
+      const { status: initStatus } =
+        await ownerApi.migration.uploadAndInitializeMigration({
+          migratorName: "Nextcloud",
+        });
+      expect(initStatus).toBe(200);
+
+      await expect(async () => {
+        const { data } = await ownerApi.migration.getMigrationStatus();
+        expect(data.response, "no migration job was registered").toBeTruthy();
+        expect(data.response!.error, "the job has not failed yet").toBeTruthy();
+      }).toPass({ intervals: [500, 1_000, 2_000], timeout: 60_000 });
 
       const { status } = await ownerApi.migration.getMigrationLogs();
       expect(status).toBe(404);

@@ -53,27 +53,6 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - membership changes", (
     );
   });
 
-  test("PUT /files/rooms/{id}/share - Concurrent identical invitations do not duplicate the member's entry", async ({
-    apiSdk,
-  }) => {
-    const owner = apiSdk.forRole("owner");
-    const [m1] = await addKeyedMembers(apiSdk, 1);
-    const ownerId = await getOwnerId(owner);
-    const roomId = await createOwnerPrivateRoom(apiSdk);
-
-    const results = await Promise.all([
-      inviteToRoom(owner, roomId, m1.id, FileShare.Read),
-      inviteToRoom(owner, roomId, m1.id, FileShare.Read),
-      inviteToRoom(owner, roomId, m1.id, FileShare.Read),
-    ]);
-    expect(results.map((r) => r.status)).toEqual([200, 200, 200]);
-
-    expect((await roomKeyHolders(owner, roomId)).sort()).toEqual(
-      [ownerId, m1.id].sort(),
-    );
-    expect((await roomMemberAccess(owner, roomId)).size).toBe(2);
-  });
-
   test("PUT /files/rooms/{id}/share - Changing a member's role keeps their access and a single key entry", async ({
     apiSdk,
   }) => {

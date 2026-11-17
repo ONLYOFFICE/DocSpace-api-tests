@@ -11,6 +11,17 @@ import {
   toTime,
 } from "@/src/helpers/api-keys";
 
+/**
+ * A key name the portal will accept. `faker.lorem.words(3)` overruns the
+ * 30-character ceiling it enforces ("Incorrect name. Length must be less than
+ * 30") about once in a hundred draws - 41 characters seen - and the call then
+ * answers 400. Spread over the ~40 names this file draws, that is roughly one
+ * random failure per full run, which is what the nightly reports had been
+ * showing: a 400 here, and elsewhere a setup whose key never got created and
+ * whose test then died inside the SDK on an undefined keyId.
+ */
+const keyName = () => faker.lorem.words(3).slice(0, 30).trim();
+
 type RoleConfig = {
   role: Role;
   label: string;
@@ -42,17 +53,17 @@ test.describe("POST /api/2.0/keys", () => {
         const userId = profile.response!.id!;
         const userDisplayName = profile.response!.displayName!;
 
-        const keyName = faker.lorem.words(3);
+        const name = keyName();
 
         const { data, status } = await apiSdk
           .forRole(role)
           .apiKeys.createApiKey({
-            createApiKeyRequestDto: { name: keyName },
+            createApiKeyRequestDto: { name },
           });
 
         expect(status).toBe(200);
         expect(data.response?.id).toBeTruthy();
-        expect(data.response?.name).toBe(keyName);
+        expect(data.response?.name).toBe(name);
         expect(data.response?.key).toBeTruthy();
         expect(data.response?.permissions).toEqual([]);
         expect(data.response?.expiresAt).toBeFalsy();
@@ -69,17 +80,17 @@ test.describe("POST /api/2.0/keys", () => {
         const userId = profile.response!.id!;
         const userDisplayName = profile.response!.displayName!;
 
-        const keyName = faker.lorem.words(3);
+        const name = keyName();
 
         const { data, status } = await apiSdk
           .forRole(role)
           .apiKeys.createApiKey({
-            createApiKeyRequestDto: { name: keyName, expiresInDays: 7 },
+            createApiKeyRequestDto: { name, expiresInDays: 7 },
           });
 
         expect(status).toBe(200);
         expect(data.response?.id).toBeTruthy();
-        expect(data.response?.name).toBe(keyName);
+        expect(data.response?.name).toBe(name);
         expect(data.response?.key).toBeTruthy();
         expect(data.response?.permissions).toEqual([]);
         expect(data.response?.expiresAt).toBeTruthy();
@@ -96,17 +107,17 @@ test.describe("POST /api/2.0/keys", () => {
         const userId = profile.response!.id!;
         const userDisplayName = profile.response!.displayName!;
 
-        const keyName = faker.lorem.words(3);
+        const name = keyName();
 
         const { data, status } = await apiSdk
           .forRole(role)
           .apiKeys.createApiKey({
-            createApiKeyRequestDto: { name: keyName, permissions: ["*:read"] },
+            createApiKeyRequestDto: { name, permissions: ["*:read"] },
           });
 
         expect(status).toBe(200);
         expect(data.response?.id).toBeTruthy();
-        expect(data.response?.name).toBe(keyName);
+        expect(data.response?.name).toBe(name);
         expect(data.response?.key).toBeTruthy();
         expect(data.response?.permissions).toEqual(["*:read"]);
         expect(data.response?.expiresAt).toBeFalsy();
@@ -123,13 +134,13 @@ test.describe("POST /api/2.0/keys", () => {
         const userId = profile.response!.id!;
         const userDisplayName = profile.response!.displayName!;
 
-        const keyName = faker.lorem.words(3);
+        const name = keyName();
 
         const { data, status } = await apiSdk
           .forRole(role)
           .apiKeys.createApiKey({
             createApiKeyRequestDto: {
-              name: keyName,
+              name,
               permissions: ["*:read"],
               expiresInDays: 7,
             },
@@ -137,7 +148,7 @@ test.describe("POST /api/2.0/keys", () => {
 
         expect(status).toBe(200);
         expect(data.response?.id).toBeTruthy();
-        expect(data.response?.name).toBe(keyName);
+        expect(data.response?.name).toBe(name);
         expect(data.response?.key).toBeTruthy();
         expect(data.response?.permissions).toEqual(["*:read"]);
         expect(data.response?.expiresAt).toBeTruthy();
@@ -154,7 +165,7 @@ test.describe("POST /api/2.0/keys", () => {
         const userId = profile.response!.id!;
         const userDisplayName = profile.response!.displayName!;
 
-        const keyName = faker.lorem.words(3);
+        const name = keyName();
         const permissions = [
           "files:read",
           "rooms:read",
@@ -165,12 +176,12 @@ test.describe("POST /api/2.0/keys", () => {
         const { data, status } = await apiSdk
           .forRole(role)
           .apiKeys.createApiKey({
-            createApiKeyRequestDto: { name: keyName, permissions },
+            createApiKeyRequestDto: { name, permissions },
           });
 
         expect(status).toBe(200);
         expect(data.response?.id).toBeTruthy();
-        expect(data.response?.name).toBe(keyName);
+        expect(data.response?.name).toBe(name);
         expect(data.response?.key).toBeTruthy();
         expect(data.response?.permissions).toEqual(permissions);
         expect(data.response?.createBy?.id).toBe(userId);
@@ -186,7 +197,7 @@ test.describe("POST /api/2.0/keys", () => {
         const userId = profile.response!.id!;
         const userDisplayName = profile.response!.displayName!;
 
-        const keyName = faker.lorem.words(3);
+        const name = keyName();
         const permissions = [
           "files:write",
           "files:read",
@@ -201,12 +212,12 @@ test.describe("POST /api/2.0/keys", () => {
         const { data, status } = await apiSdk
           .forRole(role)
           .apiKeys.createApiKey({
-            createApiKeyRequestDto: { name: keyName, permissions },
+            createApiKeyRequestDto: { name, permissions },
           });
 
         expect(status).toBe(200);
         expect(data.response?.id).toBeTruthy();
-        expect(data.response?.name).toBe(keyName);
+        expect(data.response?.name).toBe(name);
         expect(data.response?.key).toBeTruthy();
         expect(data.response?.permissions).toEqual(permissions);
         expect(data.response?.createBy?.id).toBe(userId);
@@ -245,17 +256,17 @@ test.describe("POST /api/2.0/keys", () => {
       const userId = profile.response!.id!;
       const userDisplayName = profile.response!.displayName!;
 
-      const keyName = faker.lorem.words(3);
+      const name = keyName();
 
       const { data, status } = await apiSdk
         .forRole("user")
         .apiKeys.createApiKey({
-          createApiKeyRequestDto: { name: keyName },
+          createApiKeyRequestDto: { name },
         });
 
       expect(status).toBe(200);
       expect(data.response?.id).toBeTruthy();
-      expect(data.response?.name).toBe(keyName);
+      expect(data.response?.name).toBe(name);
       expect(data.response?.key).toBeTruthy();
       expect(data.response?.permissions).toEqual([]);
       expect(data.response?.expiresAt).toBeFalsy();
@@ -272,17 +283,17 @@ test.describe("POST /api/2.0/keys", () => {
       const userId = profile.response!.id!;
       const userDisplayName = profile.response!.displayName!;
 
-      const keyName = faker.lorem.words(3);
+      const name = keyName();
 
       const { data, status } = await apiSdk
         .forRole("user")
         .apiKeys.createApiKey({
-          createApiKeyRequestDto: { name: keyName, expiresInDays: 7 },
+          createApiKeyRequestDto: { name, expiresInDays: 7 },
         });
 
       expect(status).toBe(200);
       expect(data.response?.id).toBeTruthy();
-      expect(data.response?.name).toBe(keyName);
+      expect(data.response?.name).toBe(name);
       expect(data.response?.key).toBeTruthy();
       expect(data.response?.permissions).toEqual([]);
       expect(data.response?.expiresAt).toBeTruthy();
@@ -299,17 +310,17 @@ test.describe("POST /api/2.0/keys", () => {
       const userId = profile.response!.id!;
       const userDisplayName = profile.response!.displayName!;
 
-      const keyName = faker.lorem.words(3);
+      const name = keyName();
 
       const { data, status } = await apiSdk
         .forRole("user")
         .apiKeys.createApiKey({
-          createApiKeyRequestDto: { name: keyName, permissions: ["*:read"] },
+          createApiKeyRequestDto: { name, permissions: ["*:read"] },
         });
 
       expect(status).toBe(200);
       expect(data.response?.id).toBeTruthy();
-      expect(data.response?.name).toBe(keyName);
+      expect(data.response?.name).toBe(name);
       expect(data.response?.key).toBeTruthy();
       expect(data.response?.permissions).toEqual(["*:read"]);
       expect(data.response?.expiresAt).toBeFalsy();
@@ -326,13 +337,13 @@ test.describe("POST /api/2.0/keys", () => {
       const userId = profile.response!.id!;
       const userDisplayName = profile.response!.displayName!;
 
-      const keyName = faker.lorem.words(3);
+      const name = keyName();
 
       const { data, status } = await apiSdk
         .forRole("user")
         .apiKeys.createApiKey({
           createApiKeyRequestDto: {
-            name: keyName,
+            name,
             permissions: ["*:read"],
             expiresInDays: 7,
           },
@@ -340,7 +351,7 @@ test.describe("POST /api/2.0/keys", () => {
 
       expect(status).toBe(200);
       expect(data.response?.id).toBeTruthy();
-      expect(data.response?.name).toBe(keyName);
+      expect(data.response?.name).toBe(name);
       expect(data.response?.key).toBeTruthy();
       expect(data.response?.permissions).toEqual(["*:read"]);
       expect(data.response?.expiresAt).toBeTruthy();
@@ -357,18 +368,18 @@ test.describe("POST /api/2.0/keys", () => {
       const userId = profile.response!.id!;
       const userDisplayName = profile.response!.displayName!;
 
-      const keyName = faker.lorem.words(3);
+      const name = keyName();
       const permissions = ["files:read", "rooms:read", "accounts.self:read"];
 
       const { data, status } = await apiSdk
         .forRole("user")
         .apiKeys.createApiKey({
-          createApiKeyRequestDto: { name: keyName, permissions },
+          createApiKeyRequestDto: { name, permissions },
         });
 
       expect(status).toBe(200);
       expect(data.response?.id).toBeTruthy();
-      expect(data.response?.name).toBe(keyName);
+      expect(data.response?.name).toBe(name);
       expect(data.response?.key).toBeTruthy();
       expect(data.response?.permissions).toEqual(permissions);
       expect(data.response?.createBy?.id).toBe(userId);
@@ -384,7 +395,7 @@ test.describe("POST /api/2.0/keys", () => {
       const userId = profile.response!.id!;
       const userDisplayName = profile.response!.displayName!;
 
-      const keyName = faker.lorem.words(3);
+      const name = keyName();
       const permissions = [
         "files:write",
         "files:read",
@@ -397,12 +408,12 @@ test.describe("POST /api/2.0/keys", () => {
       const { data, status } = await apiSdk
         .forRole("user")
         .apiKeys.createApiKey({
-          createApiKeyRequestDto: { name: keyName, permissions },
+          createApiKeyRequestDto: { name, permissions },
         });
 
       expect(status).toBe(200);
       expect(data.response?.id).toBeTruthy();
-      expect(data.response?.name).toBe(keyName);
+      expect(data.response?.name).toBe(name);
       expect(data.response?.key).toBeTruthy();
       expect(data.response?.permissions).toEqual(permissions);
       expect(data.response?.createBy?.id).toBe(userId);
@@ -441,12 +452,12 @@ test.describe("DELETE /api/2.0/keys/{keyId}", () => {
       test(`DELETE /api/2.0/keys/{keyId} - ${label} deletes own API key`, async ({
         apiSdk,
       }) => {
-        const keyName = faker.lorem.words(3);
+        const name = keyName();
 
         const { data: created } = await apiSdk
           .forRole(role)
           .apiKeys.createApiKey({
-            createApiKeyRequestDto: { name: keyName },
+            createApiKeyRequestDto: { name },
           });
 
         const keyId = created.response!.id!;
@@ -472,12 +483,12 @@ test.describe("DELETE /api/2.0/keys/{keyId}", () => {
     test("DELETE /api/2.0/keys/{keyId} - User deletes own API key", async ({
       apiSdk,
     }) => {
-      const keyName = faker.lorem.words(3);
+      const name = keyName();
 
       const { data: created } = await apiSdk
         .forRole("user")
         .apiKeys.createApiKey({
-          createApiKeyRequestDto: { name: keyName },
+          createApiKeyRequestDto: { name },
         });
 
       const keyId = created.response!.id!;
@@ -499,12 +510,12 @@ test.describe("DELETE /api/2.0/keys/{keyId}", () => {
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
 
-    const keyName = faker.lorem.words(3);
+    const name = keyName();
 
     const { data: created } = await apiSdk
       .forRole("owner")
       .apiKeys.createApiKey({
-        createApiKeyRequestDto: { name: keyName },
+        createApiKeyRequestDto: { name },
       });
 
     const keyId = created.response!.id!;
@@ -535,12 +546,12 @@ test.describe("GET /api/2.0/keys/@self", () => {
       test(`GET /api/2.0/keys/@self - ${label} gets own API key info`, async ({
         apiSdk,
       }) => {
-        const keyName = faker.lorem.words(3);
+        const name = keyName();
 
         const { data: created } = await apiSdk
           .forRole(role)
           .apiKeys.createApiKey({
-            createApiKeyRequestDto: { name: keyName },
+            createApiKeyRequestDto: { name },
           });
 
         const keyId = created.response!.id!;
@@ -552,7 +563,7 @@ test.describe("GET /api/2.0/keys/@self", () => {
 
         expect(status).toBe(200);
         expect(data.response?.id).toBe(keyId);
-        expect(data.response?.name).toBe(keyName);
+        expect(data.response?.name).toBe(name);
         expect(data.response?.key).toMatch(/^sk-\*{3}/);
         expect(data.response?.keyPostfix).toBe(apiKeyToken.slice(-4));
         expect(data.response?.permissions).toEqual([]);
@@ -571,12 +582,12 @@ test.describe("GET /api/2.0/keys/@self", () => {
     test("GET /api/2.0/keys/@self - User gets own API key info", async ({
       apiSdk,
     }) => {
-      const keyName = faker.lorem.words(3);
+      const name = keyName();
 
       const { data: created } = await apiSdk
         .forRole("user")
         .apiKeys.createApiKey({
-          createApiKeyRequestDto: { name: keyName },
+          createApiKeyRequestDto: { name },
         });
 
       const keyId = created.response!.id!;
@@ -588,7 +599,7 @@ test.describe("GET /api/2.0/keys/@self", () => {
 
       expect(status).toBe(200);
       expect(data.response?.id).toBe(keyId);
-      expect(data.response?.name).toBe(keyName);
+      expect(data.response?.name).toBe(name);
       expect(data.response?.key).toMatch(/^sk-\*{3}/);
       expect(data.response?.keyPostfix).toBe(apiKeyToken.slice(-4));
       expect(data.response?.permissions).toEqual([]);
@@ -669,17 +680,17 @@ test.describe("GET /api/2.0/keys", () => {
     const { data: ownerKey } = await apiSdk
       .forRole("owner")
       .apiKeys.createApiKey({
-        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+        createApiKeyRequestDto: { name: keyName() },
       });
     const { data: adminKey } = await apiSdk
       .forRole("docSpaceAdmin")
       .apiKeys.createApiKey({
-        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+        createApiKeyRequestDto: { name: keyName() },
       });
     const { data: userKey } = await apiSdk
       .forRole("user")
       .apiKeys.createApiKey({
-        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+        createApiKeyRequestDto: { name: keyName() },
       });
 
     const ownerKeyId = ownerKey.response!.id!;
@@ -704,12 +715,12 @@ test.describe("GET /api/2.0/keys", () => {
     const { data: ownerKey } = await apiSdk
       .forRole("owner")
       .apiKeys.createApiKey({
-        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+        createApiKeyRequestDto: { name: keyName() },
       });
     const { data: userKey } = await apiSdk
       .forRole("user")
       .apiKeys.createApiKey({
-        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+        createApiKeyRequestDto: { name: keyName() },
       });
 
     const ownerKeyId = ownerKey.response!.id!;
@@ -733,12 +744,12 @@ test.describe("GET /api/2.0/keys", () => {
     const { data: ownerKey } = await apiSdk
       .forRole("owner")
       .apiKeys.createApiKey({
-        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+        createApiKeyRequestDto: { name: keyName() },
       });
     const { data: roomAdminKey } = await apiSdk
       .forRole("roomAdmin")
       .apiKeys.createApiKey({
-        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+        createApiKeyRequestDto: { name: keyName() },
       });
 
     const ownerKeyId = ownerKey.response!.id!;
@@ -760,12 +771,12 @@ test.describe("GET /api/2.0/keys", () => {
     const { data: ownerKey } = await apiSdk
       .forRole("owner")
       .apiKeys.createApiKey({
-        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+        createApiKeyRequestDto: { name: keyName() },
       });
     const { data: userKey } = await apiSdk
       .forRole("user")
       .apiKeys.createApiKey({
-        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+        createApiKeyRequestDto: { name: keyName() },
       });
 
     const ownerKeyId = ownerKey.response!.id!;
@@ -794,12 +805,13 @@ test.describe("PUT /api/2.0/keys/{keyId}", () => {
       test(`PUT /api/2.0/keys/{keyId} - ${label} updates own API key`, async ({
         apiSdk,
       }) => {
-        const { data: created } = await apiSdk
+        const { data: created, status: createdStatus } = await apiSdk
           .forRole(role)
           .apiKeys.createApiKey({
-            createApiKeyRequestDto: { name: faker.lorem.words(3) },
+            createApiKeyRequestDto: { name: keyName() },
           });
 
+        expect(createdStatus, JSON.stringify(created)).toBe(200);
         const keyId = created.response!.id!;
 
         const { data, status } = await apiSdk
@@ -807,7 +819,7 @@ test.describe("PUT /api/2.0/keys/{keyId}", () => {
           .apiKeys.updateApiKey({
             keyId,
             updateApiKeyRequest: {
-              name: faker.lorem.words(3),
+              name: keyName(),
               permissions: ["files:read", "rooms:read"],
             },
           });
@@ -832,7 +844,7 @@ test.describe("PUT /api/2.0/keys/{keyId}", () => {
       const { data: created } = await apiSdk
         .forRole("user")
         .apiKeys.createApiKey({
-          createApiKeyRequestDto: { name: faker.lorem.words(3) },
+          createApiKeyRequestDto: { name: keyName() },
         });
 
       const keyId = created.response!.id!;
@@ -842,7 +854,7 @@ test.describe("PUT /api/2.0/keys/{keyId}", () => {
         .apiKeys.updateApiKey({
           keyId,
           updateApiKeyRequest: {
-            name: faker.lorem.words(3),
+            name: keyName(),
             permissions: ["files:read", "rooms:read"],
           },
         });
@@ -863,7 +875,7 @@ test.describe("PUT /api/2.0/keys/{keyId}", () => {
     const { data: created } = await apiSdk
       .forRole("owner")
       .apiKeys.createApiKey({
-        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+        createApiKeyRequestDto: { name: keyName() },
       });
 
     const keyId = created.response!.id!;
@@ -873,7 +885,7 @@ test.describe("PUT /api/2.0/keys/{keyId}", () => {
       .apiKeys.updateApiKey({
         keyId,
         updateApiKeyRequest: {
-          name: faker.lorem.words(3),
+          name: keyName(),
           permissions: ["files:read", "rooms:read"],
         },
       });
@@ -891,7 +903,7 @@ test.describe("PUT /api/2.0/keys/{keyId}", () => {
     const { data: created } = await apiSdk
       .forRole("owner")
       .apiKeys.createApiKey({
-        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+        createApiKeyRequestDto: { name: keyName() },
       });
 
     const keyId = created.response!.id!;
@@ -917,7 +929,7 @@ test.describe("PUT /api/2.0/keys/{keyId}", () => {
     const { data: created } = await apiSdk
       .forRole("owner")
       .apiKeys.createApiKey({
-        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+        createApiKeyRequestDto: { name: keyName() },
       });
 
     const keyId = created.response!.id!;
@@ -1228,16 +1240,28 @@ test.describe("POST /api/2.0/keys - issued keys", () => {
     // minutes (still 429 on every 30 s probe), so a burst cannot straddle a window
     // boundary. A 6th 200 is a limiter failure, not test flakiness.
     const statuses: number[] = [];
+    const trace: string[] = [];
     let limitHeader: string | undefined;
     for (let i = 0; i < 6; i++) {
+      const at = Date.now();
       const { status, headers } = await owner.apiKeys.createApiKey({
         createApiKeyRequestDto: { name: `Autotest throttle ${i}` },
       });
       statuses.push(status);
+      // Recorded for the failure message, not asserted. The budget headers
+      // come back only on a refusal, so a run where the sixth call succeeds
+      // carries no sign of the limiter at all - and that is exactly the run we
+      // need to understand. CI has failed here twice (2026-11-16, 2026-11-17)
+      // with six 200s while the same test passes locally every time, so the
+      // next failure should arrive with its own evidence rather than an array
+      // of codes.
+      trace.push(
+        `#${i} ${status} in ${Date.now() - at}ms limit=${headers["x-ratelimit-limit"] ?? "-"} remaining=${headers["x-ratelimit-remaining"] ?? "-"}`,
+      );
       if (status === 429) limitHeader = headers["x-ratelimit-limit"];
     }
 
-    expect(statuses).toEqual([200, 200, 200, 200, 200, 429]);
+    expect(statuses, trace.join(" | ")).toEqual([200, 200, 200, 200, 200, 429]);
     expect(limitHeader).toBe("5");
     // The rejected call creates nothing
     expect(await listKeys(owner)).toHaveLength(5);

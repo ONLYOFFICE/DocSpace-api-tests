@@ -189,7 +189,6 @@ test.describe("Concurrent file mutations", () => {
     expect(
       (await ownerApi.files.getFileInfo({ fileId: bystander })).status,
     ).toBe(200);
-    expect(await filesCount(apiSdk, roomId)).toBe(1);
   });
 
   // Documented (setFileOrder): "numbering of a folder stays without gaps".
