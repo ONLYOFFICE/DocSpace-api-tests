@@ -1,12 +1,14 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
+import type { ApiSDK } from "@/src/services/api-sdk";
 
-const webhookDto = (apiSdk: {
-  faker: { generateString(n: number): string };
-}) => ({
+// The portal under test is its own receiver: it answers HEAD with 200, which
+// the backend demands before storing a subscription, and nothing a payload
+// carries then leaves the test.
+const webhookDto = (apiSdk: ApiSDK) => ({
   createWebhooksConfigRequestDto: {
     name: apiSdk.faker.generateString(10),
-    uri: `https://example.com/?id=${apiSdk.faker.generateString(10)}`,
+    uri: `${apiSdk.tokenStore.portalBaseUrl}/?id=${apiSdk.faker.generateString(10)}`,
     secretKey: apiSdk.faker.generateString(20),
   },
 });
@@ -148,7 +150,14 @@ test.describe("Webhook ownership - a non-admin cannot modify another user's webh
     const apiA = await apiSdk.authenticateMember(a.userData, "User");
     const apiB = await apiSdk.authenticateMember(b.userData, "User");
 
-    const dtoB = webhookDto(apiSdk);
+    // Created enabled, so that the state A tries to write is one that would
+    // actually show if the refusal were only in the answer.
+    const dtoB = {
+      createWebhooksConfigRequestDto: {
+        ...webhookDto(apiSdk).createWebhooksConfigRequestDto,
+        enabled: true,
+      },
+    };
     const { data: created } = await apiB.webhooks.createWebhook(dtoB);
     const id = created.response!.id!;
 
@@ -162,6 +171,10 @@ test.describe("Webhook ownership - a non-admin cannot modify another user's webh
 
     expect(status).toBe(403);
     expect((data as any).error?.message).toBe("Access denied");
+
+    const { data: listB } = await apiB.webhooks.getTenantWebhooks();
+    const stored = listB.response?.find((w) => w.configs?.id === id)?.configs;
+    expect(stored?.enabled).toBe(true);
   });
 
   test("DELETE /api/2.0/settings/webhook/{id} - User A cannot remove User B's webhook", async ({
