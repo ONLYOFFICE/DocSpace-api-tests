@@ -1,6 +1,37 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { RoomType, EmployeeStatus } from "@onlyoffice/docspace-api-sdk";
+import { waitForRoomsSearch } from "@/src/helpers/wait-for-rooms-search";
+import type { ApiSDK } from "@/src/services/api-sdk";
+
+/**
+ * Who a room is owned by, as the rooms listing reports it.
+ *
+ * The listing is answered from a search index that a background sweep
+ * refreshes rather than from the table the write went to, so reading it once
+ * is two kinds of wrong: a room created moments ago can be missing from it
+ * altogether, and a room whose owner has just changed can still be reported
+ * under the old one. Both are waited out here, which is what the assertions
+ * below are actually about - the owner, not the freshness of the index.
+ */
+async function expectRoomOwnedBy(
+  api: ReturnType<ApiSDK["forRole"]>,
+  title: string,
+  roomId: number,
+  owner: { id: string; displayName: string },
+) {
+  await waitForRoomsSearch(
+    () => api.rooms.getRoomsFolder({ filterValue: title }),
+    ({ data }) => {
+      const room = (data.response!.folders as any[]).find(
+        (f) => f.id === roomId,
+      );
+      expect(room, `room ${roomId} is not in the listing`).toBeDefined();
+      expect(room.ownedBy.id).toBe(owner.id);
+      expect(room.ownedBy.displayName).toBe(owner.displayName);
+    },
+  );
+}
 test.describe("PUT /people/self/delete - Send instructions to delete profile", () => {
   test("PUT /people/self/delete - All user types can send deletion instructions", async ({
     apiSdk,
@@ -583,16 +614,10 @@ test.describe("POST /people/remove/start - Start data removal", () => {
 
     // Intermediate check: room owner is still the admin after blocking
     await test.step("verify room is still owned by admin after blocking", async () => {
-      const { data, status } = await ownerApi.rooms.getRoomsFolder({
-        filterValue: "Autotest Remove Owner Room",
+      await expectRoomOwnedBy(ownerApi, "Autotest Remove Owner Room", roomId, {
+        id: adminId,
+        displayName: adminDisplayName,
       });
-      expect(status).toBe(200);
-      const room = (data.response!.folders as any[]).find(
-        (f) => f.id === roomId,
-      );
-      expect(room).toBeDefined();
-      expect(room.ownedBy.id).toBe(adminId);
-      expect(room.ownedBy.displayName).toBe(adminDisplayName);
     });
 
     // Start data removal for the deactivated admin
@@ -620,16 +645,10 @@ test.describe("POST /people/remove/start - Start data removal", () => {
 
     // After removal: room ownership should transfer to the Owner
     await test.step("verify room ownership transferred to owner after removal", async () => {
-      const { data, status } = await ownerApi.rooms.getRoomsFolder({
-        filterValue: "Autotest Remove Owner Room",
+      await expectRoomOwnedBy(ownerApi, "Autotest Remove Owner Room", roomId, {
+        id: ownerId,
+        displayName: ownerDisplayName,
       });
-      expect(status).toBe(200);
-      const room = (data.response!.folders as any[]).find(
-        (f) => f.id === roomId,
-      );
-      expect(room).toBeDefined();
-      expect(room.ownedBy.id).toBe(ownerId);
-      expect(room.ownedBy.displayName).toBe(ownerDisplayName);
     });
   });
 
@@ -673,16 +692,12 @@ test.describe("POST /people/remove/start - Start data removal", () => {
 
     // Intermediate check: room owner is still the RoomAdmin after blocking
     await test.step("verify room is still owned by RoomAdmin after blocking", async () => {
-      const { data, status } = await ownerApi.rooms.getRoomsFolder({
-        filterValue: "Autotest Remove RoomAdmin Owner Room",
-      });
-      expect(status).toBe(200);
-      const room = (data.response!.folders as any[]).find(
-        (f) => f.id === roomId,
+      await expectRoomOwnedBy(
+        ownerApi,
+        "Autotest Remove RoomAdmin Owner Room",
+        roomId,
+        { id: roomAdminId, displayName: roomAdminDisplayName },
       );
-      expect(room).toBeDefined();
-      expect(room.ownedBy.id).toBe(roomAdminId);
-      expect(room.ownedBy.displayName).toBe(roomAdminDisplayName);
     });
 
     // Start data removal for the deactivated RoomAdmin
@@ -710,16 +725,12 @@ test.describe("POST /people/remove/start - Start data removal", () => {
 
     // After removal: room ownership should transfer to the Owner
     await test.step("verify room ownership transferred to owner after removal", async () => {
-      const { data, status } = await ownerApi.rooms.getRoomsFolder({
-        filterValue: "Autotest Remove RoomAdmin Owner Room",
-      });
-      expect(status).toBe(200);
-      const room = (data.response!.folders as any[]).find(
-        (f) => f.id === roomId,
+      await expectRoomOwnedBy(
+        ownerApi,
+        "Autotest Remove RoomAdmin Owner Room",
+        roomId,
+        { id: ownerId, displayName: ownerDisplayName },
       );
-      expect(room).toBeDefined();
-      expect(room.ownedBy.id).toBe(ownerId);
-      expect(room.ownedBy.displayName).toBe(ownerDisplayName);
     });
   });
 

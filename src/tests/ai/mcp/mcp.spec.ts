@@ -5344,6 +5344,30 @@ test.describe("MCP - allow-always for a custom server's own tool", () => {
 /** What the model sees, and what set-disabled's two fields spell out together. */
 const BUILT_IN_DOC_TOOL_TOKEN = `onlyoffice_${BUILT_IN_DOC_TOOL}`;
 
+/**
+ * What the model is handed instead on a portal that runs the document agent:
+ * `httpToolsAdapter` drops the three `onlyoffice_generate_*` tools and offers
+ * this one. It reports differently too - a `files` array whose ids are strings,
+ * and no `parentId` - so `generatedFile` does not read it.
+ */
+const DOC_AGENT_TOOL = "document_agent";
+
+function agentGeneratedFiles(
+  result: unknown,
+): { id?: number; title?: string }[] {
+  try {
+    const parsed = JSON.parse(String(result)) as {
+      data?: { files?: { id?: string | number; title?: string }[] };
+    };
+    return (parsed.data?.files ?? []).map((file) => ({
+      id: file.id === undefined ? undefined : Number(file.id),
+      title: file.title,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 // The last clause is a safety rail rather than part of the question. Since the
 // REST family started being offered in the agent scope too (BUG 83172, the
 // cross-tenant block at the bottom of this file), a bare "create a document"
@@ -7197,17 +7221,28 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     });
 
     const generated = driven.calls.find(
-      (call) => call.toolName === BUILT_IN_DOC_TOOL_TOKEN,
+      (call) => call.toolName === DOC_AGENT_TOOL,
     );
     expect(
       generated,
       `the room chat called ${JSON.stringify(driven.calls.map((call) => call.toolName))} and answered "${driven.reply.slice(0, 160)}"`,
     ).toBeDefined();
 
-    const created = generatedFile(generated!.result);
-    expect(created.id, `tool result was ${generated!.result}`).toEqual(
+    const [created] = agentGeneratedFiles(generated!.result);
+    expect(created?.id, `tool result was ${generated!.result}`).toEqual(
       expect.any(Number),
     );
+
+    // The result names no parent, so where it landed is read from the portal
+    // rather than taken from the tool's word for it.
+    const { data: info, status: infoStatus } = await ownerApi.files.getFileInfo(
+      { fileId: created.id! },
+    );
+    expect(infoStatus).toBe(200);
+    expect(
+      info.response?.folderId,
+      `the document went to folder ${info.response?.folderId}, not to the room the chat was opened on`,
+    ).toBe(roomId);
 
     const { data: listing, status } =
       await ownerApi.folders.getFolderByFolderId({ folderId: roomId });
@@ -7216,16 +7251,21 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
       id?: number;
       title?: string;
     }>;
-    expect(
-      created.parentId,
-      `the document went to folder ${created.parentId}, not to the room the chat was opened on`,
-    ).toBe(roomId);
     expect(stored.map((file) => file.id)).toContain(created.id);
 
     await expectGeneratedFileOpens(apiSdk, "owner", created.id!);
   });
 
-  test("POST /api/2.0/ai/ai/approve-tool-call - a form generated in a Forms-section room chat actually persists in that room", async ({
+  // Skipped for a different reason than the agent-scoped ones above: the form
+  // generator is gone and has no replacement. On a portal running the document
+  // agent, `httpToolsAdapter` drops `onlyoffice_generate_docx/_presentation/
+  // _form` and hands the model `document_agent` instead - which covers
+  // documents, as the test above now checks, but not forms. Neither
+  // `onlyoffice_generate_form` nor `analyze_form` is offered anywhere
+  // (confirmed against the editor-tools catalogue on 2026-11-10), and the model
+  // answers this prompt with the "no such tool" sentinel. There is nothing to
+  // point the test at until forms come back in some shape.
+  test.skip("POST /api/2.0/ai/ai/approve-tool-call - a form generated in a Forms-section room chat actually persists in that room", async ({
     apiSdk,
     paymentsApi,
   }) => {
