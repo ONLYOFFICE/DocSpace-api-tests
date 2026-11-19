@@ -255,18 +255,23 @@ test.describe("getOperationStatuses", () => {
     // read the giving-up as "the copy never finished", which is what the
     // message below now says instead.
     const BUDGET_MS = 180_000;
+
+    // Reading a running record twice changes nothing. Checked here, while the
+    // copy has just started and is certainly running: a finished record is
+    // handed out once and dropped, so a re-read inside the loop below would
+    // take the very completion the loop is waiting for.
+    const [once] = await operations(owner, op.id!);
+    const [twice] = await operations(owner, op.id!);
+    expect(twice, "a running record survives being read").toBeDefined();
+    expect(twice.id).toBe(once.id);
+
     const samples: FileOperationDto[] = [];
     const started = Date.now();
     while (Date.now() - started < BUDGET_MS) {
-      // Two reads in a row: the second must not differ in identity or lose the record.
-      const [first] = await operations(owner, op.id!);
-      const [second] = await operations(owner, op.id!);
-      if (first) samples.push(first);
-      if (first && !first.finished) {
-        expect(second, "a running record survives being read").toBeDefined();
-        expect(second.id).toBe(first.id);
-      }
-      if (!first || first.finished) break;
+      const [sample] = await operations(owner, op.id!);
+      if (!sample) break;
+      samples.push(sample);
+      if (sample.finished) break;
       await sleep(100);
     }
 
@@ -986,7 +991,12 @@ test.describe("terminateTasks", () => {
     const res = await owner.operations.terminateTasks({ id: op.id! });
 
     expect(res.status).toBe(200);
-    const record = await finishedRecord(owner, op.id!);
+    // "The answer is usually empty" - but terminate ends with a read, so a job
+    // that had already stopped is handed out here and is gone from the list
+    // afterwards. Polling without looking here first waits out the timeout.
+    const handedOut = (res.data.response ?? []).find((o) => o.id === op.id);
+    const record = handedOut ?? (await finishedRecord(owner, op.id!));
+    expect(record.finished).toBe(true);
     expect(record.error).toBeTruthy();
     expect(await settled(() => countFiles(owner, roomId))).toBeLessThan(40);
     expect(await countFiles(owner, folderId)).toBe(40);

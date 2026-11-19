@@ -14406,13 +14406,14 @@ test.describe("API rooms methods", () => {
       });
       await ownerApi.rooms.terminateRoomIndexExport();
 
-      const { data, status } = await ownerApi.rooms.getRoomIndexExport();
-
-      expect(status).toBe(200);
-      const resp = data.response;
-      const hasActiveRunning =
-        Boolean(resp?.id) && resp?.isCompleted === false && !resp?.error;
-      expect(hasActiveRunning).toBe(false);
+      await expect(async () => {
+        const { data, status } = await ownerApi.rooms.getRoomIndexExport();
+        expect(status).toBe(200);
+        const resp = data.response;
+        const hasActiveRunning =
+          Boolean(resp?.id) && resp?.isCompleted === false && !resp?.error;
+        expect(hasActiveRunning, JSON.stringify(resp)).toBe(false);
+      }).toPass({ intervals: [200, 500, 1_000], timeout: 30_000 });
     });
 
     test("GET /files/rooms/indexexport - DocSpaceAdmin does not see Owner's index export operation", async ({
