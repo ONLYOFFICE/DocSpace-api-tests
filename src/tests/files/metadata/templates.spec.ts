@@ -1,7 +1,12 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { MetadataFieldType } from "@onlyoffice/docspace-api-sdk";
-import { createTemplateWithFields } from "@/src/helpers/metadata";
+import {
+  createDocIn,
+  createFolderIn,
+  createTemplateWithFields,
+  fieldValue,
+} from "@/src/helpers/metadata";
 
 test.describe("POST /files/metadata/templates - Create template", () => {
   test("POST /files/metadata/templates - Owner creates a template with every field type and reads it back", async ({
@@ -449,5 +454,144 @@ test.describe("DELETE /files/metadata/templates/:id - Delete template", () => {
       templateId: 99999999,
     });
     expect(status).toBe(404);
+  });
+});
+
+test.describe("Template DTO and authorship", () => {
+  test("GET /files/metadata/templates/:id - DTO carries the author, dates and fields in display order", async ({
+    apiSdk,
+    api,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { id } = await createTemplateWithFields(ownerApi, apiSdk, [
+      { name: "first" },
+      { name: "second", type: MetadataFieldType.Number },
+    ]);
+
+    const { data } = await ownerApi.metadata.getTemplate({ templateId: id });
+    const t = data.response!;
+    expect(t.createBy!.id).toBe(api.adminUserId);
+    expect(t.createBy!.displayName).toBeTruthy();
+    expect(t.modifiedBy!.id).toBe(t.createBy!.id);
+    expect(t.createOn).toBeTruthy();
+    expect(t.modifiedOn).toBeTruthy();
+    expect(t.visible).toBe(true);
+    const orders = t.fields!.map((f) => f.order!);
+    expect(orders).toEqual([...orders].sort((a, b) => a - b));
+    expect(t.fields!.every((f) => f.templateId === id)).toBe(true);
+  });
+
+  test("PUT /files/metadata/templates/:id - A change by another admin is recorded in modifiedBy, the creator stays", async ({
+    apiSdk,
+    api,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { id } = await createTemplateWithFields(ownerApi, apiSdk);
+    const { data: admin, api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { status } = await adminApi.metadata.updateTemplate({
+      templateId: id,
+      updateMetadataTemplate: {
+        name: `Autotest by admin ${apiSdk.faker.generateString(6)}`,
+      },
+    });
+    expect(status).toBe(200);
+
+    const { data } = await ownerApi.metadata.getTemplate({ templateId: id });
+    expect(data.response!.createBy!.id).toBe(api.adminUserId);
+    expect(data.response!.modifiedBy!.id).toBe(admin.response!.id);
+  });
+});
+
+test.describe("Template changes against assigned entries", () => {
+  test("PUT /files/metadata/templates/:id - Renaming an assigned template keeps its values on the file and the folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { id, template } = await createTemplateWithFields(ownerApi, apiSdk);
+    const fieldId = template.fields![0].id!;
+    const folderId = await createFolderIn(ownerApi, apiSdk);
+    const fileId = await createDocIn(ownerApi, apiSdk, folderId);
+    for (const call of [
+      ownerApi.metadata.assignFolderTemplates({
+        folderId,
+        assignMetadataTemplates: { templateIds: [id] },
+      }),
+      ownerApi.metadata.assignFileTemplates({
+        fileId,
+        assignMetadataTemplates: { templateIds: [id] },
+      }),
+    ])
+      expect((await call).status).toBe(200);
+    await ownerApi.metadata.setFolderValues({
+      folderId,
+      setMetadataValues: { values: [{ fieldId, stringValue: "f" }] },
+    });
+    await ownerApi.metadata.setFileValues({
+      fileId,
+      setMetadataValues: { values: [{ fieldId, stringValue: "g" }] },
+    });
+
+    const newName = `Autotest renamed ${apiSdk.faker.generateString(6)}`;
+    expect(
+      (
+        await ownerApi.metadata.updateTemplate({
+          templateId: id,
+          updateMetadataTemplate: { name: newName },
+        })
+      ).status,
+    ).toBe(200);
+
+    const { data: file } = await ownerApi.metadata.getFileMetadata({ fileId });
+    const { data: folder } = await ownerApi.metadata.getFolderMetadata({
+      folderId,
+    });
+    expect(file.response!.templates![0].name).toBe(newName);
+    expect(folder.response!.templates![0].name).toBe(newName);
+    expect(fieldValue(file.response!, id, fieldId)!.stringValue).toBe("g");
+    expect(fieldValue(folder.response!, id, fieldId)!.stringValue).toBe("f");
+  });
+
+  test("DELETE /files/metadata/templates/:id and /fields/:fieldId - Folder loses the template, or the field's value, and keeps the rest", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const keep = await createTemplateWithFields(ownerApi, apiSdk, [
+      { name: "a" },
+      { name: "b" },
+    ]);
+    const drop = await createTemplateWithFields(ownerApi, apiSdk);
+    const [a, b] = keep.template.fields!.map((f) => f.id!);
+    const folderId = await createFolderIn(ownerApi, apiSdk);
+    await ownerApi.metadata.assignFolderTemplates({
+      folderId,
+      assignMetadataTemplates: { templateIds: [keep.id, drop.id] },
+    });
+    await ownerApi.metadata.setFolderValues({
+      folderId,
+      setMetadataValues: {
+        values: [
+          { fieldId: a, stringValue: "1" },
+          { fieldId: b, stringValue: "2" },
+          { fieldId: drop.template.fields![0].id!, stringValue: "3" },
+        ],
+      },
+    });
+
+    expect(
+      (await ownerApi.metadata.deleteField({ templateId: keep.id, fieldId: a }))
+        .status,
+    ).toBe(200);
+    expect(
+      (await ownerApi.metadata.deleteTemplate({ templateId: drop.id })).status,
+    ).toBe(200);
+
+    const { data } = await ownerApi.metadata.getFolderMetadata({ folderId });
+    expect(data.response!.templates!.map((t) => t.id)).toEqual([keep.id]);
+    expect(data.response!.templates![0].fields!.map((f) => f.id)).toEqual([b]);
+    expect(fieldValue(data.response!, keep.id, b)!.stringValue).toBe("2");
   });
 });

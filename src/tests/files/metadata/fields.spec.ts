@@ -4,7 +4,11 @@ import {
   MetadataFieldRequest,
   MetadataFieldType,
 } from "@onlyoffice/docspace-api-sdk";
-import { createTemplateWithFields } from "@/src/helpers/metadata";
+import {
+  createFolderIn,
+  createTemplateWithFields,
+  fieldValue,
+} from "@/src/helpers/metadata";
 
 test.describe("POST /files/metadata/templates/:id/fields - Create field", () => {
   test("POST /files/metadata/templates/:id/fields - Creates a field of every type and reads it back", async ({
@@ -335,5 +339,137 @@ test.describe("DELETE /files/metadata/templates/:id/fields/:fieldId - Delete fie
 
     const { data } = await ownerApi.metadata.getTemplate({ templateId: id });
     expect(data.response!.fields!.map((f) => f.name)).toEqual(["only"]);
+  });
+});
+
+test.describe("PUT /files/metadata/templates/:id/fields/:fieldId - options and order", () => {
+  test("A new option gets an ID, existing options keep theirs, an option can be renamed", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { id, template } = await createTemplateWithFields(ownerApi, apiSdk, [
+      {
+        name: "c",
+        type: MetadataFieldType.SingleChoice,
+        options: [{ value: "a" }, { value: "b" }],
+      },
+    ]);
+    const field = template.fields![0];
+    const [a, b] = field.options!;
+
+    const { data, status } = await ownerApi.metadata.updateField({
+      templateId: id,
+      fieldId: field.id!,
+      updateMetadataFieldRequest: {
+        options: [
+          { id: a.id, value: "a renamed" },
+          { id: b.id, value: "b" },
+          { value: "c" },
+        ],
+      },
+    });
+    expect(status).toBe(200);
+    const opts = data.response!.options!;
+    expect(opts.map((o) => o.value)).toEqual(["a renamed", "b", "c"]);
+    expect(opts[0].id).toBe(a.id);
+    expect(opts[1].id).toBe(b.id);
+    expect(opts[2].id).toBeTruthy();
+
+    const { data: got } = await ownerApi.metadata.getTemplate({
+      templateId: id,
+    });
+    expect(got.response!.fields![0].options!.map((o) => o.value)).toEqual([
+      "a renamed",
+      "b",
+      "c",
+    ]);
+  });
+
+  test("An option in use cannot be removed, an unused one can", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { id, template } = await createTemplateWithFields(ownerApi, apiSdk, [
+      {
+        name: "c",
+        type: MetadataFieldType.SingleChoice,
+        options: [{ value: "used" }, { value: "free" }],
+      },
+    ]);
+    const field = template.fields![0];
+    const [used, free] = field.options!;
+    const folderId = await createFolderIn(ownerApi, apiSdk);
+    await ownerApi.metadata.assignFolderTemplates({
+      folderId,
+      assignMetadataTemplates: { templateIds: [id] },
+    });
+    await ownerApi.metadata.setFolderValues({
+      folderId,
+      setMetadataValues: {
+        values: [{ fieldId: field.id!, optionIds: [used.id!] }],
+      },
+    });
+
+    const { status: inUse } = await ownerApi.metadata.updateField({
+      templateId: id,
+      fieldId: field.id!,
+      updateMetadataFieldRequest: { options: [{ id: free.id, value: "free" }] },
+    });
+    expect(inUse).toBe(400);
+    const { data: kept } = await ownerApi.metadata.getTemplate({
+      templateId: id,
+    });
+    expect(kept.response!.fields![0].options!.map((o) => o.id)).toEqual([
+      used.id,
+      free.id,
+    ]);
+    const { data: meta } = await ownerApi.metadata.getFolderMetadata({
+      folderId,
+    });
+    expect(fieldValue(meta.response!, id, field.id!)!.optionIds).toEqual([
+      used.id,
+    ]);
+
+    const { status: unused } = await ownerApi.metadata.updateField({
+      templateId: id,
+      fieldId: field.id!,
+      updateMetadataFieldRequest: { options: [{ id: used.id, value: "used" }] },
+    });
+    expect(unused).toBe(200);
+    const { data: after } = await ownerApi.metadata.getTemplate({
+      templateId: id,
+    });
+    expect(after.response!.fields![0].options!.map((o) => o.id)).toEqual([
+      used.id,
+    ]);
+  });
+
+  test("A new order moves the field; a rename keeps the options", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { id, template } = await createTemplateWithFields(ownerApi, apiSdk, [
+      { name: "a" },
+      {
+        name: "b",
+        type: MetadataFieldType.MultiChoice,
+        options: [{ value: "x" }],
+      },
+      { name: "c" },
+    ]);
+    const b = template.fields!.find((f) => f.name === "b")!;
+
+    const { status } = await ownerApi.metadata.updateField({
+      templateId: id,
+      fieldId: b.id!,
+      updateMetadataFieldRequest: { name: "b2", order: -5 },
+    });
+    expect(status).toBe(200);
+
+    const { data } = await ownerApi.metadata.getTemplate({ templateId: id });
+    expect(data.response!.fields!.map((f) => f.name)).toEqual(["b2", "a", "c"]);
+    expect(data.response!.fields![0].options!.map((o) => o.value)).toEqual([
+      "x",
+    ]);
   });
 });

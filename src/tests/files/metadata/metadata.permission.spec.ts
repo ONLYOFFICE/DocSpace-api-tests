@@ -5,7 +5,13 @@ import {
   MetadataFieldType,
   RoomType,
 } from "@onlyoffice/docspace-api-sdk";
-import { createTemplateWithFields } from "@/src/helpers/metadata";
+import {
+  createDocIn,
+  createTemplateWithFields,
+  fieldValue,
+} from "@/src/helpers/metadata";
+import { createPrivateRoom } from "@/src/helpers/rooms";
+import { uploadPrivateRoomFile } from "@/src/helpers/private-rooms";
 import { ApiSDK } from "@/src/services/api-sdk";
 
 type MemberType = "DocSpaceAdmin" | "RoomAdmin" | "User" | "Guest";
@@ -439,4 +445,138 @@ test.describe("Entry metadata - access follows the right on the file or folder",
     ];
     expect(statuses).toEqual([401, 401, 401]);
   });
+});
+
+test.describe("Entry access by other roles", () => {
+  test("A User with the Editing right on the room can write file metadata", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `Autotest meta room ${apiSdk.faker.generateString(6)}`,
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+    const fileId = await createDocIn(ownerApi, apiSdk, roomId);
+    const { id, template } = await createTemplateWithFields(ownerApi, apiSdk);
+    const fieldId = template.fields![0].id!;
+    await ownerApi.metadata.assignFileTemplates({
+      fileId,
+      assignMetadataTemplates: { templateIds: [id] },
+    });
+
+    const { data: user, api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    expect(
+      (
+        await ownerApi.rooms.setRoomSecurity({
+          id: roomId,
+          roomInvitationRequest: {
+            invitations: [
+              { id: user.response!.id!, access: FileShare.Editing },
+            ],
+            notify: false,
+          },
+        })
+      ).status,
+    ).toBe(200);
+
+    const { status } = await userApi.metadata.setFileValues({
+      fileId,
+      setMetadataValues: { values: [{ fieldId, stringValue: "editor" }] },
+    });
+    expect(status).toBe(200);
+    const { data } = await ownerApi.metadata.getFileMetadata({ fileId });
+    expect(fieldValue(data.response!, id, fieldId)!.stringValue).toBe("editor");
+  });
+});
+
+/**
+ * An encrypted room keeps no clear text on the server: Copy, IndexExport and
+ * Vectorization are refused there, and a file enters only as an `encrypted`
+ * upload named with a GUID - so a plain description of it should not be stored
+ * either. It does stay out of POST /files/rooms/search, by template and value.
+ */
+test.describe("Private rooms", () => {
+  test.fail(
+    "BUG 85235: PUT /files/metadata/folder/:id/values - A private room refuses metadata",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: room, status: roomStatus } = await createPrivateRoom(
+        apiSdk,
+        "owner",
+        {
+          title: `Autotest private meta ${apiSdk.faker.generateString(6)}`,
+          roomType: RoomType.CustomRoom,
+        },
+      );
+      expect(roomStatus, "setup: the private room was created").toBe(200);
+      expect(room.response!.private).toBe(true);
+      const roomId = room.response!.id!;
+
+      const { id, template } = await createTemplateWithFields(ownerApi, apiSdk);
+      const fieldId = template.fields![0].id!;
+
+      const assigned = await ownerApi.metadata.assignFolderTemplates({
+        folderId: roomId,
+        assignMetadataTemplates: { templateIds: [id] },
+      });
+      expect(assigned.status).toBe(403);
+
+      const written = await ownerApi.metadata.setFolderValues({
+        folderId: roomId,
+        setMetadataValues: {
+          values: [{ fieldId, stringValue: "secret note" }],
+        },
+      });
+      expect(written.status).toBe(403);
+
+      const { data } = await ownerApi.metadata.getFolderMetadata({
+        folderId: roomId,
+      });
+      expect(data.response!.templates ?? []).toHaveLength(0);
+    },
+  );
+
+  test.fail(
+    "BUG 85235: PUT /files/metadata/file/:id/values - A file in a private room refuses metadata",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: room } = await createPrivateRoom(apiSdk, "owner", {
+        title: `Autotest private meta ${apiSdk.faker.generateString(6)}`,
+        roomType: RoomType.CustomRoom,
+      });
+      const roomId = room.response!.id!;
+      const fileId = await uploadPrivateRoomFile(ownerApi, roomId);
+
+      // The premise: the portal was never told the real name, only a GUID.
+      const { data: info } = await ownerApi.files.getFileInfo({ fileId });
+      expect(info.response!.title).toMatch(/^[0-9a-f-]{36}\.[a-z]+$/i);
+
+      const { id, template } = await createTemplateWithFields(ownerApi, apiSdk);
+      const fieldId = template.fields![0].id!;
+      await ownerApi.metadata.assignFileTemplates({
+        fileId,
+        assignMetadataTemplates: { templateIds: [id] },
+      });
+
+      const written = await ownerApi.metadata.setFileValues({
+        fileId,
+        setMetadataValues: {
+          values: [{ fieldId, stringValue: "Q4 layoff list.xlsx" }],
+        },
+      });
+      expect(written.status).toBe(403);
+
+      const custom = await ownerApi.metadata.setFileCustomFields({
+        fileId,
+        setCustomFields: { fields: [{ name: "real name", value: "salaries" }] },
+      });
+      expect(custom.status).toBe(403);
+    },
+  );
 });
