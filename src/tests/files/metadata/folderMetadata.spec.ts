@@ -3,6 +3,7 @@ import { test } from "@/src/fixtures";
 import {
   MetadataConflictResolveType,
   MetadataFieldType,
+  RoomType,
 } from "@onlyoffice/docspace-api-sdk";
 import {
   createTemplateWithFields,
@@ -683,5 +684,118 @@ test.describe("Folder values and custom fields", () => {
       folderId: 99999999,
     });
     expect(missing).toBe(404);
+  });
+});
+
+test.describe("Rooms and inheritance", () => {
+  test("PUT /files/metadata/folder/:id/templates - A room takes templates, values and custom fields like a folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `Autotest meta room ${apiSdk.faker.generateString(6)}`,
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+    const { id, template } = await createTemplateWithFields(ownerApi, apiSdk);
+    const fieldId = template.fields![0].id!;
+
+    expect(
+      (
+        await ownerApi.metadata.assignFolderTemplates({
+          folderId: roomId,
+          assignMetadataTemplates: { templateIds: [id] },
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await ownerApi.metadata.setFolderValues({
+          folderId: roomId,
+          setMetadataValues: { values: [{ fieldId, stringValue: "room" }] },
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await ownerApi.metadata.setFolderCustomFields({
+          folderId: roomId,
+          setCustomFields: { fields: [{ name: "k", value: "v" }] },
+        })
+      ).status,
+    ).toBe(200);
+
+    const { data } = await ownerApi.metadata.getFolderMetadata({
+      folderId: roomId,
+    });
+    expect(fieldValue(data.response!, id, fieldId)!.stringValue).toBe("room");
+    expect(data.response!.customFields).toEqual([{ name: "k", value: "v" }]);
+
+    // cascade from a room reaches the files inside
+    const fileId = await createDoc(ownerApi, apiSdk, roomId);
+    await assignWithCascade(ownerApi, roomId, [id]);
+    const { data: file } = await ownerApi.metadata.getFileMetadata({ fileId });
+    expect(file.response!.templates!.map((t) => t.id)).toContain(id);
+  });
+
+  test("DELETE /files/metadata/file/:id/templates/:templateId - An inherited template can be taken off a file and a later cascade assigns it again", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const root = await createFolder(ownerApi, apiSdk);
+    const { id } = await createTemplateWithFields(ownerApi, apiSdk);
+    await assignWithCascade(ownerApi, root, [id]);
+    const fileId = await createDoc(ownerApi, apiSdk, root);
+
+    const { data: inherited } = await ownerApi.metadata.getFileMetadata({
+      fileId,
+    });
+    expect(inherited.response!.templates!.map((t) => t.id)).toEqual([id]);
+
+    expect(
+      (await ownerApi.metadata.unassignFileTemplate({ fileId, templateId: id }))
+        .status,
+    ).toBe(200);
+    const { data: removed } = await ownerApi.metadata.getFileMetadata({
+      fileId,
+    });
+    expect(removed.response!.templates ?? []).toEqual([]);
+
+    await updateWithCascade(ownerApi, root, id);
+    const { data: again } = await ownerApi.metadata.getFileMetadata({ fileId });
+    expect(again.response!.templates!.map((t) => t.id)).toEqual([id]);
+  });
+
+  test("PUT /files/metadata/folder/:id/templates/:templateId - Cascading from an inherited subfolder makes the assignment its own", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const root = await createFolder(ownerApi, apiSdk);
+    const sub = await createFolder(ownerApi, apiSdk, root);
+    const { id } = await createTemplateWithFields(ownerApi, apiSdk);
+    await assignWithCascade(ownerApi, root, [id]);
+
+    const { data: before } = await ownerApi.metadata.getFolderMetadata({
+      folderId: sub,
+    });
+    expect(before.response!.templates!.find((t) => t.id === id)!.cascade).toBe(
+      false,
+    );
+
+    await updateWithCascade(ownerApi, sub, id);
+    const { data: after } = await ownerApi.metadata.getFolderMetadata({
+      folderId: sub,
+    });
+    expect(after.response!.templates!.find((t) => t.id === id)!.cascade).toBe(
+      true,
+    );
+    const { data: rootMeta } = await ownerApi.metadata.getFolderMetadata({
+      folderId: root,
+    });
+    expect(
+      rootMeta.response!.templates!.find((t) => t.id === id)!.cascade,
+    ).toBe(true);
   });
 });

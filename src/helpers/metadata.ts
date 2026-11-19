@@ -1,10 +1,55 @@
+import { expect } from "@playwright/test";
 import {
+  EntryMetadataDto,
   MetadataConflictResolveType,
   MetadataFieldType,
 } from "@onlyoffice/docspace-api-sdk";
 import { ApiSDK } from "../services/api-sdk";
+import { getMyDocsFolderId } from "./files";
 
 type OwnerApi = ReturnType<ApiSDK["forRole"]>;
+
+/** A folder to hang metadata on, in My documents unless a parent is given. */
+export async function createFolderIn(
+  api: OwnerApi,
+  apiSdk: ApiSDK,
+  parentId?: number,
+): Promise<number> {
+  const { data, status } = await api.folders.createFolder({
+    folderId: parentId ?? (await getMyDocsFolderId(api)),
+    createFolderRequest: {
+      title: `Autotest meta ${apiSdk.faker.generateString(6)}`,
+    },
+  });
+  expect(status).toBe(200);
+  return data.response!.id!;
+}
+
+/** A document to hang metadata on. */
+export async function createDocIn(
+  api: OwnerApi,
+  apiSdk: ApiSDK,
+  folderId: number,
+): Promise<number> {
+  const { data, status } = await api.files.createFile({
+    folderId,
+    createFileRequest: {
+      title: `Autotest meta ${apiSdk.faker.generateString(6)}.docx`,
+    },
+  });
+  expect(status).toBe(200);
+  return data.response!.id!;
+}
+
+/** The value one field of one assigned template holds on an entry. */
+export const fieldValue = (
+  meta: EntryMetadataDto,
+  templateId: number,
+  fieldId: number,
+) =>
+  meta.templates
+    ?.find((t) => t.id === templateId)
+    ?.fields?.find((f) => f.id === fieldId)?.value;
 
 /**
  * Creates a metadata template as the given client and returns its ID.
