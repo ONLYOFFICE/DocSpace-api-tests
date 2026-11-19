@@ -222,27 +222,15 @@ test.describe("POST /api/2.0/migration/clear", () => {
 
 test.describe("GET /api/2.0/migration/logs - after a failed job", () => {
   /**
-   * A job that failed before `SaveLogAsync` ever ran should answer 404, the
-   * same as no job at all. It answers 403 instead, and not with an error body
-   * but with a raw Kestrel crash: "Response Content-Length mismatch: too many
-   * bytes written (167 of 0)". The handler sets `Content-Length` from
-   * `stream.Length` before writing the body, so once that header is out an
-   * error body no longer fits (MigrationController.cs, MigrationLogger.cs).
-   * Whoever clicks "download log" after a failed migration gets a permission
-   * error for something nothing forbids. 6 runs out of 6.
+   * A job that failed before `SaveLogAsync` ever ran should answer 404, like no
+   * job at all. It answers 403 with a raw Kestrel crash ("Content-Length
+   * mismatch: too many bytes written"): the handler sets `Content-Length` from
+   * `stream.Length` before writing the body, so no error body fits afterwards.
+   * 6 runs out of 6.
    *
-   * The wait below is what makes that reachable at all. The parse runs behind
-   * the request, so right after init the job is queued with an empty `error`
-   * and the endpoint answers a perfectly correct 404 - there is nothing to
-   * report yet. Without the wait this test passed in CI for two nights
-   * running, reporting an unexpected pass while never reaching the case it is
-   * named after; locally, on a quicker portal, it reproduced every time. The
-   * endpoint was never the unstable part.
-   *
-   * Caveat of `test.fail`: it counts ANY throw as the expected one, in a hook
-   * as well as in the body (checked 2026-11-17), so a setup that broke outright
-   * would still read green here. What guards against that is the rest of this
-   * file - several tests drive the same init and would go red first.
+   * The wait makes the case reachable: the parse runs behind the request, so
+   * right after init the job is only queued and 404 is correct. Without it the
+   * test reported an unexpected pass for two nights without reaching the case.
    */
   test.fail(
     "BUG 84791: logs for a job that failed before writing any log crash instead of a clean 404",

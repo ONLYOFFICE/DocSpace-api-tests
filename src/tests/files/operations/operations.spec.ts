@@ -4,6 +4,7 @@ import {
   CheckDestFolderResult,
   FileDto,
   FileConflictResolveType,
+  FileOperationDto,
   FileOperationType,
   FileShare,
   FolderDto,
@@ -12,6 +13,7 @@ import {
 } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { createOoForm, getMyDocsFolderId } from "@/src/helpers/files";
+import { ApiSDK } from "@/src/services/api-sdk";
 import config from "@/config";
 
 test.describe("POST /api/2.0/files/favorites - Add favorite files and folders", () => {
@@ -9185,6 +9187,33 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
   );
 });
 
+/**
+ * Documented aftermath of a terminate: "The answer is usually empty. After the
+ * job stops, GET api/2.0/files/fileops lists it once, finished, with the status
+ * Canceled." That record is published after the call returns, so a single read
+ * right after it is a coin toss. What terminate does promise is that nothing is
+ * left running - hence: wait for the operation to leave the list, and whatever
+ * the window showed on the way must be a stopped job.
+ */
+async function expectTerminated(
+  api: ReturnType<ApiSDK["forRole"]>,
+  operationId: string,
+) {
+  const seen: FileOperationDto[] = [];
+  await expect(async () => {
+    const { data } = await api.operations.getOperationStatuses({
+      id: operationId,
+    });
+    const op = (data.response ?? []).find((o) => o.id === operationId);
+    if (op) seen.push(op);
+    expect(op, "the operation is still listed").toBeUndefined();
+  }).toPass({ intervals: [200, 500, 1_000], timeout: 30_000 });
+
+  for (const op of seen) {
+    expect(op.finished, `terminate left a running job: ${op.id}`).toBe(true);
+  }
+}
+
 test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks", () => {
   test("PUT /api/2.0/files/fileops/terminate/{id} - Non-existent operation ID returns 200 with empty response", async ({
     apiSdk,
@@ -9226,7 +9255,7 @@ test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks", () =
 
     expect(status).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
-    expect(data.response).toHaveLength(0);
+    await expectTerminated(ownerApi, operationId);
   });
 
   test("PUT /api/2.0/files/fileops/terminate/{id} - Terminate duplicate operation returns 200 and operation is no longer in active list", async ({
@@ -9255,15 +9284,7 @@ test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks", () =
 
     expect(status).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
-
-    const { data: statusData } = await ownerApi.operations.getOperationStatuses(
-      { id: operationId },
-    );
-    // In CI, parallel workers may have their own active operations visible in the
-    // shared list — assert our specific operation is gone, not the entire list.
-    expect((statusData.response ?? []).map((op) => op.id)).not.toContain(
-      operationId,
-    );
+    await expectTerminated(ownerApi, operationId);
   });
 
   test("PUT /api/2.0/files/fileops/terminate/{id} - Terminate already-completed operation returns 200 with empty response", async ({
@@ -9335,11 +9356,7 @@ test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks", () =
 
     expect(status).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
-
-    const { data: statusData } = await ownerApi.operations.getOperationStatuses(
-      { id: operationId },
-    );
-    expect(statusData.response).toHaveLength(0);
+    await expectTerminated(ownerApi, operationId);
   });
 
   test("PUT /api/2.0/files/fileops/terminate/{id} - Terminate move operation returns 200 and operation is no longer in active list", async ({
@@ -9382,11 +9399,7 @@ test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks", () =
     expect(status).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
 
-    await expect(async () => {
-      const { data: statusData } =
-        await ownerApi.operations.getOperationStatuses({ id: operationId });
-      expect(statusData.response).toHaveLength(0);
-    }).toPass({ intervals: [1000, 2000, 3000], timeout: 15000 });
+    await expectTerminated(ownerApi, operationId);
   });
 
   test("PUT /api/2.0/files/fileops/terminate/{id} - Terminate markAsRead operation returns 200 and operation is no longer in active list", async ({
@@ -9416,11 +9429,7 @@ test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks", () =
     expect(status).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
 
-    await expect(async () => {
-      const { data: statusData } =
-        await ownerApi.operations.getOperationStatuses({ id: operationId });
-      expect(statusData.response).toHaveLength(0);
-    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
+    await expectTerminated(ownerApi, operationId);
   });
 
   test("PUT /api/2.0/files/fileops/terminate/{id} - Terminate emptyTrash operation returns 200 and operation is no longer in active list", async ({
@@ -9468,11 +9477,7 @@ test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks", () =
     expect(status).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
 
-    await expect(async () => {
-      const { data: statusData } =
-        await ownerApi.operations.getOperationStatuses({ id: operationId });
-      expect(statusData.response).toHaveLength(0);
-    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
+    await expectTerminated(ownerApi, operationId);
   });
 });
 

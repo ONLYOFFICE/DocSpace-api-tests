@@ -127,8 +127,13 @@ test.describe("PUT /files/fileops/{copy,move} - private rooms", () => {
             roomType: RoomType.CustomRoom,
           },
         });
-        const myDocs = (await owner.folders.getMyFolder()).data.response!
-          .current!.id!;
+        const myDocs = (
+          await owner.folders.createFolder({
+            folderId: (await owner.folders.getMyFolder()).data.response!
+              .current!.id!,
+            createFolderRequest: { title: "Autotest my docs" },
+          })
+        ).data.response!.id!;
         const sub = (
           await owner.folders.createFolder({
             folderId: roomA,
