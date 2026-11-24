@@ -132,9 +132,13 @@ test.describe("AI Assignments - read permissions", () => {
       expect(single.data).toBe(text.id);
 
       // Resolution is what the chat surface actually calls, and it hands back the
-      // whole profile — a member must still not get a credential out of it.
+      // whole profile — a member must still not get a credential out of it. The
+      // resolved profile no longer carries `key` (the catalogue still does), for
+      // the Owner as well, so the profile is identified by its id.
       expect(resolved.status).toBe(200);
-      expect(resolved.data?.profile?.key).toBe("onlyoffice");
+      expect(resolved.data?.profileId).toBeTruthy();
+      expect(resolved.data?.profile?.id).toBe(resolved.data?.profileId);
+      expect(resolved.data?.profile).not.toHaveProperty("key");
       expect(JSON.stringify(resolved.data)).not.toMatch(
         /sk-[A-Za-z0-9_-]{16,}/,
       );

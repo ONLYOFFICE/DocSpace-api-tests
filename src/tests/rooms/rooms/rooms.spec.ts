@@ -938,13 +938,12 @@ test.describe("API rooms methods", () => {
     });
 
     await test.step("filterValue search by title", async () => {
-      const { data, status } = await filterRoomsFolder(
-        ownerApi.rooms,
-        "Autotest VDR",
+      // The rooms were just created, and filterValue reads a search index that
+      // picks them up on a background sweep.
+      const { data } = await waitForRoomsSearch(
+        () => filterRoomsFolder(ownerApi.rooms, "Autotest VDR"),
+        ({ data: found }) => expect(found.response!.count).toBe(1),
       );
-
-      expect(status).toBe(200);
-      expect(data.response!.count).toBe(1);
       expect(data.response!.folders![0].title as string).toContain(
         "Autotest VDR",
       );
