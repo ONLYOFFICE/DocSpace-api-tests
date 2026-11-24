@@ -1,7 +1,13 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
+import {
+  FileShare,
+  RoomPrivacyFilter,
+  RoomType,
+  SearchArea,
+} from "@onlyoffice/docspace-api-sdk";
 import { ApiSDK } from "@/src/services/api-sdk";
+import { Api } from "@/src/helpers/private-rooms";
 import { folderIds, roomAccesses } from "@/src/helpers/rooms";
 
 // Private Rooms are being tested again (skips removed 2026-11-05). Re-verify the
@@ -784,65 +790,152 @@ test.describe("Cross-user E2E key isolation", () => {
 });
 
 test.describe("GET /files/rooms - private room visibility", () => {
-  test("BUG 82956: GET /files/rooms - DocSpaceAdmin must not see a private room they are not a member of", async ({
-    apiSdk,
-  }) => {
-    // Owner creates a private room. DocSpaceAdmin is never invited.
-    // The room must be invisible to the admin because E2E rooms are only
-    // visible to their members — admin role must not bypass that.
-    const owner = apiSdk.forRole("owner");
-    await owner.privacyroom.setKeys({
+  // The default Rooms listing (getRoomsFolder({})) never contains a private
+  // room - not even for a member (privacyroom.listing.spec.ts). Reading it says
+  // nothing about who may see a private room, so the checks below look at the
+  // views that do list private rooms. Each view is first proven to list the room
+  // for its creator (positive control) and only then asked about a non-member.
+  const roomViews = async (api: Api) => {
+    const idsOf = async (
+      call: Promise<{ data: Parameters<typeof folderIds>[0]; status: number }>,
+      view: string,
+    ) => {
+      const { data, status } = await call;
+      expect(status, `${view}: status`).toBe(200);
+      return folderIds(data);
+    };
+    return {
+      "GET /files/@private": await idsOf(
+        api.folders.getPrivateRoomsFolder({}),
+        "GET /files/@private",
+      ),
+      "privacyFilter=Private": await idsOf(
+        api.rooms.getRoomsFolder({ privacyFilter: RoomPrivacyFilter.Private }),
+        "privacyFilter=Private",
+      ),
+      "searchArea=PrivateRooms": await idsOf(
+        api.rooms.getRoomsFolder({ searchArea: SearchArea.PrivateRooms }),
+        "searchArea=PrivateRooms",
+      ),
+      "searchArea=Any": await idsOf(
+        api.rooms.getRoomsFolder({ searchArea: SearchArea.Any }),
+        "searchArea=Any",
+      ),
+    };
+  };
+
+  // A caller with an encryption key of their own, who therefore could be a
+  // member: the room is invisible to them because they are not one, not because
+  // they hold no key.
+  const setOwnKeys = async (api: Api, apiSdk: ApiSDK, label: string) => {
+    const { status } = await api.privacyroom.setKeys({
       encryptionKeyRequestDto: {
-        publicKey: "owner-" + apiSdk.faker.generateString(12),
-        privateKeyEnc: "op",
+        publicKey: `${label}-pk-` + apiSdk.faker.generateString(12),
+        privateKeyEnc: `${label}-prv-` + apiSdk.faker.generateString(12),
       },
     });
-    const { data: room } = await owner.rooms.createRoom({
+    expect(status, `${label}: setKeys`).toBe(201);
+  };
+
+  const createPrivate = async (api: Api, apiSdk: ApiSDK, label: string) => {
+    await setOwnKeys(api, apiSdk, label);
+    const { data, status } = await api.rooms.createRoom({
       createRoomRequestDto: {
         title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
         roomType: RoomType.CustomRoom,
         private: true,
       },
     });
-    const roomId = room.response!.id! as number;
+    expect(status, `${label}: createRoom{private:true}`).toBe(200);
+    expect(data.response?.private).toBe(true);
+    return data.response!.id as number;
+  };
 
-    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-    const { data, status } = await apiSdk
-      .forRole("docSpaceAdmin")
-      .rooms.getRoomsFolder({});
+  const createPlain = async (api: Api, apiSdk: ApiSDK, label: string) => {
+    const { data, status } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `Autotest ${label} plain ` + apiSdk.faker.generateString(6),
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    expect(status, `${label}: createRoom`).toBe(200);
+    return data.response!.id as number;
+  };
 
-    expect(status).toBe(200);
-    expect(folderIds(data)).not.toContain(roomId);
+  test("BUG 82956: GET /files/rooms - DocSpaceAdmin must not see a private room they are not a member of", async ({
+    apiSdk,
+  }) => {
+    // Owner creates a private room. DocSpaceAdmin is never invited.
+    // The room must be invisible to the admin because E2E rooms are only
+    // visible to their members - admin role must not bypass that.
+    const owner = apiSdk.forRole("owner");
+    const roomId = await createPrivate(owner, apiSdk, "owner");
+
+    const { data: adminData, userData } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    expect(adminData.response?.id).toBeDefined();
+    const admin = await apiSdk.authenticateMember(userData, "DocSpaceAdmin");
+    await setOwnKeys(admin, apiSdk, "admin");
+    const adminPlainId = await createPlain(admin, apiSdk, "admin");
+
+    // Positive controls: the creator sees the room in every view, and the
+    // admin's own calls work (their ordinary room is listed), so an empty
+    // answer for the admin cannot come from a broken call.
+    const ownerViews = await roomViews(owner);
+    for (const [view, ids] of Object.entries(ownerViews)) {
+      expect(ids, `control: the member sees the room in ${view}`).toContain(
+        roomId,
+      );
+    }
+    const adminViews = await roomViews(admin);
+    expect(
+      adminViews["searchArea=Any"],
+      "control: the admin's own ordinary room is listed",
+    ).toContain(adminPlainId);
+
+    for (const [view, ids] of Object.entries(adminViews)) {
+      expect(
+        ids,
+        `a DocSpaceAdmin who is not a member sees the private room in ${view}`,
+      ).not.toContain(roomId);
+    }
   });
 
   test("BUG 82956: GET /files/rooms - Owner must not see a private room they are not a member of", async ({
     apiSdk,
   }) => {
     // RoomAdmin creates a private room. Owner is never invited.
-    // Owner must not see the room in their room list — being the portal owner
+    // Owner must not see the room in their room list - being the portal owner
     // must not grant visibility into E2E rooms one is not a member of.
-    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-    const roomAdmin = apiSdk.forRole("roomAdmin");
-    await roomAdmin.privacyroom.setKeys({
-      encryptionKeyRequestDto: {
-        publicKey: "ra-" + apiSdk.faker.generateString(12),
-        privateKeyEnc: "rap",
-      },
-    });
-    const { data: room } = await roomAdmin.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
-        roomType: RoomType.CustomRoom,
-        private: true,
-      },
-    });
-    const roomId = room.response!.id! as number;
+    const owner = apiSdk.forRole("owner");
+    await setOwnKeys(owner, apiSdk, "owner");
+    const ownerPlainId = await createPlain(owner, apiSdk, "owner");
 
-    const { data, status } = await apiSdk
-      .forRole("owner")
-      .rooms.getRoomsFolder({});
+    const { userData } = await apiSdk.addMember("owner", "RoomAdmin");
+    const roomAdmin = await apiSdk.authenticateMember(userData, "RoomAdmin");
+    const roomId = await createPrivate(roomAdmin, apiSdk, "roomAdmin");
 
-    expect(status).toBe(200);
-    expect(folderIds(data)).not.toContain(roomId);
+    // Positive controls: the creator sees the room in every view, and the
+    // owner's own calls work (their ordinary room is listed).
+    const creatorViews = await roomViews(roomAdmin);
+    for (const [view, ids] of Object.entries(creatorViews)) {
+      expect(ids, `control: the member sees the room in ${view}`).toContain(
+        roomId,
+      );
+    }
+    const ownerViews = await roomViews(owner);
+    expect(
+      ownerViews["searchArea=Any"],
+      "control: the owner's own ordinary room is listed",
+    ).toContain(ownerPlainId);
+
+    for (const [view, ids] of Object.entries(ownerViews)) {
+      expect(
+        ids,
+        `the portal Owner, who is not a member, sees the private room in ${view}`,
+      ).not.toContain(roomId);
+    }
   });
 });
