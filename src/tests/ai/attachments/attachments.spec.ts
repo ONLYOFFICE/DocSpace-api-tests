@@ -45,7 +45,6 @@ import {
   ATTACHMENTS_SDK_BASE,
   LARGE_CONTENT_BYTES,
   OVERSIZED_CONTENT_BYTES,
-  PURGE_ROUNDS,
   READ_ATTEMPTS,
   createThreadWithUserMessage,
   expectDraftShape,
@@ -1366,13 +1365,15 @@ test.describe("AI Attachments - get-many", () => {
   });
 });
 
-test.describe("AI Attachments - reads and deletes take effect at once", () => {
+test.describe("AI Attachments - reads take effect at once, deletes at the next pass", () => {
   // The defect that used to shape this whole suite: after a 200 on save a draft
-  // was readable on some calls and not others, and after a `{success:true}` on
-  // delete it kept being served to some reads. Both are now immediate.
+  // was readable on some calls and not others (BUG 82764), and after a
+  // `{success:true}` on delete it kept being served to some reads (BUG 82767).
+  // Reads are now immediate. Deletes are deferred by design since DocSpace
+  // 4.1.0: the draft stays readable until the background pass removes it.
   //
-  // Both are written over ten independent drafts rather than ten reads of one
-  // draft: a single draft can be readable by luck, ten in a row cannot.
+  // The read test is written over ten independent drafts rather than ten reads
+  // of one draft: a single draft can be readable by luck, ten in a row cannot.
   test("BUG 82764: POST /api/2.0/ai/attachments/get-many - a freshly saved draft is available on an immediate read", async ({
     apiSdk,
   }) => {
@@ -1404,34 +1405,34 @@ test.describe("AI Attachments - reads and deletes take effect at once", () => {
     ).toEqual([]);
   });
 
-  test("BUG 82767: DELETE /api/2.0/ai/attachments/delete - one delete removes the draft", async ({
+  test("BUG 82767: DELETE /api/2.0/ai/attachments/delete - answers success at once and leaves the draft readable until the background pass", async ({
     apiSdk,
   }) => {
-    // The same symptom on the write side, and the more dangerous half: a client
-    // that deleted an attachment was told `{success:true}` while the record kept
-    // being served to later reads.
+    // Since DocSpace 4.1.0 (openspec "clean-up-unsent-attachments") delete only
+    // marks the caller's unlinked drafts; a background pass removes them at its
+    // next run, every 15 minutes by default, and until then get / get-many still
+    // return them. A test cannot wait for the pass, so only what the call does at
+    // once is asserted here.
+    //
+    // Should the pass happen to run between the delete and the read, the draft
+    // reads as null and this fails once; at one pass in 15 minutes that is rare.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const id = await attachments.saveFileId("owner", {
+      title: "Autotest single-delete.docx",
+      content: "x",
+      type: FileType.Document,
+    });
 
-    const survivors: string[] = [];
-    for (let index = 0; index < 10; index++) {
-      const probeId = await attachments.saveFileId("owner", {
-        title: `Autotest single-delete-${index}.docx`,
-        content: "x",
-        type: FileType.Document,
-      });
-      const { status, data } = await attachments.deleteOne("owner", probeId);
-      expect(status).toBe(200);
-      expect(data?.success).toBe(true);
+    const { status, data } = await attachments.deleteOne("owner", id);
+    expect(status).toBe(200);
+    expect(data?.success).toBe(true);
 
-      if (await attachments.findAttachment("owner", probeId)) {
-        survivors.push(probeId);
-      }
-    }
-
+    const read = await attachments.getMany("owner", [id]);
+    expect(read.status).toBe(200);
     expect(
-      survivors,
-      "drafts still readable after a delete that reported success",
-    ).toEqual([]);
+      read.data?.[0]?.id,
+      "the deleted draft is still served until the pass removes it",
+    ).toBe(id);
   });
 });
 
@@ -1941,11 +1942,13 @@ test.describe("AI Attachments - delete", () => {
     ]).toEqual([true, true, true]);
   });
 
-  test("DELETE /api/2.0/ai/attachments/delete - deleting a draft leaves the DocSpace file it was made from", async ({
+  test("BUG 82767: DELETE /api/2.0/ai/attachments/delete - deleting a draft leaves the DocSpace file it was made from", async ({
     apiSdk,
   }) => {
     // An attachment is a reference to a stored file, not a copy of it, so
-    // removing the reference must not touch the file.
+    // removing the reference must not touch the file. The file is in My
+    // documents, not in an AI project, so the background pass leaves it alone
+    // too; what is checked here is that the delete call itself does not.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const ownerApi = apiSdk.forRole("owner");
     const fileId = await attachments.backingFileId(
@@ -1960,14 +1963,12 @@ test.describe("AI Attachments - delete", () => {
     const id = saved.data!.id!;
     await attachments.expectStored("owner", id, "draft before deletion");
 
-    const { status } = await attachments.deleteOne("owner", id);
+    const { status, data } = await attachments.deleteOne("owner", id);
     expect(status).toBe(200);
-    // One delete is intermittent (see above); repeat until the draft is really
-    // gone so the file check below follows a completed deletion.
-    await attachments.purge("owner", id);
+    expect(data?.success).toBe(true);
 
     const file = await ownerApi.files.getFileInfo({ fileId });
-    expect(file.status, "the source file after its draft is gone").toBe(200);
+    expect(file.status, "the source file after its draft is deleted").toBe(200);
     expect(file.data.response?.id).toBe(fileId);
   });
 
@@ -1998,16 +1999,21 @@ test.describe("AI Attachments - delete", () => {
     );
   });
 
-  test("BUG 83289: DELETE /api/2.0/ai/attachments/delete-many - an unknown id in the batch does not stop the real ones being deleted", async ({
+  test("BUG 83289 (save-image, bypassed), BUG 82767: DELETE /api/2.0/ai/attachments/delete-many - an unknown id in the batch does not fail the call", async ({
     apiSdk,
   }) => {
-    // This is the atomicity question for delete-many, and the one form of it that
-    // is answerable: does one id the server cannot find abort the batch? It does
-    // not — both real ids end up gone.
+    // BUG 83289 is not about deletion: it is POST save-image answering 500, which
+    // once blocked this test's image draft. saveImageId now attaches images
+    // through save-file, so 83289 no longer touches it.
     //
-    // The repeated call is what makes the *absence* observable at all (a single
-    // delete is intermittent, see "intermittent reads and deletes"); it is not
-    // standing in for the contract of one call, which the test above covers.
+    // Since DocSpace 4.1.0 (openspec "clean-up-unsent-attachments") delete only
+    // marks the caller's unlinked drafts; a background pass removes them at its
+    // next run, every 15 minutes by default, and until then get / get-many still
+    // return them. A test cannot wait for the pass, so only what the call does at
+    // once is asserted here.
+    // Whether the unknown id stops the real ones being removed shows only after
+    // the pass, so that half of the old question is out of reach; what is left is
+    // that the batch is accepted whole.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const fileId = await attachments.saveFileId("owner", {
       title: "Autotest batch-delete.docx",
@@ -2020,32 +2026,24 @@ test.describe("AI Attachments - delete", () => {
     await attachments.expectStored("owner", fileId, "file draft");
     await attachments.expectStored("owner", imageId, "image draft");
 
-    for (let round = 0; round < PURGE_ROUNDS; round++) {
-      const { status, data } = await attachments.deleteMany("owner", [
-        fileId,
-        MISSING_ID,
-        imageId,
-      ]);
-      expect(status, `round ${round + 1}`).toBe(200);
-      expect(data?.success, `round ${round + 1}`).toBe(true);
-    }
-
-    await attachments.expectAbsent("owner", fileId, "deleted file draft");
-    await attachments.expectAbsent("owner", imageId, "deleted image draft");
+    const { status, data } = await attachments.deleteMany("owner", [
+      fileId,
+      MISSING_ID,
+      imageId,
+    ]);
+    expect(status).toBe(200);
+    expect(data?.success).toBe(true);
   });
 
-  test("DELETE /api/2.0/ai/attachments/delete - removing one draft out of a composer's set leaves the others alone", async ({
+  // Skipped: not observable since DocSpace 4.1.0. Delete only marks a draft and the
+  // background pass removes it up to 15 minutes later; until then a marked draft
+  // reads like any other, so "the other four are still there" would hold even if
+  // the delete had reached them. Restore once the pass can be waited for.
+  test.skip("BUG 82767: DELETE /api/2.0/ai/attachments/delete - removing one draft out of a composer's set leaves the others alone", async ({
     apiSdk,
   }) => {
-    // What the ✕ on one preview does. The tests above delete a lone draft or the
-    // whole batch, so neither of them can see a delete reaching further than its
-    // id — five staged drafts, one removed, and the remaining four have to still
-    // be readable.
-    //
-    // The removal goes through `purge` on purpose. Whether ONE call is enough is
-    // a different question, and a failing one, pinned in "reads and deletes take
-    // effect at once" — repeating it here is what keeps that known flake out of
-    // this test's subject, which is the four survivors.
+    // What the ✕ on one preview does: five staged drafts, one removed, and the
+    // remaining four have to still be readable after the pass.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const drafts = await stageComposerDrafts(attachments, {
       files: 3,
@@ -2060,16 +2058,19 @@ test.describe("AI Attachments - delete", () => {
     // A file draft from the middle of the set, so an off-by-one in either
     // direction shows up as a surviving-draft failure below.
     const removed = ids[1];
-    await attachments.purge("owner", removed);
+    const { status } = await attachments.deleteOne("owner", removed);
+    expect(status).toBe(200);
 
     for (const id of ids.filter((candidate) => candidate !== removed)) {
       await attachments.expectStored("owner", id, "draft left in the composer");
     }
   });
 
-  test("DELETE /api/2.0/ai/attachments/delete-many - deleting drafts leaves the DocSpace files they were made from", async ({
+  test("BUG 82767: DELETE /api/2.0/ai/attachments/delete-many - deleting drafts leaves the DocSpace files they were made from", async ({
     apiSdk,
   }) => {
+    // The files are in My documents, not in an AI project, so the background pass
+    // leaves them alone too; what is checked here is that the call itself does.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const ownerApi = apiSdk.forRole("owner");
     const names = [
@@ -2091,19 +2092,16 @@ test.describe("AI Attachments - delete", () => {
       await attachments.expectStored("owner", id, "draft before deletion");
     }
 
-    const { status } = await attachments.deleteMany("owner", ids);
+    const { status, data } = await attachments.deleteMany("owner", ids);
     expect(status).toBe(200);
-    // One delete is intermittent (see above); repeat until the drafts are really
-    // gone so the file checks below follow a completed deletion.
-    for (const id of ids) {
-      await attachments.purge("owner", id);
-    }
+    expect(data?.success).toBe(true);
 
     for (const fileId of fileIds) {
       const file = await ownerApi.files.getFileInfo({ fileId });
-      expect(file.status, `source file ${fileId} after its draft is gone`).toBe(
-        200,
-      );
+      expect(
+        file.status,
+        `source file ${fileId} after its draft is deleted`,
+      ).toBe(200);
       expect(file.data.response?.id).toBe(fileId);
     }
   });
@@ -4868,7 +4866,7 @@ test.describe("AI Attachments - suggested questions", () => {
 });
 
 test.describe("AI Attachments - lifecycle", () => {
-  test("POST /api/2.0/ai/attachments/save-files-many, get-many, DELETE delete-many - a saved batch reads back, is deleted and then reads as null", async ({
+  test("BUG 82767: POST /api/2.0/ai/attachments/save-files-many, get-many, DELETE delete-many - a saved batch reads back, and delete-many accepts it for the background pass", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -4916,33 +4914,18 @@ test.describe("AI Attachments - lifecycle", () => {
       expect(resolved!.map((item) => item?.title)).toEqual(names);
     });
 
-    await test.step("delete-many removes them all", async () => {
-      // One call is not enough to be sure on every instance, so it is repeated;
-      // each round must still be accepted.
-      for (let round = 0; round < PURGE_ROUNDS; round++) {
-        const { status, data } = await attachments.deleteMany("owner", ids);
-        expect(status, `delete-many round ${round + 1}`).toBe(200);
-        expect(data?.success).toBe(true);
-      }
+    await test.step("delete-many accepts the batch", async () => {
+      const { status, data } = await attachments.deleteMany("owner", ids);
+      expect(status).toBe(200);
+      expect(data?.success).toBe(true);
     });
 
-    await test.step("get-many reads every deleted id as null", async () => {
-      const stillThere: string[] = [];
-      for (let attempt = 0; attempt < READ_ATTEMPTS; attempt++) {
-        const { status, data } = await attachments.getMany("owner", ids);
-        expect(status).toBe(200);
-        expect(data, "the batch keeps every position").toHaveLength(ids.length);
-        data!.forEach((item, position) => {
-          if (item) {
-            stillThere.push(ids[position]);
-          }
-        });
-      }
-
-      expect(
-        stillThere,
-        `drafts still readable after delete-many, over ${READ_ATTEMPTS} reads`,
-      ).toEqual([]);
+    await test.step("get-many still reads them until the background pass", async () => {
+      // Since DocSpace 4.1.0 delete-many only marks the drafts; the pass removes
+      // them up to 15 minutes later, and a test cannot wait for it.
+      const { status, data } = await attachments.getMany("owner", ids);
+      expect(status).toBe(200);
+      expect(data!.map((item) => item?.id)).toEqual(ids);
     });
   });
 });

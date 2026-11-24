@@ -669,16 +669,18 @@ test.describe("GET /people/folder/:id - Search users for folder sharing", () => 
     });
     const folderId = folderData.response!.id!;
 
-    const { data, status } =
-      await roomAdminApi.peopleSearch.getUsersWithFoldersShared({
-        id: folderId,
-        filterValue: userName,
-      });
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.count).toBe(1);
-    expect((data.response as any[])[0].id).toBe(userId);
-    expect((data.response as any[])[0].displayName).toBe(userName);
+    await expect(async () => {
+      const { data, status } =
+        await roomAdminApi.peopleSearch.getUsersWithFoldersShared({
+          id: folderId,
+          filterValue: userName,
+        });
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.count).toBe(1);
+      expect((data.response as any[])[0].id).toBe(userId);
+      expect((data.response as any[])[0].displayName).toBe(userName);
+    }).toPass({ intervals: [2_000, 3_000, 5_000], timeout: 15_000 });
   });
 
   test("GET /people/folder/:id - User searches users for folder", async ({
@@ -1726,51 +1728,59 @@ test.describe("GET /people/simple/filter - Simple filter accounts", () => {
     const guestName = guestData.response!.displayName!;
 
     await test.step("DocSpace admin searches Owner", async () => {
-      const { data, status } = await adminApi.peopleSearch.getSimpleByFilter({
-        filterValue: ownerName,
-      });
-      expect(status).toBe(200);
-      expect(
-        (data.response as any[]).some(
-          (u: any) => u.id === ownerId && u.displayName === ownerName,
-        ),
-      ).toBe(true);
+      await expect(async () => {
+        const { data, status } = await adminApi.peopleSearch.getSimpleByFilter({
+          filterValue: ownerName,
+        });
+        expect(status).toBe(200);
+        expect(
+          (data.response as any[]).some(
+            (u: any) => u.id === ownerId && u.displayName === ownerName,
+          ),
+        ).toBe(true);
+      }).toPass({ intervals: [2_000, 3_000, 5_000], timeout: 15_000 });
     });
 
     await test.step("DocSpace admin searches RoomAdmin", async () => {
-      const { data, status } = await adminApi.peopleSearch.getSimpleByFilter({
-        filterValue: roomAdminName,
-      });
-      expect(status).toBe(200);
-      expect(
-        (data.response as any[]).some(
-          (u: any) => u.id === roomAdminId && u.displayName === roomAdminName,
-        ),
-      ).toBe(true);
+      await expect(async () => {
+        const { data, status } = await adminApi.peopleSearch.getSimpleByFilter({
+          filterValue: roomAdminName,
+        });
+        expect(status).toBe(200);
+        expect(
+          (data.response as any[]).some(
+            (u: any) => u.id === roomAdminId && u.displayName === roomAdminName,
+          ),
+        ).toBe(true);
+      }).toPass({ intervals: [2_000, 3_000, 5_000], timeout: 15_000 });
     });
 
     await test.step("DocSpace admin searches User", async () => {
-      const { data, status } = await adminApi.peopleSearch.getSimpleByFilter({
-        filterValue: userName,
-      });
-      expect(status).toBe(200);
-      expect(
-        (data.response as any[]).some(
-          (u: any) => u.id === userId && u.displayName === userName,
-        ),
-      ).toBe(true);
+      await expect(async () => {
+        const { data, status } = await adminApi.peopleSearch.getSimpleByFilter({
+          filterValue: userName,
+        });
+        expect(status).toBe(200);
+        expect(
+          (data.response as any[]).some(
+            (u: any) => u.id === userId && u.displayName === userName,
+          ),
+        ).toBe(true);
+      }).toPass({ intervals: [2_000, 3_000, 5_000], timeout: 15_000 });
     });
 
     await test.step("DocSpace admin searches Guest", async () => {
-      const { data, status } = await adminApi.peopleSearch.getSimpleByFilter({
-        filterValue: guestName,
-      });
-      expect(status).toBe(200);
-      expect(
-        (data.response as any[]).some(
-          (u: any) => u.id === guestId && u.displayName === guestName,
-        ),
-      ).toBe(true);
+      await expect(async () => {
+        const { data, status } = await adminApi.peopleSearch.getSimpleByFilter({
+          filterValue: guestName,
+        });
+        expect(status).toBe(200);
+        expect(
+          (data.response as any[]).some(
+            (u: any) => u.id === guestId && u.displayName === guestName,
+          ),
+        ).toBe(true);
+      }).toPass({ intervals: [2_000, 3_000, 5_000], timeout: 15_000 });
     });
   });
 

@@ -6839,6 +6839,18 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       },
     });
 
+    // History is written asynchronously: wait until both entries (create and
+    // rename) are there, or the rename can land between the two page reads and
+    // shift the first entry onto page two.
+    await expect
+      .poll(
+        async () =>
+          (await ownerApi.folders.getFolderHistory({ folderId: roomId })).data
+            .response?.length ?? 0,
+        { timeout: 30_000 },
+      )
+      .toBeGreaterThanOrEqual(2);
+
     const { data: data0 } = await ownerApi.folders.getFolderHistory({
       folderId: roomId,
       startIndex: 0,

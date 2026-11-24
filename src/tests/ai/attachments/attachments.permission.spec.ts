@@ -351,7 +351,13 @@ test.describe("AI Attachments - cross-user access", () => {
     ).toBeNull();
   });
 
-  test("BUG 82768: DELETE /api/2.0/ai/attachments/delete - a User cannot delete another user's draft", async ({
+  // Skipped: not observable since DocSpace 4.1.0. Delete only marks the caller's
+  // drafts and the background pass removes them up to 15 minutes later; until
+  // then a marked draft reads like any other. So the survivor below proves
+  // nothing (it would survive the wait either way) and the positive control, the
+  // caller's own draft disappearing, cannot be seen. Restore once the pass can be
+  // waited for.
+  test.skip("BUG 82768: DELETE /api/2.0/ai/attachments/delete - a User cannot delete another user's draft", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -695,7 +701,13 @@ test.describe("AI Attachments - cross-user access", () => {
     ).toBe(0);
   });
 
-  test("BUG 82769: DELETE /api/2.0/ai/attachments/delete-many - a mixed batch deletes only the caller's own draft", async ({
+  // Skipped: not observable since DocSpace 4.1.0. Delete only marks the caller's
+  // drafts and the background pass removes them up to 15 minutes later; until
+  // then a marked draft reads like any other. So the survivor below proves
+  // nothing (it would survive the wait either way) and the positive control, the
+  // caller's own draft disappearing, cannot be seen. Restore once the pass can be
+  // waited for.
+  test.skip("BUG 82769: DELETE /api/2.0/ai/attachments/delete-many - a mixed batch deletes only the caller's own draft", async ({
     apiSdk,
   }) => {
     // delete-many is a separate route from delete, and this is the form that used

@@ -968,7 +968,7 @@ test.describe("AI Assignments - removing assignments", () => {
     );
   });
 
-  test("DELETE /api/2.0/ai/assignments/cascade-profile-delete - the profile id must be sent as an object field", async ({
+  test("DELETE /api/2.0/ai/assignments/cascade-profile-delete - a bare profile id binds like the object field, an empty body is refused", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -979,12 +979,26 @@ test.describe("AI Assignments - removing assignments", () => {
     const catalogue = await profiles.catalogue("owner");
     const profile = AiProfiles.byCapabilities(catalogue, AI_CAPS.textTools);
 
+    const { data: seeded } = await profiles.assign("owner", {
+      actionType: "Summarization",
+      profileId: profile.id,
+    });
+    expect(seeded?.success, "the seeded assignment").toBe(true);
+
+    // The id sent as a bare JSON string used to be a 400; it now binds and
+    // cascades the same as `{ profileId }`.
     const bare = await profiles.cascadeProfileDelete("owner", profile.id);
-    expect(bare.status).toBe(400);
-    expect(bare.error).toBe("profileId required");
+    expect(bare.status).toBe(200);
+    expect(bare.data?.success).toBe(true);
+    const after = await profiles.getAllAssignments("owner");
+    expect(
+      Object.values(after.data ?? {}),
+      "no binding still points at the cascaded profile",
+    ).not.toContain(profile.id);
 
     const empty = await profiles.cascadeProfileDelete("owner", {});
     expect(empty.status).toBe(400);
+    expect(empty.error).toBe("profileId required");
   });
 });
 
