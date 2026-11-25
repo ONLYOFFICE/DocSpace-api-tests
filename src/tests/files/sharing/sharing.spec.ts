@@ -1013,6 +1013,112 @@ test.describe("GET /api/2.0/files/file/{fileId}/sharedusers", () => {
   });
 });
 
+/**
+ * FileSecurity.WhoCanAsync answers who may read an entry. Every subject of that
+ * answer goes through CheckAccessAsync, except the users an external link
+ * admitted: they are appended from their RecentByLink tags, unfiltered. Revoking
+ * a link deletes those tags along with the link record, expiry deletes nothing,
+ * so the answer goes stale on expiry alone. It is what this listing is built
+ * from, and what socket events about the file are addressed to.
+ */
+test.describe("GET /api/2.0/files/file/{fileId}/sharedusers - a user admitted by an external link", () => {
+  const sharedUserIds = async (
+    api: ReturnType<ApiSDK["forRole"]>,
+    fileId: number,
+  ) => {
+    const { data, status } = await api.sharing.getSharedUsers({ fileId });
+    expect(status).toBe(200);
+    return (data.response ?? []).map((e) => e.id);
+  };
+
+  /** A file of the owner with a Read link on it that a member has followed. */
+  async function fileOpenedByLink(apiSdk: ApiSDK, expirationDate?: string) {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileRequest: { title: "Autotest Link Shared Users.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const created = await ownerApi.files.setFileExternalLink({
+      id: fileId,
+      fileLinkRequest: { access: FileShare.Read, expirationDate } as never,
+    });
+    expect(created.status, "setup: the link is created").toBe(200);
+    const link = created.data.response!.sharedLink!;
+
+    const { data: memberData, api: memberApi } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const memberId = memberData.response!.id!;
+    const linkStatus = async () =>
+      (
+        await memberApi.sharing.getExternalShareData({
+          key: link.requestToken!,
+        })
+      ).data.response!.status;
+
+    expect(await linkStatus(), "setup: the member follows a live link").toBe(
+      ExternalShareStatus.Ok,
+    );
+    // Following the link is what puts the member into the listing, so losing
+    // him from it later means something.
+    expect(
+      await sharedUserIds(ownerApi, fileId),
+      "setup: the link user is listed",
+    ).toContain(memberId);
+
+    return {
+      ownerApi,
+      fileId,
+      memberApi,
+      memberId,
+      linkStatus,
+      linkId: link.id!,
+    };
+  }
+
+  test("GET /api/2.0/files/file/{fileId}/sharedusers - A user admitted by a link is dropped from the list when the link is revoked", async ({
+    apiSdk,
+  }) => {
+    const { ownerApi, fileId, memberApi, memberId, linkId } =
+      await fileOpenedByLink(apiSdk);
+
+    const { status } = await ownerApi.files.setFileExternalLink({
+      id: fileId,
+      fileLinkRequest: { linkId, access: FileShare.None } as never,
+    });
+    expect(status).toBe(200);
+
+    expect((await memberApi.files.getFileInfo({ fileId })).status).toBe(403);
+    expect(await sharedUserIds(ownerApi, fileId)).not.toContain(memberId);
+  });
+
+  // The same link left to run out instead. The member ends up just as locked
+  // out, but the tag he was recorded with survives.
+  test.fail(
+    "BUG 85375: GET /api/2.0/files/file/{fileId}/sharedusers - A user admitted by a link is dropped from the list when the link expires",
+    async ({ apiSdk }) => {
+      const { ownerApi, fileId, memberApi, memberId, linkStatus } =
+        await fileOpenedByLink(
+          apiSdk,
+          new Date(Date.now() + 20_000).toISOString(),
+        );
+
+      // A past date is ignored by the setter and the portal reads the one it
+      // got in its own time zone, so the link is watched, not the clock.
+      await expect
+        .poll(linkStatus, {
+          intervals: [1_000, 2_000, 5_000],
+          timeout: 90_000,
+          message: "setup: the link never expired",
+        })
+        .toBe(ExternalShareStatus.Expired);
+
+      expect((await memberApi.files.getFileInfo({ fileId })).status).toBe(403);
+      expect(await sharedUserIds(ownerApi, fileId)).not.toContain(memberId);
+    },
+  );
+});
+
 test.describe("DELETE /api/2.0/files/share - Remove security info", () => {
   test("BUG 83259: DELETE /api/2.0/files/share - Owner removes sharing from a single file", async ({
     apiSdk,
