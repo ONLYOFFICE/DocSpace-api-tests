@@ -37,16 +37,15 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
  * opener is cancelling. So what is ASSERTED here is what the JSDoc promises -
  * only the opener cancels, an anonymous caller is rejected, a session of a
  * deleted room or folder or one that is finished or cancelled is gone, nothing
- * is written to a place other than the session's folder - and everything
- * else a holder of the id can do is RECORDED as an `observation`, with its
- * effect on the room: the status, whether a file appeared, who it is
- * attributed to and what it contains.
+ * is written to a place other than the session's folder. What else a holder of
+ * the id can do (send into it, finalize it, keep using it after the opener lost
+ * their place) has no defined status or policy, so only the invariants that hold
+ * either way are asserted: no server error, at most one file per session, a file
+ * that appears is whole, encrypted and in the session's folder, nothing is left
+ * unfinished. The statuses and attribution are not asserted (SPEC GAP in the audit).
  *
  * The session ids used are the tests' own; nothing is guessed.
  */
-
-const observe = (what: string) =>
-  test.info().annotations.push({ type: "observation", description: what });
 
 /** A DocSpaceAdmin's private room with a ContentCreator (the opener), a reader and outsiders. */
 const sessionRoom = async (apiSdk: ApiSDK) => {
@@ -214,7 +213,7 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
     ]);
   });
 
-  test("POST /files/:folderId/session/:sessionId - What a holder of the id outside the opener's rights does to the upload (recorded)", async ({
+  test("POST /files/:folderId/session/:sessionId - A holder of the id outside the opener's rights never produces a server error, a second file or a broken one", async ({
     apiSdk,
   }) => {
     test.setTimeout(240_000);
@@ -249,7 +248,6 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
 
       const after = await filesIn(admin.api, roomId);
       const gained = after.filter((f) => !before.includes(f.id));
-      let effect = "no file";
       if (gained.length === 1) {
         const f = await describeFile(
           admin.api,
@@ -262,18 +260,29 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
         expect(f.folderId).toBe(roomId);
         expect(f.encrypted).toBe(true);
         expect(f.bytes.equals(theirs)).toBe(true);
-        effect = `a file attributed to ${f.author}, holding the sender's bytes`;
       }
       const late = await sendNext(creator.api, roomId, opened.id!, mine);
-      observe(
-        `${who} sends into the opener's session: ${sent.status}; effect: ${effect}; the opener then sends: ${late.status}`,
+      expect(sent.status, `${who} sends: not a server error`).toBeLessThan(500);
+      expect(late.status, `the opener sends after ${who}`).toBeLessThan(500);
+      expect(
+        gained.length,
+        `${who}: files from one session`,
+      ).toBeLessThanOrEqual(1);
+      // One session never yields a second file, whoever completed it.
+      const final = (await filesIn(admin.api, roomId)).filter(
+        (f) => !before.includes(f.id),
       );
-      expect(gained.length).toBeLessThanOrEqual(1);
+      expect(
+        final.length,
+        `${who}: files after the opener's send`,
+      ).toBeLessThanOrEqual(1);
+      if (gained.length === 1)
+        expect(final.map((f) => f.id)).toEqual([gained[0].id]);
     }
     expect(await unfinishedOperations(admin.api)).toEqual([]);
   });
 
-  test("POST /files/:folderId/session/:sessionId - Parts of a large upload sent by two accounts: who the file belongs to and what it holds (recorded)", async ({
+  test("POST /files/:folderId/session/:sessionId - Parts of a large upload sent by two accounts never leave a server error, a second file or a broken one", async ({
     apiSdk,
   }) => {
     test.setTimeout(300_000);
@@ -290,24 +299,29 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
       expect(
         (await sendNext(creator.api, roomId, opened.id!, head)).status,
       ).toBe(200);
+      const before = idsOf(await filesIn(admin.api, roomId));
       const done = await sendNext(outsider.api, roomId, opened.id!, tail);
-      const id = storedFileId(done);
-      let effect = "no file";
-      if (id) {
+      expect(done.status, "the last part by another account").toBeLessThan(500);
+      const gained = (await filesIn(admin.api, roomId)).filter(
+        (f) => !before.includes(f.id),
+      );
+      expect(gained.length, "files from one session").toBeLessThanOrEqual(1);
+      // An answer that carries a stored file means the file exists.
+      if (storedFileId(done))
+        expect(gained.map((f) => f.id)).toEqual([storedFileId(done)]);
+      if (gained.length === 1) {
         const f = await describeFile(
           admin.api,
           ownerToken,
-          id,
+          gained[0].id,
           creator.id,
           outsider.id,
         );
         expect(f.folderId).toBe(roomId);
         expect(f.encrypted).toBe(true);
-        effect = `file by ${f.author}; first part is the opener's: ${f.bytes.subarray(0, chunk).equals(head)}; last part is the other account's: ${f.bytes.subarray(chunk).equals(tail)}`;
+        // Whatever the policy, the file holds the parts that were sent, whole.
+        expect(f.bytes.equals(Buffer.concat([head, tail]))).toBe(true);
       }
-      observe(
-        `a user outside the room completes the opener's large upload: ${done.status}; ${effect}`,
-      );
     });
 
     await test.step("another account finalizes a numbered upload", async () => {
@@ -326,10 +340,11 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
         folderId: roomId,
         sessionId: opened.id!,
       });
+      expect(fin.status, "finalize by another account").toBeLessThan(500);
       const gained = (await filesIn(admin.api, roomId)).filter(
         (f) => !before.includes(f.id),
       );
-      let effect = "no file";
+      expect(gained.length, "files from one session").toBeLessThanOrEqual(1);
       if (gained.length === 1) {
         const f = await describeFile(
           admin.api,
@@ -339,19 +354,23 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
           outsider.id,
         );
         expect(f.bytes.equals(full)).toBe(true);
-        effect = `file by ${f.author}, whole and equal to what the opener sent`;
       }
       const again = await creator.api.operations.finalizeSession({
         folderId: roomId,
         sessionId: opened.id!,
       });
-      observe(
-        `a user outside the room finalizes the opener's session: ${fin.status}; ${effect}; the opener then finalizes: ${again.status}`,
+      expect(again.status, "the opener then finalizes").toBeLessThan(500);
+      const final = (await filesIn(admin.api, roomId)).filter(
+        (f) => !before.includes(f.id),
       );
+      expect(
+        final.length,
+        "files after the opener's finalize",
+      ).toBeLessThanOrEqual(1);
     });
   });
 
-  test("PUT /files/:folderId/session/:sessionId/finalize - A session open while the opener loses their place in the room (recorded)", async ({
+  test("PUT /files/:folderId/session/:sessionId/finalize - A session open while the opener loses their place in the room never ends in a server error, a second file or a broken one", async ({
     apiSdk,
   }) => {
     test.setTimeout(300_000);
@@ -404,21 +423,32 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
     ];
     for (const [change, apply] of lose) {
       // Each case starts from an opener who is a ContentCreator with a key.
-      await admin.api.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [{ id: creator.id, access: FileShare.ContentCreator }],
-          notify: false,
-        },
-      });
+      expect(
+        (
+          await inviteToRoom(
+            admin.api,
+            roomId,
+            creator.id,
+            FileShare.ContentCreator,
+          )
+        ).status,
+        `${change}: restoring the opener`,
+      ).toBe(200);
+      expect((await roomMemberAccess(admin.api, roomId)).get(creator.id)).toBe(
+        FileShare.ContentCreator,
+      );
       const keys = await creator.api.privacyroom.getUserKeys();
       if ((keys.data.count ?? 0) === 0)
-        await creator.api.privacyroom.setKeys({
-          encryptionKeyRequestDto: {
-            publicKey: "p3-pk",
-            privateKeyEnc: "p3-prv",
-          },
-        });
+        expect(
+          (
+            await creator.api.privacyroom.setKeys({
+              encryptionKeyRequestDto: {
+                publicKey: "p3-pk",
+                privateKeyEnc: "p3-prv",
+              },
+            })
+          ).status,
+        ).toBe(201);
       const before = idsOf(await filesIn(admin.api, roomId));
       const opened = await openSession(creator.api, roomId, {
         size: full.length,
@@ -452,7 +482,8 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
       const gained = (await filesIn(admin.api, roomId)).filter(
         (f) => !before.includes(f.id),
       );
-      let effect = "no file";
+      expect(second.status, `${change}: second part`).toBeLessThan(500);
+      expect(fin.status, `${change}: finalize`).toBeLessThan(500);
       if (gained.length === 1) {
         const f = await describeFile(
           admin.api,
@@ -463,13 +494,12 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
         );
         expect(f.folderId).toBe(roomId);
         expect(f.encrypted).toBe(true);
-        expect(f.bytes.equals(full)).toBe(true);
-        effect = `a whole file by ${f.author}`;
+        expect(f.bytes.equals(full), `${change}: the file is whole`).toBe(true);
       }
-      observe(
-        `the opener ${change} after the first part: second part ${second.status}, finalize ${fin.status}; ${effect}`,
-      );
-      expect(gained.length).toBeLessThanOrEqual(1);
+      expect(
+        gained.length,
+        `${change}: files from one session`,
+      ).toBeLessThanOrEqual(1);
     }
   });
 
@@ -497,7 +527,7 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
         })
       ).status,
     ).toBe(200);
-    await waitForOperation(owner.operations);
+    expect((await waitForOperation(owner.operations)).error).toBe("");
     const afterFolder = await sendNext(
       owner,
       folder,
@@ -516,7 +546,7 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
         })
       ).status,
     ).toBe(200);
-    await waitForOperation(owner.operations);
+    expect((await waitForOperation(owner.operations)).error).toBe("");
     expect(
       (
         await owner.rooms.deleteRoom({
@@ -525,7 +555,7 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
         })
       ).status,
     ).toBe(200);
-    await waitForOperation(owner.operations);
+    expect((await waitForOperation(owner.operations)).error).toBe("");
     expect((await owner.rooms.getRoomInfo({ id: roomId })).status).toBe(404);
     const afterRoom = await sendNext(
       owner,

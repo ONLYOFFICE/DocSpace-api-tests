@@ -16,6 +16,10 @@ import { unfinishedOperations } from "@/src/helpers/private-room-upload";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { waitForRoomFromTemplate } from "@/src/helpers/wait-for-room-from-template";
 import { waitForRoomTemplate } from "@/src/helpers/wait-for-room-template";
+import {
+  expectNoServerError,
+  expectRefused,
+} from "@/src/helpers/private-room-lifecycle";
 
 /**
  * Operations a private ROOM must refuse (PR-RFORB-*, PR-ROOM-021, PR-INV-005/006/028).
@@ -34,16 +38,22 @@ import { waitForRoomTemplate } from "@/src/helpers/wait-for-room-template";
  * control: the same call works for this caller) and then on the private room,
  * which is read back before and after: members, links, files, keys, flags,
  * settings, and the rooms and templates the caller can list. The HTTP status is
- * recorded; the guide does not define one, so it is not asserted. An operation
- * the caller cannot do in an ordinary room either is reported as NO CONTROL and
- * does not count as covered.
+ * not asserted as an exact value: the guide does not define one, so the
+ * assertion is the unchanged state plus "never a server error". An operation the
+ * caller cannot do in an ordinary room either has no positive control: such rows
+ * are listed in KNOWN_NO_CONTROL, reported and not counted as covered, and any
+ * OTHER missing control fails the test instead of being skipped.
  *
  * Out of scope: files and folders (packages 3 and 4), metadata (package 12), the
  * full invitation, role, key and archive matrices (packages 6-8, 15).
  */
 
-const observe = (what: string) =>
-  test.info().annotations.push({ type: "observation", description: what });
+/**
+ * Operations a role cannot do even in an ordinary room (so there is no positive
+ * control for the private room). Explicit, reported in the test annotations and
+ * not counted as covered; anything missing from this list must pass its control.
+ */
+const KNOWN_NO_CONTROL: Partial<Record<string, string[]>> = {};
 
 type Reply = { status: number; data?: unknown };
 type RoomOp = {
@@ -189,6 +199,7 @@ test.describe("Rooms API - a private room refuses what the product guide takes a
       const kit = await buildRoomKit(apiSdk, role);
       const { actor, admin } = kit;
 
+      const uncontrolled: string[] = [];
       for (const op of OPS) {
         const plainTarget = op.empty ? kit.emptyPlain : kit.plain;
         const privTarget = op.empty ? kit.emptyPriv : kit.priv;
@@ -196,9 +207,8 @@ test.describe("Rooms API - a private room refuses what the product guide takes a
         // The control: the same call works on the ordinary room for this caller.
         const control = await op.run(kit, plainTarget);
         if (!ok(control)) {
-          observe(
-            `${role}: ${op.name}: NO CONTROL (the ordinary room answers ${control.status}); not counted as covered`,
-          );
+          // No positive control: the row is listed, not silently skipped, and not counted as covered.
+          uncontrolled.push(op.name);
           continue;
         }
         if (op.template) await waitForRoomTemplate(actor.rooms);
@@ -220,9 +230,7 @@ test.describe("Rooms API - a private room refuses what the product guide takes a
           .poll(async () => (await unfinishedOperations(actor)).length)
           .toBe(0);
 
-        observe(
-          `${role}: ${op.name}: control ${control.status}, private room ${refused.status}`,
-        );
+        expectNoServerError(refused.status, `${op.name}: private room`);
         expect
           .soft(
             await roomState(admin, privTarget),
@@ -236,6 +244,16 @@ test.describe("Rooms API - a private room refuses what the product guide takes a
           )
           .toEqual(before.portal);
       }
+
+      expect(
+        uncontrolled,
+        `${role}: operations with no positive control (an unexpected one means the setup is broken)`,
+      ).toEqual(KNOWN_NO_CONTROL[role] ?? []);
+      if (uncontrolled.length)
+        test.info().annotations.push({
+          type: "NO CONTROL",
+          description: `${role}: ${uncontrolled.join("; ")} (not counted as covered)`,
+        });
 
       // The prohibitions are not too wide: allowed settings still work on the private room.
       const allowed = await actor.rooms.updateRoom({
@@ -285,7 +303,7 @@ test.describe("Rooms API - a private room refuses what the product guide takes a
     }
   });
 
-  test("PUT /files/rooms/:id - Settings the guide does not mention are recorded, not asserted", async ({
+  test("PUT /files/rooms/:id - Settings the guide does not mention never change the type, the privacy, the members, the files or the keys", async ({
     apiSdk,
   }) => {
     const kit = await buildRoomKit(apiSdk, "owner");
@@ -311,19 +329,16 @@ test.describe("Rooms API - a private room refuses what the product guide takes a
         id: kit.plain,
         updateRoomRequest: body as never,
       });
-      if (!ok(control)) {
-        observe(`${name}: NO CONTROL (${control.status})`);
-        continue;
-      }
+      // Preparing the control is part of the test: the owner sets this on an ordinary room.
+      expect(control.status, `${name}: control on the ordinary room`).toBe(200);
       const before = await roomState(kit.admin, kit.priv);
       const res = await kit.actor.rooms.updateRoom({
         id: kit.priv,
         updateRoomRequest: body as never,
       });
       const after = await roomState(kit.admin, kit.priv);
-      observe(
-        `updateRoom ${name}: ordinary room ${control.status}, private room ${res.status}; applied: ${JSON.stringify(after.info) !== JSON.stringify(before.info)}`,
-      );
+      // Whether the setting itself applies is not defined; never a server error, and:
+      expectNoServerError(res.status, `updateRoom ${name}`);
       // Whatever the answer, the room keeps its type, privacy, members, files and keys.
       expect(after.info.private).toBe(true);
       expect(after.info.roomType).toBe(RoomType.CustomRoom);
@@ -334,15 +349,17 @@ test.describe("Rooms API - a private room refuses what the product guide takes a
     }
   });
 
-  test("PUT /files/rooms/:id - A virtual data room of a private kind cannot be indexed or exported", async ({
+  test("PUT /files/rooms/:id - A private Custom room cannot be indexed or have an index exported", async ({
     apiSdk,
   }) => {
     test.setTimeout(240_000);
     const owner = apiSdk.forRole("owner");
-    // The control: an ordinary virtual data room is indexed and exported.
+    // The control that the calls work where the product allows them: an ordinary virtual data room.
+    // (A private virtual data room is not a legal state - only a Custom room may be private - so the
+    // combination "private + indexed + exported" cannot be tested; see types.spec.ts for the type rule.)
     const vdr = await owner.rooms.createRoom({
       createRoomRequestDto: {
-        title: "RoomOps VDR",
+        title: "RoomOps VDR control",
         roomType: RoomType.VirtualDataRoom,
       },
     });
@@ -355,18 +372,18 @@ test.describe("Rooms API - a private room refuses what the product guide takes a
           updateRoomRequest: { indexing: true } as never,
         })
       ).status,
+      "control: indexing an ordinary virtual data room",
     ).toBe(200);
-    expect((await owner.rooms.startRoomIndexExport({ id: vdrId })).status).toBe(
-      200,
-    );
+    expect(
+      (await owner.rooms.startRoomIndexExport({ id: vdrId })).status,
+      "control: exporting an ordinary indexed virtual data room",
+    ).toBe(200);
 
     const priv = await createPrivateRoom(apiSdk, "owner", {
-      title: "RoomOps private VDR",
-      roomType: RoomType.VirtualDataRoom,
+      title: "RoomOps private Custom",
+      roomType: RoomType.CustomRoom,
     });
-    expect(priv.status, "setup: a private virtual data room is created").toBe(
-      200,
-    );
+    expect(priv.status, "setup: a private Custom room is created").toBe(200);
     const privId = priv.data.response!.id!;
     expect(priv.data.response!.private).toBe(true);
 
@@ -376,18 +393,19 @@ test.describe("Rooms API - a private room refuses what the product guide takes a
       updateRoomRequest: { indexing: true } as never,
     });
     const exported = await owner.rooms.startRoomIndexExport({ id: privId });
-    observe(
-      `private virtual data room: indexing ${indexed.status}, export ${exported.status}`,
-    );
 
-    // The index is not switched on and no export is queued.
+    // The index is not switched on and no export is queued. The guide fixes no status for
+    // these refusals, so a 4xx and an unchanged room are required, never a success or a crash.
+    expectNoServerError(indexed.status, "indexing a private room");
+    expectRefused(exported.status, "exporting the index of a private room");
     const after = await roomState(owner, privId);
     expect(after.info.indexing).toBe(false);
     expect(after).toEqual(before);
-    expect(
-      ok(exported),
-      "an export was queued for a room that is not indexed",
-    ).toBe(false);
+    await expect
+      .poll(async () => (await unfinishedOperations(owner)).length, {
+        message: "an export was queued for a private room",
+      })
+      .toBe(0);
   });
 
   test("PUT /files/rooms/:id/share - A group and an address with no account are refused as members of a private room", async ({
@@ -428,8 +446,9 @@ test.describe("Rooms API - a private room refuses what the product guide takes a
         notify: false,
       },
     });
-    observe(
-      `an address with no account invited to an ordinary room: ${plainMail.status}`,
+    expectNoServerError(
+      plainMail.status,
+      "an address invited to an ordinary room",
     );
 
     const before = await roomState(owner, kit.priv);
@@ -448,8 +467,12 @@ test.describe("Rooms API - a private room refuses what the product guide takes a
         notify: false,
       },
     });
-    observe(
-      `group invited to the private room: ${byGroup.status}; address with no account: ${byMail.status}`,
+    // Groups are not members of a private room (guide); the control above shows the same call works in an ordinary room.
+    expectRefused(byGroup.status, "a group invited to the private room");
+    // An address with no account: no member can be created for it; whatever the status, never a crash.
+    expectNoServerError(
+      byMail.status,
+      "an address invited to the private room",
     );
 
     // Nobody joined, no entry was added, nothing else changed.
@@ -524,10 +547,9 @@ test.describe("Rooms API - a private room refuses what the product guide takes a
       await expect
         .poll(async () => (await unfinishedOperations(actor)).length)
         .toBe(0);
-      // The ordinary archived room is refused too, so the archive state alone explains these answers.
-      observe(
-        `archived: ${name}: ordinary room ${onPlain.status}, private room ${onPrivate.status}`,
-      );
+      // An archived room is read-only: refused for the ordinary room too, so the archive state alone explains it.
+      expectRefused(onPlain.status, `archived ordinary room: ${name}`);
+      expectRefused(onPrivate.status, `archived private room: ${name}`);
       expect
         .soft(
           await roomState(admin, kit.emptyPriv),
@@ -606,9 +628,6 @@ test.describe("Rooms API - rooms created from templates and with indexing", () =
     expect(privateRoom.info.private).toBe(true);
     // A private room holds only encrypted files: the plain file was not copied into it.
     expect(privateRoom.files.filter((f) => f.encrypted !== true)).toEqual([]);
-    observe(
-      `private room built from an ordinary template holds ${privateRoom.files.length} files`,
-    );
   });
 
   test("POST /files/rooms - A private room cannot be created with indexing switched on", async ({
@@ -630,24 +649,38 @@ test.describe("Rooms API - rooms created from templates and with indexing", () =
         .response!.indexing,
     ).toBe(true);
 
-    for (const roomType of [RoomType.CustomRoom, RoomType.VirtualDataRoom]) {
-      const created = await owner.rooms.createRoom({
-        createRoomRequestDto: {
-          title: `RoomOps private ${roomType}`,
-          roomType,
-          private: true,
-          indexing: true,
-        } as never,
-      });
-      observe(
-        `private room of type ${roomType} created with indexing: ${created.status}`,
-      );
-      // Either the room is not created or it is created without an index.
-      if (created.status === 200)
-        expect(
-          (await owner.rooms.getRoomInfo({ id: created.data.response!.id! }))
-            .data.response!.indexing,
-        ).toBe(false);
-    }
+    // Only a Custom room may be private, so that is the only type tried (a private virtual data room is
+    // a known defect pinned in types.spec.ts and is not used as a fixture here).
+    const title = "RoomOps private indexed";
+    const created = await owner.rooms.createRoom({
+      createRoomRequestDto: {
+        title,
+        roomType: RoomType.CustomRoom,
+        private: true,
+        indexing: true,
+      } as never,
+    });
+    expectNoServerError(
+      created.status,
+      "creating a private room with indexing",
+    );
+    // A refusal may still leave a room behind (see the createRoom private flake), so the portal is read,
+    // not the answer: no room of that name may carry an index.
+    const rooms = (
+      (await owner.rooms.getRoomsFolder({ count: 100 })).data.response
+        ?.folders ?? []
+    ).filter((r) => r.title === title);
+    for (const room of rooms)
+      expect(
+        (
+          await owner.rooms.getRoomInfo({
+            id: (room as unknown as { id: number }).id,
+          })
+        ).data.response!.indexing,
+        "a private room was created indexed",
+      ).toBe(false);
+    if (created.status === 200)
+      expect(rooms, "a 200 answer without a room").toHaveLength(1);
+    else expectRefused(created.status, "creating a private room with indexing");
   });
 });

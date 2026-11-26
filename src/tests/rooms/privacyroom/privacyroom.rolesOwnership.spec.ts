@@ -14,6 +14,11 @@ import {
 } from "@/src/helpers/private-room-arena";
 import { addAccounts } from "@/src/helpers/private-room-download";
 import { rawRequest } from "@/src/helpers/private-room-upload";
+import { randomUUID } from "crypto";
+import {
+  expectNoServerError,
+  expectRefused,
+} from "@/src/helpers/private-room-lifecycle";
 
 /**
  * Ownership, role changes, creating a private room, and keys versus rights
@@ -25,9 +30,6 @@ import { rawRequest } from "@/src/helpers/private-room-upload";
  * privacyroom.roles.spec.ts for the method and for how the guide's silence is
  * handled. Nothing here is derived from what the server happens to do.
  */
-
-const observe = (what: string) =>
-  test.info().annotations.push({ type: "observation", description: what });
 
 const isOk = (status: number) => status >= 200 && status < 300;
 
@@ -57,9 +59,7 @@ test.describe("Ownership transfer - only the owner", () => {
         const res = await transfer(who, room, to);
         const changed = (await ownerOf(room)) !== before;
         (outcome[who.key] ??= { priv: false, plain: false })[kind] = changed;
-        observe(
-          `transfer (${kind}) by ${who.key} to ${to.key}: ${res.status}, owner changed: ${changed}`,
-        );
+        expectNoServerError(res.status, `transfer (${kind}) by ${who.key}`);
         if (changed)
           // Hand it back: the new owner returns the room to the account that built the scene.
           await to.api.sharing.changeFileOwner({
@@ -103,15 +103,8 @@ test.describe("Ownership transfer - only the owner", () => {
         )
         .toBe(outcome[p].priv);
     }
-    // The JSDoc lets a portal administrator transfer any room; what the ordinary room does is recorded for contrast.
-    observe(
-      `ordinary room: ${
-        a.members
-          .filter((m) => outcome[m.key].plain)
-          .map((m) => m.key)
-          .join(", ") || "only nobody"
-      } could transfer`,
-    );
+    // What the ordinary room allows (the JSDoc lets a portal administrator transfer any room) is
+    // research, kept in the audit; it is not asserted here.
   });
 });
 
@@ -223,46 +216,27 @@ test.describe("Creating a private room - global role and key", () => {
     test.setTimeout(500_000);
     const owner = apiSdk.forRole("owner");
     const ownerId = (await owner.profiles.getSelfProfile()).data.response!.id!;
+    // One account per global role walks through the three key states in turn (none -> has -> deleted), like the
+    // Portal Owner below. Several accounts of one global role in a single test share one session slot of the
+    // token store, which made a "DocSpaceAdmin (deleted)" account act with someone else's rights.
     const kinds = ["DocSpaceAdmin", "RoomAdmin", "User"] as const;
-    const states = ["has", "none", "deleted"] as const;
-    const specs = [
-      ...kinds.flatMap((type) =>
-        states.map((state) => ({ type, key: state !== "none" })),
-      ),
+    const accounts = await addAccounts(apiSdk, [
+      ...kinds.map((type) => ({ type, key: false })),
       { type: "Guest" as const, key: false },
-    ];
-    const accounts = await addAccounts(apiSdk, specs);
-    const subjects: {
+    ]);
+    type Subject = {
       label: string;
       global: string;
       state: string;
       api: typeof owner;
       id: string;
-    }[] = [];
-    let i = 0;
-    for (const type of kinds)
-      for (const state of states) {
-        const acc = accounts[i++];
-        if (state === "deleted") {
-          expect(
-            (await acc.api.privacyroom.deleteKeys({ id: ZERO_GUID })).status,
-          ).toBe(204);
-        }
-        subjects.push({
-          label: `${type} (${state})`,
-          global: type,
-          state,
-          api: acc.api,
-          id: acc.id,
-        });
-      }
-    const guest = accounts[i++];
-    subjects.push({
-      label: "Guest",
-      global: "Guest",
-      state: "none",
-      api: guest.api,
-      id: guest.id,
+    };
+    const subjectOf = (i: number, global: string, state: string): Subject => ({
+      label: `${global} (${state})`,
+      global,
+      state,
+      api: accounts[i].api,
+      id: accounts[i].id,
     });
 
     const createPrivate = (api: typeof owner, title: string) =>
@@ -282,10 +256,10 @@ test.describe("Creating a private room - global role and key", () => {
         ).data.response?.folders ?? []) as { id?: number }[]
       ).map((f) => f.id);
 
-    const check = async (
-      s: (typeof subjects)[number],
-      expectAllowed: boolean,
-    ) => {
+    // Accounts that cannot create even an ordinary room: no positive control, so what they get for a
+    // private room says nothing about privacy. Listed, never silently skipped.
+    const noControl: string[] = [];
+    const check = async (s: Subject, expectAllowed: boolean) => {
       const before = await privateIds(s.api);
       const res = await createPrivate(s.api, `Roles create ${s.label}`);
       const roomId = (res.data?.response as { id?: number } | undefined)?.id;
@@ -296,9 +270,7 @@ test.describe("Creating a private room - global role and key", () => {
           roomType: RoomType.CustomRoom,
         },
       });
-      observe(
-        `${s.label}: private room ${res.status}${created ? " created" : ""}; an ordinary room by the same account: ${control.status}`,
-      );
+      expectNoServerError(res.status, `${s.label}: private room`);
       if (created) {
         const info = (await s.api.rooms.getRoomInfo({ id: roomId! })).data
           .response!;
@@ -327,18 +299,43 @@ test.describe("Creating a private room - global role and key", () => {
             `${s.label}: expected ${expectAllowed ? "created" : "refused"}`,
           )
           .toBe(expectAllowed);
-      else
-        observe(
-          `${s.label}: NO CONTROL (an ordinary room by the same account answers ${control.status}); the answer says nothing special about privacy`,
+      else {
+        noControl.push(
+          `${s.label} [ordinary room: ${control.status} ${JSON.stringify(control.data).slice(0, 160)}]`,
         );
+        // A role that cannot create any room (User, Guest) cannot create a private one either.
+        if (!expectAllowed)
+          expect
+            .soft(
+              created,
+              `${s.label}: refused ordinary rooms, so no private one`,
+            )
+            .toBe(false);
+      }
     };
 
     // The guide: no entry point for User and Guest; creating needs a key (the Create key dialog).
-    for (const s of subjects) {
-      const roleMayCreate =
-        s.global === "DocSpaceAdmin" || s.global === "RoomAdmin";
-      await check(s, roleMayCreate && s.state === "has");
+    for (const [i, type] of kinds.entries()) {
+      const roleMayCreate = type === "DocSpaceAdmin" || type === "RoomAdmin";
+      await check(subjectOf(i, type, "none"), false);
+      expect(
+        (
+          await accounts[i].api.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              publicKey: `pk-${type}`,
+              privateKeyEnc: `prv-${type}`,
+            },
+          })
+        ).status,
+      ).toBe(201);
+      await check(subjectOf(i, type, "has"), roleMayCreate);
+      expect(
+        (await accounts[i].api.privacyroom.deleteKeys({ id: ZERO_GUID }))
+          .status,
+      ).toBe(204);
+      await check(subjectOf(i, type, "deleted"), false);
     }
+    await check(subjectOf(kinds.length, "Guest", "none"), false);
 
     // The Portal Owner walks through the three states on one account.
     const ownerSubject = {
@@ -377,6 +374,23 @@ test.describe("Creating a private room - global role and key", () => {
       },
       false,
     );
+
+    // Without a control only a role that cannot create rooms at all (User, Guest) or the known RoomAdmin limitation
+    // on the test portal (asked of the developers) is acceptable; anything else is a broken setup.
+    expect(
+      noControl.filter(
+        (l) =>
+          !l.startsWith("RoomAdmin") &&
+          !l.startsWith("User") &&
+          !l.startsWith("Guest"),
+      ),
+      "accounts without a positive control",
+    ).toEqual([]);
+    if (noControl.length)
+      test.info().annotations.push({
+        type: "NO CONTROL",
+        description: `${noControl.join("; ")}: an ordinary room is refused too (not counted as covered)`,
+      });
 
     // Anonymous: no session, no room.
     const anonymous = await rawRequest(apiSdk, null, "rooms", {
@@ -440,8 +454,17 @@ test.describe("Keys and rights are independent", () => {
     const folderBefore = (
       await a.admin.folders.getFolderByFolderId({ folderId: a.priv })
     ).data.response;
+    const sessionByReader =
+      await reader.api.operations.createUploadSessionInFolder({
+        folderId: a.priv,
+        sessionRequest: {
+          fileName: `${randomUUID()}.docx`,
+          fileSize: 512,
+          encrypted: true,
+        },
+      });
     const writes = {
-      upload: await putFile(reader.api, "priv", a.priv),
+      upload: sessionByReader.status,
       folder: (
         await reader.api.folders.createFolder({
           folderId: a.priv,
@@ -458,20 +481,10 @@ test.describe("Keys and rights are independent", () => {
         })
       ).status,
     };
-    observe(
-      `a Read member with keys: upload ${writes.upload ? "accepted" : "refused"}, createFolder ${writes.folder}, delete ${writes.delete}`,
-    );
-    expect(
-      writes.upload,
-      "upload by a Read member holding keys",
-    ).toBeUndefined();
-    expect(
-      isOk(writes.folder),
-      "createFolder by a Read member holding keys",
-    ).toBe(false);
-    expect(isOk(writes.delete), "delete by a Read member holding keys").toBe(
-      false,
-    );
+    // A key is not a right: a Read member is refused (4xx, never a crash) and nothing changes.
+    expectRefused(writes.upload, "upload by a Read member holding keys");
+    expectRefused(writes.folder, "createFolder by a Read member holding keys");
+    expectRefused(writes.delete, "delete by a Read member holding keys");
     const folderAfter = (
       await a.admin.folders.getFolderByFolderId({ folderId: a.priv })
     ).data.response;
@@ -482,7 +495,7 @@ test.describe("Keys and rights are independent", () => {
       (folderBefore?.folders ?? []).length,
     );
 
-    // A member whose account key is deleted keeps the room, the role and the file's stored key; what the server lets them do is recorded.
+    // A member whose account key is deleted keeps the room, the role and the file's stored key.
     expect(
       (await creator.api.privacyroom.deleteKeys({ id: ZERO_GUID })).status,
     ).toBe(204);
@@ -490,10 +503,7 @@ test.describe("Keys and rights are independent", () => {
     expect((await roomMemberAccess(a.admin, a.priv)).get(creator.id)).toBe(
       FileShare.ContentCreator,
     );
-    const keyless = await putFile(creator.api, "priv", a.priv);
-    observe(
-      `a ContentCreator who deleted their account key: upload ${keyless ? "accepted" : "refused"} (the guide: a client-side requirement)`,
-    );
+    // Whether the server lets a keyless member upload is a client-side requirement in the guide: not asserted.
     expect((await roomMemberAccess(a.admin, a.priv)).get(creator.id)).toBe(
       FileShare.ContentCreator,
     );

@@ -3,6 +3,18 @@ import { test } from "@/src/fixtures/index";
 import { RoomType, SearchArea } from "@onlyoffice/docspace-api-sdk";
 import { ApiSDK } from "@/src/services/api-sdk";
 import { ensureEncryptionKeys } from "@/src/helpers/rooms";
+import { expectNoServerError } from "@/src/helpers/private-room-lifecycle";
+
+/**
+ * Types that cannot be created even as an ordinary room by the test account, so no positive
+ * control exists for them. The test is then reported as SKIPPED with the reason (an environment
+ * limitation, not a product defect); any other type without a control fails the test.
+ */
+const NO_CONTROL_TYPES = [
+  "KnowledgeRoom",
+  // An ordinary AiProjectRoom answers 403 on a test portal without the AI gateway (3/3 runs, 2026-11-26).
+  "AiProjectRoom",
+];
 
 /**
  * Which room types may be private (PR-ROOM-008/015, SPEC-013).
@@ -21,9 +33,6 @@ import { ensureEncryptionKeys } from "@/src/helpers/rooms";
  * asserted: what is asserted is the state - a Custom room is created with its
  * private flag, any other type leaves no room behind.
  */
-
-const observe = (what: string) =>
-  test.info().annotations.push({ type: "observation", description: what });
 
 const isOk = (status: number) => status >= 200 && status < 300;
 
@@ -48,13 +57,18 @@ const attempt = async (apiSdk: ApiSDK, name: string, roomType: RoomType) => {
   const ordinaryId = (ordinary.data?.response as { id?: number } | undefined)
     ?.id;
   if (!isOk(ordinary.status) || !ordinaryId) {
-    observe(
-      `${name}: NO CONTROL (an ordinary room of this type answers ${ordinary.status}); not counted as covered`,
+    test.skip(
+      NO_CONTROL_TYPES.includes(name),
+      `NO CONTROL: an ordinary ${name} room answers ${ordinary.status}; nothing is proved about privacy`,
     );
-    return;
+    expect(
+      ordinary.status,
+      `setup: an ordinary ${name} room must be created (control)`,
+    ).toBe(200);
   }
   expect(
-    (await owner.rooms.getRoomInfo({ id: ordinaryId })).data.response?.roomType,
+    (await owner.rooms.getRoomInfo({ id: ordinaryId! })).data.response
+      ?.roomType,
   ).toBe(roomType);
 
   const before = {
@@ -70,9 +84,6 @@ const attempt = async (apiSdk: ApiSDK, name: string, roomType: RoomType) => {
   });
   const id = (res.data?.response as { id?: number } | undefined)?.id;
   const created = isOk(res.status) && !!id;
-  observe(
-    `${name} (type ${roomType}): ordinary room ${ordinary.status}, private room ${res.status}${created ? " CREATED" : ""}`,
-  );
 
   if (roomType === RoomType.CustomRoom) {
     expect(created, "a private Custom room is created").toBe(true);
@@ -96,6 +107,8 @@ const attempt = async (apiSdk: ApiSDK, name: string, roomType: RoomType) => {
     (await roomIds(SearchArea.Any)).filter((x) => !before.any.includes(x)),
     `a room appeared in the list`,
   ).toEqual([]);
+  // The state first, then the answer: a crash is not a correct refusal.
+  expectNoServerError(res.status, `creating a private ${name} room`);
 };
 
 /**

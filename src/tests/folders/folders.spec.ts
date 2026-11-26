@@ -2664,10 +2664,14 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
         title: "Autotest Favorites FilterVal UNIQUE.docx",
       },
     });
-    await ownerApi.files.toggleFileFavorite({
-      fileId: matchFile.response!.id!,
-      favorite: true,
-    });
+    expect(
+      (
+        await ownerApi.files.toggleFileFavorite({
+          fileId: matchFile.response!.id!,
+          favorite: true,
+        })
+      ).status,
+    ).toBe(200);
 
     const { data: otherFile } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
@@ -2680,14 +2684,22 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
       favorite: true,
     });
 
-    const { data, status } = await ownerApi.folders.getFavoritesFolder({
-      filterValue: "UNIQUE",
-    });
-
-    expect(status).toBe(200);
-    const titles = data.response!.files!.map((f) => f.title);
-    expect(titles).toContain("Autotest Favorites FilterVal UNIQUE.docx");
-    expect(titles).not.toContain("Autotest Favorites FilterVal Other.docx");
+    // The unfiltered favorites list has both files at once; the filtered one is
+    // search-backed and fills in about one to two seconds later (measured on
+    // 12 runs: empty at 0.4s in 8 of them). Wait for the match, then assert.
+    const filtered = async () => {
+      const { data, status } = await ownerApi.folders.getFavoritesFolder({
+        filterValue: "UNIQUE",
+      });
+      expect(status).toBe(200);
+      return data.response!.files!.map((f) => f.title);
+    };
+    await expect
+      .poll(filtered, { timeout: 15_000, intervals: [500, 1000] })
+      .toContain("Autotest Favorites FilterVal UNIQUE.docx");
+    expect(await filtered()).not.toContain(
+      "Autotest Favorites FilterVal Other.docx",
+    );
   });
 
   test("GET /api/2.0/files/@favorites - File deleted to trash does not appear in favorites", async ({

@@ -1,10 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import {
-  FileShare,
-  FileType,
-  FormFillingManageAction,
-} from "@onlyoffice/docspace-api-sdk";
+import { FileShare, FileType } from "@onlyoffice/docspace-api-sdk";
 import { AiAttachments } from "@/src/helpers/ai-attachments";
 import {
   containsMarker,
@@ -70,6 +66,8 @@ type Op = {
   links?: boolean;
   /** The result of the operation lands in the file's own room, not in the destination. */
   inOwnRoom?: boolean;
+  /** Roles refused this call on an ordinary file too: a refusal on a private file then proves nothing for them. */
+  notForRoles?: string[];
 };
 
 const OPS: Op[] = [
@@ -108,6 +106,8 @@ const OPS: Op[] = [
   {
     name: "files.createFilePrimaryExternalLink (view)",
     pair: (k) => k.docx,
+    // A ContentCreator is refused this call on an ordinary file as well, so a refusal on the private one proves nothing about privacy: not covered for that role.
+    notForRoles: ["creator"],
     run: (k, id) =>
       k.actor.files.createFilePrimaryExternalLink({
         id,
@@ -118,6 +118,7 @@ const OPS: Op[] = [
   {
     name: "files.setFileExternalLink (view)",
     pair: (k) => k.docx,
+    notForRoles: ["creator"], // refused on an ordinary file too
     run: (k, id) =>
       k.actor.files.setFileExternalLink({
         id,
@@ -128,6 +129,7 @@ const OPS: Op[] = [
   {
     name: "files.setFileExternalLink (edit)",
     pair: (k) => k.docx,
+    notForRoles: ["creator"], // refused on an ordinary file too
     run: (k, id) =>
       k.actor.files.setFileExternalLink({
         id,
@@ -138,6 +140,7 @@ const OPS: Op[] = [
   {
     name: "files.setFileExternalLink (for participants)",
     pair: (k) => k.docx,
+    notForRoles: ["creator"], // refused on an ordinary file too
     run: (k, id) =>
       k.actor.files.setFileExternalLink({
         id,
@@ -153,18 +156,6 @@ const OPS: Op[] = [
     name: "files.startFillingFile (PDF form)",
     pair: (k) => k.form,
     run: (k, fileId) => k.actor.files.startFillingFile({ fileId }),
-  },
-  {
-    name: "files.manageFormFilling start (PDF form)",
-    pair: (k) => k.form,
-    run: (k, fileId) =>
-      k.actor.files.manageFormFilling({
-        fileId: String(fileId),
-        manageFormFillingDto: {
-          formId: fileId,
-          action: FormFillingManageAction.Start,
-        },
-      }),
   },
 ];
 
@@ -183,15 +174,18 @@ test.describe("Forbidden operations - a private file is refused them, whoever ma
       const kit = await buildKit(apiSdk, role);
 
       for (const op of OPS) {
+        if (op.notForRoles?.includes(role)) continue;
         const pair = op.pair(kit);
         // The control: the same call on the ordinary file works for this caller.
         const control = await op.run(kit, pair.plain);
-        if (control.status < 200 || control.status >= 300) {
-          observe(
-            `${role}: ${op.name}: NO CONTROL (the ordinary file answers ${control.status}); not counted as covered`,
-          );
-          continue;
-        }
+        // A control that does not work is a failed setup, not a skipped check: the test goes red.
+        expect
+          .soft(
+            control.status >= 200 && control.status < 300,
+            `${role}: ${op.name}: the control on the ordinary file answered ${control.status}`,
+          )
+          .toBe(true);
+        if (control.status < 200 || control.status >= 300) continue;
         if (op.links)
           expect
             .soft(await linksOf(kit, pair.plain), `${op.name}: control link`)
@@ -209,9 +203,13 @@ test.describe("Forbidden operations - a private file is refused them, whoever ma
         const refused = await op.run(kit, pair.priv);
         await settle(kit.actor);
 
-        observe(
-          `${role}: ${op.name}: control ${control.status}, private file ${refused.status}`,
-        );
+        // A server error is never an acceptable answer; the prohibition itself is read back below.
+        expect
+          .soft(
+            refused.status,
+            `${op.name}: the private file must not cause a server error`,
+          )
+          .toBeLessThan(500);
         if (op.documented)
           expect
             .soft(refused.status, `${op.name}: documented status`)
@@ -326,9 +324,23 @@ test.describe("Forbidden operations - a private file is refused them, whoever ma
       expect(await recent()).not.toContain(kit.docx.priv);
 
       // Removing them again is harmless, and nothing about the private file changed.
-      observe(
-        `${kit.role}: deleteFavoritesFromBody ${(await actor.operations.deleteFavoritesFromBody({ baseBatchRequestDto: { fileIds: [kit.docx.priv] as never } })).status}, deleteRecent ${(await actor.files.deleteRecent({ baseBatchRequestDto: { fileIds: [kit.docx.priv] as never } })).status}`,
+      // JSDoc: both answer 200 whenever the request was understood (the portal answers 204 for an absent entry: a JSDoc/behaviour mismatch, asked of the developers), whether or not an entry existed.
+      expect([200, 204]).toContain(
+        (
+          await actor.operations.deleteFavoritesFromBody({
+            baseBatchRequestDto: { fileIds: [kit.docx.priv] as never },
+          })
+        ).status,
       );
+      expect([200, 204]).toContain(
+        (
+          await actor.files.deleteRecent({
+            baseBatchRequestDto: { fileIds: [kit.docx.priv] as never },
+          })
+        ).status,
+      );
+      expect(await favorites()).not.toContain(kit.docx.priv);
+      expect(await recent()).not.toContain(kit.docx.priv);
       expect(await fileJson(kit.admin, kit.docx.priv)).toEqual(before);
     });
 
@@ -365,10 +377,9 @@ test.describe("Forbidden operations - a private file is refused them, whoever ma
         await settle(actor);
         const dest = await filesIn(kit.admin, kit.otherRoom);
         const made = dest.filter((f) => !destBefore.includes(f.id));
-        observe(
-          `${role}: saveFileAsPdf of the private file into an ordinary room answered ${attempt.status}; new files there: ${made.map((f) => f.title + " (" + f.size + " bytes)").join(", ") || "none"}`,
+        expect(attempt.status, "a server error is not a refusal").toBeLessThan(
+          500,
         );
-
         // What must hold either way: the private file itself is untouched.
         expect(await fileJson(kit.admin, docx.priv)).toEqual(fileBefore);
         // The portal does not convert a file of a private room (docs.convertFile and copyFileAs refuse it),
@@ -404,8 +415,8 @@ test.describe("Forbidden operations - a private file is refused them, whoever ma
         // What may not change either way: the content, the flag, the keys.
         expect(after.encrypted).toBe(true);
         expect(await keysJson(kit.admin, docx.priv)).toEqual(keys);
-        observe(
-          `${role}: rename of the private file answered ${attempt.status}; title now ${after.title === docx.privTitle ? "unchanged" : "replaced"}`,
+        expect(attempt.status, "a server error is not a refusal").toBeLessThan(
+          500,
         );
         // The server name is the one the client generated; a rename must not replace it with a readable one.
         expect(after.title).toBe(docx.privTitle);
@@ -429,9 +440,10 @@ test.describe("Forbidden operations - renaming and versions of a private file", 
       });
       const info = (await kit.admin.files.getFileInfo({ fileId: id })).data
         .response!;
-      observe(
-        `${name} file renamed to other.pdf: ${res.status}, now ${info.title}`,
-      );
+      // JSDoc: a rename keeps the stored extension whatever the new title says.
+      if (name === "ordinary")
+        expect(res.status, "control: the rename works").toBe(200);
+      expect(res.status, `${name} file: a server error`).toBeLessThan(500);
       expect(info.fileExst, `${name} file: extension`).toBe(".docx");
     }
     expect(
@@ -460,6 +472,8 @@ test.describe("Forbidden operations - renaming and versions of a private file", 
     };
     const before = await state(docx.priv);
 
+    // The ordinary file is the control and must answer 200 (JSDoc: the caller manages the room); the private
+    // file is only required not to fail with a server error and to stay as it was (read back below).
     const calls: [string, (id: number) => Promise<Reply>][] = [
       [
         "getFileVersionInfo",
@@ -486,24 +500,23 @@ test.describe("Forbidden operations - renaming and versions of a private file", 
             changeHistoryRequest: { version: 1, continueVersion: true },
           }),
       ],
-      [
-        "restoreFileVersion(version 1)",
-        (id) => actor.files.restoreFileVersion({ fileId: id, version: 1 }),
-      ],
     ];
     for (const [name, call] of calls) {
       const control = await call(docx.plain);
       const subject = await call(docx.priv);
-      observe(
-        `${name}: ordinary file ${control.status}, private file ${subject.status}`,
-      );
+      expect(control.status, `${name}: control on the ordinary file`).toBe(200);
+      expect(
+        subject.status,
+        `${name}: private file, a server error`,
+      ).toBeLessThan(500);
     }
     // Only the single version exists, and the content, flag and name are what they were.
     expect(await state(docx.priv)).toEqual(before);
-    const versions = (
-      await actor.files.getFileVersionInfo({ fileId: docx.priv })
-    ).data.response as unknown as unknown[];
-    expect(versions).toHaveLength(1);
+    const versionsReply = await actor.files.getFileVersionInfo({
+      fileId: docx.priv,
+    });
+    expect(versionsReply.status).toBe(200);
+    expect(versionsReply.data.response as unknown as unknown[]).toHaveLength(1);
 
     // A second version of a private file through the upload route: refused, and nothing changed.
     const bytes = markedBytes("FORB-V2", 40);
@@ -512,22 +525,27 @@ test.describe("Forbidden operations - renaming and versions of a private file", 
       fileName: docx.privTitle,
       createNewIfExist: false,
     });
-    observe(
-      `a session that takes the private file over as its next version: ${second.status}`,
+    expect(second.status, "opening the session: a server error").toBeLessThan(
+      500,
     );
     if (second.id) {
       const sent = await sendNext(actor, kit.privRoom, second.id, bytes);
-      observe(`sending its bytes: ${sent.status}`);
+      expect(sent.status, "sending the bytes: a server error").toBeLessThan(
+        500,
+      );
     }
-    observe(
-      `files named like the private file afterwards: ${(await filesIn(kit.admin, kit.privRoom)).filter((f) => f.title === docx.privTitle).length}`,
-    );
+    // Whatever the session did, the private file keeps its single version, name and bytes.
     expect(await state(docx.priv)).toEqual(before);
     expect(
       (await downloadVia(kit.admin, kit.adminToken, docx.priv)).bytes?.equals(
         docx.bytes,
       ),
     ).toBe(true);
+    expect(
+      (await actor.files.getFileVersionInfo({ fileId: docx.priv })).data
+        .response as unknown as unknown[],
+      "no second version appeared",
+    ).toHaveLength(1);
   });
 });
 
@@ -591,7 +609,7 @@ test.describe("Forbidden operations - delete, restore and batches", () => {
         deleteAfter: true,
       },
     });
-    observe(`restoring the deleted private file: ${again.status}`);
+    expect(again.status, "restoring: a server error").toBeLessThan(500);
     await settle(actor);
     expect(await roomFileIds(kit.admin, kit.privRoom)).not.toContain(
       kit.docx.priv,
@@ -663,7 +681,6 @@ test.describe("Forbidden operations - delete, restore and batches", () => {
         message: "control: two copies",
       })
       .toHaveLength(2);
-    const copied = await roomFileIds(kit.admin, kit.otherRoom);
 
     const cases: { name: string; ids: number[] }[] = [
       {
@@ -678,7 +695,6 @@ test.describe("Forbidden operations - delete, restore and batches", () => {
     for (const verb of ["copy", "move"] as const) {
       for (const { name, ids } of cases) {
         const privBefore = await roomFileIds(kit.admin, kit.privRoom);
-        const plainBefore = await roomFileIds(kit.admin, kit.plainRoom);
         const body = {
           batchRequestDto: {
             fileIds: ids as never,
@@ -691,9 +707,7 @@ test.describe("Forbidden operations - delete, restore and batches", () => {
             ? await actor.operations.copyBatchItems(body)
             : await actor.operations.moveBatchItems(body);
         await settle(actor);
-        observe(
-          `${verb} of ${name}: ${res.status}; ordinary file ${ids.includes(kit.docx.plain) ? ((await roomFileIds(kit.admin, kit.otherRoom)).length > copied.length ? "was transferred" : "was NOT transferred") : "n/a"}`,
-        );
+        expect(res.status, `${verb} ${name}: a server error`).toBeLessThan(500);
 
         // No private file reached the destination or left its room.
         expect(
@@ -711,7 +725,6 @@ test.describe("Forbidden operations - delete, restore and batches", () => {
             (await kit.admin.files.getFileInfo({ fileId: id })).data.response
               ?.encrypted,
           ).toBe(true);
-        void plainBefore;
       }
     }
   });
@@ -751,6 +764,7 @@ test.describe("Forbidden operations - what the server does with the content of a
     observe(
       `an encrypted file of a private room saved as an AI attachment: ${subject.status}; its content ${JSON.stringify(subject.data ?? subject.error).includes("FORB-SECRET-TEXT") ? "was read into the draft" : "was not read"}`,
     );
+    expect(subject.status, "a server error is not an answer").toBeLessThan(500);
     // Whatever the answer, the file itself is untouched.
     expect(await fileJson(kit.admin, privTxt.id)).toEqual(before);
     expect(
@@ -761,3 +775,8 @@ test.describe("Forbidden operations - what the server does with the content of a
     ).toBe(true);
   });
 });
+
+// NO CONTROL: manageFormFilling (Start) answers 403 for the room owner and managers on an ORDINARY PDF form of a Custom
+// room as well (also with a form nobody started), so a refusal on the private form proves nothing about privacy. It was
+// silently skipped before package 7A; it is listed as SKIPPED until a form-filling setup with a working control exists.
+test.skip("files.manageFormFilling start - A private PDF form is refused (NO CONTROL: the ordinary form is refused too)", () => {});

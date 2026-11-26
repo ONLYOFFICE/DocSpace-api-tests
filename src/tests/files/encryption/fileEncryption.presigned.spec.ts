@@ -29,14 +29,12 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
  * used - no signature is altered or guessed - and none is printed.
  *
  * The SDK JSDoc says an address is built with a token that can expire, but gives
- * no lifetime and no revocation rule. So what an old address still does after a
- * membership change is recorded as an `observation`; the assertions are the
+ * no lifetime and no revocation rule. So what an old address does for a holder who
+ * presents NO credentials (after a membership change, an archive) is not asserted
+ * and not recorded here (SPEC-018, SPEC GAP in the audit); the assertions are the
  * parts that hold either way: a refusal carries no bytes, a removed member's own
  * credentials never open the file, and a new address is never issued to them.
  */
-
-const observe = (what: string) =>
-  test.info().annotations.push({ type: "observation", description: what });
 
 const room = async (apiSdk: ApiSDK, marker: string) => {
   const owner = apiSdk.forRole("owner");
@@ -92,7 +90,7 @@ test.describe("GET /files/file/:fileId/presigneduri - an issued address", () => 
     }
   });
 
-  test("GET /filehandler.ashx - An address is a bearer link: it opens without credentials, and never for another user or without its signature", async ({
+  test("GET /filehandler.ashx - An address opens for its holder's session and never for another user or without its signature", async ({
     apiSdk,
   }) => {
     const { owner, roomId, file } = await room(apiSdk, "P3-BEARER");
@@ -122,11 +120,6 @@ test.describe("GET /files/file/:fileId/presigneduri - an issued address", () => 
     const other = await fetchAs(url, stranger.token);
     expect(other.status).toBe(403);
     expect(containsMarker(other.bytes, "P3-BEARER")).toBe(false);
-
-    const anonymous = await fetchAs(url, null);
-    observe(
-      `the issued address with no credentials at all: ${anonymous.status}, bytes ${anonymous.bytes.equals(file.bytes) ? "served" : "not served"}`,
-    );
   });
 
   test("GET /filehandler.ashx - After the member is removed, no new address is issued and the old one never opens for their own credentials", async ({
@@ -198,16 +191,7 @@ test.describe("GET /files/file/:fileId/presigneduri - an issued address", () => 
           ownerToken,
         )
       ).status,
-    ).toBe(200);
-    // SPEC-018: what the old address does for a holder who presents no credentials.
-    const holder = await fetchAs(old, null);
-    observe(
-      `an address issued before the removal, used with no credentials: ${holder.status}, bytes ${holder.bytes.equals(file.bytes) ? "served" : "not served"}`,
-    );
-    const holderSigned = await fetchAs(oldSigned.url, null);
-    observe(
-      `a document-service address issued before the removal, used with no credentials: ${holderSigned.status}`,
-    );
+    ).toBe(200); // SPEC-018 (the old address for a holder with no credentials) is deliberately not asserted.
   });
 
   test("GET /filehandler.ashx - After the file is deleted an old address serves no bytes", async ({
@@ -233,25 +217,26 @@ test.describe("GET /files/file/:fileId/presigneduri - an issued address", () => 
         })
       ).status,
     ).toBe(200);
-    await waitForOperation(owner.operations);
+    const deletion = await waitForOperation(owner.operations);
+    expect(deletion.error).toBe("");
     expect((await owner.files.getFileInfo({ fileId: file.id })).status).toBe(
       404,
     );
 
     const holder = await fetchAs(url, null);
     const asOwner = await fetchAs(url, ownerToken);
-    observe(
-      `after deleting the file: no credentials ${holder.status}, the owner ${asOwner.status}`,
-    );
     expect(holder.status).toBe(403);
     expect(containsMarker(holder.bytes, "P3-DELFILE")).toBe(false);
+    // The refusal status for the owner's own session is not fixed: a client refusal, no bytes.
+    expect(asOwner.status).toBeGreaterThanOrEqual(400);
+    expect(asOwner.status).toBeLessThan(500);
     expect(containsMarker(asOwner.bytes, "P3-DELFILE")).toBe(false);
     expect(
       (await owner.folders.getFolderByFolderId({ folderId: roomId })).status,
     ).toBe(200);
   });
 
-  test("GET /filehandler.ashx - After the room is deleted an old address serves no bytes; after it is archived the answer is recorded", async ({
+  test("GET /filehandler.ashx - After the room is deleted an old address serves no bytes", async ({
     apiSdk,
   }) => {
     const { owner, roomId, file } = await room(apiSdk, "P3-DELROOM");
@@ -264,11 +249,6 @@ test.describe("GET /files/file/:fileId/presigneduri - an issued address", () => 
     ).toBe(true);
 
     await archiveRoomAndWait(apiSdk, roomId);
-    const archived = await fetchAs(url, null);
-    observe(
-      `after archiving: no credentials ${archived.status}, bytes ${archived.bytes.equals(file.bytes) ? "served" : "not served"}`,
-    );
-
     expect(
       (
         await owner.rooms.deleteRoom({
@@ -277,7 +257,8 @@ test.describe("GET /files/file/:fileId/presigneduri - an issued address", () => 
         })
       ).status,
     ).toBe(200);
-    await waitForOperation(owner.operations);
+    const deletion = await waitForOperation(owner.operations);
+    expect(deletion.error).toBe("");
     expect((await owner.rooms.getRoomInfo({ id: roomId })).status).toBe(404);
 
     const holder = await fetchAs(url, null);
@@ -332,6 +313,9 @@ test.describe("GET /files/file/:fileId - the other addresses of a private file",
         .toBe(false);
       // The editor page is a shell: whatever it answers, it names neither the file nor its content.
       const page = await fetchAs(info.webUrl!, token);
+      expect
+        .soft(page.status, `editor address used by ${who}: not a server error`)
+        .toBeLessThan(500);
       expect
         .soft(
           page.bytes.includes(Buffer.from(file.serverName)),

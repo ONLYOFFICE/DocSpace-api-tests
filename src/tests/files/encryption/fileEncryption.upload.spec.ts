@@ -53,9 +53,6 @@ import {
  * the "cannot remove member while uploading" block) have no REST surface.
  */
 
-const observe = (what: string) =>
-  test.info().annotations.push({ type: "observation", description: what });
-
 /** An owner and a private Custom room. */
 const setupRoom = async (apiSdk: ApiSDK) => {
   const owner = apiSdk.forRole("owner");
@@ -101,6 +98,29 @@ const expectUntouched = async (
 ) => {
   expect(idsOf(await filesIn(owner, roomId))).toEqual(before);
   expect(await unfinishedOperations(owner)).toEqual([]);
+};
+
+/** Whatever a session answered, the answer and the room must agree: no server error, a file exactly when 201. */
+const expectSessionOutcome = async (
+  owner: Api,
+  roomId: number,
+  sent: { status: number },
+  label: string,
+) => {
+  expect(sent.status, `${label}: a server error`).toBeLessThan(500);
+  const ids = idsOf(await filesIn(owner, roomId));
+  if (sent.status === 201)
+    expect(ids, `${label}: reported stored`).toEqual([
+      storedFileId(sent as Parameters<typeof storedFileId>[0]),
+    ]);
+  else expect(ids, `${label}: not stored, so nothing may be left`).toEqual([]);
+  expect(await unfinishedOperations(owner), `${label}: operations`).toEqual([]);
+};
+
+/** A refusal whose HTTP status the contract leaves open: a client error, never a server one. */
+const expectClientError = (status: number, label: string) => {
+  expect(status, label).toBeGreaterThanOrEqual(400);
+  expect(status, `${label}: a server error is not a refusal`).toBeLessThan(500);
 };
 
 const removeFromRoom = async (owner: Api, roomId: number, userId: string) => {
@@ -379,8 +399,8 @@ test.describe("POST /files/:folderId/session - upload into a private room", () =
     });
 
     // The JSDoc says finalize "assembles whatever is there"; the portal refuses.
-    // That is the safer outcome, so only the end state is asserted.
-    observe(`finalize with one of two parts: ${fin.status}`);
+    // That is the safer outcome, so the end state is asserted and a server error is not accepted.
+    expect(fin.status, "finalize: a server error").toBeLessThan(500);
     expect(await filesIn(owner, roomId)).toEqual([]);
     expect(await unfinishedOperations(owner)).toEqual([]);
   });
@@ -449,7 +469,16 @@ test.describe("POST /files/:folderId/session - who may upload into a private roo
             .status,
         ).toBe(200);
       if (setup === "removed") {
-        await inviteToRoom(owner, roomId, account.id, FileShare.ContentCreator);
+        expect(
+          (
+            await inviteToRoom(
+              owner,
+              roomId,
+              account.id,
+              FileShare.ContentCreator,
+            )
+          ).status,
+        ).toBe(200);
         expect((await roomMemberAccess(owner, roomId)).get(account.id)).toBe(
           FileShare.ContentCreator,
         );
@@ -457,12 +486,16 @@ test.describe("POST /files/:folderId/session - who may upload into a private roo
       }
       if (setup === "other") {
         const otherRoom = await createOwnerPrivateRoom(apiSdk);
-        await inviteToRoom(
-          owner,
-          otherRoom,
-          account.id,
-          FileShare.ContentCreator,
-        );
+        expect(
+          (
+            await inviteToRoom(
+              owner,
+              otherRoom,
+              account.id,
+              FileShare.ContentCreator,
+            )
+          ).status,
+        ).toBe(200);
         expect((await roomMemberAccess(owner, otherRoom)).get(account.id)).toBe(
           FileShare.ContentCreator,
         );
@@ -573,19 +606,19 @@ test.describe("POST /files/:folderId/session - the uploader's account key", () =
     );
     expect(await roomKeyHolders(owner, roomId)).not.toContain(member.id);
 
+    // Whether a keyless member may upload is not defined; the answers must still agree with the room.
     const opened = await openSession(member.api, roomId, { size: 20 });
-    observe(`keyless member opens a session: ${opened.status}`);
-    if (opened.status === 200) {
+    expect(opened.status, "opening: a server error").toBeLessThan(500);
+    if (opened.id) {
       const sent = await sendNext(
         member.api,
         roomId,
-        opened.id!,
+        opened.id,
         Buffer.alloc(20, 9),
       );
-      observe(`keyless member sends the bytes: ${sent.status}`);
-      observe(
-        `files in the room afterwards: ${(await filesIn(owner, roomId)).length}`,
-      );
+      await expectSessionOutcome(owner, roomId, sent, "keyless member");
+    } else {
+      await expectUntouched(owner, roomId, []);
     }
     // Whatever the answer, it did not change who is in the room.
     expect((await roomMemberAccess(owner, roomId)).get(member.id)).toBe(
@@ -593,10 +626,10 @@ test.describe("POST /files/:folderId/session - the uploader's account key", () =
     );
   });
 
-  test("POST /files/:folderId/session - A member who replaced their account key uploads; the upload is recorded", async ({
+  test("POST /files/:folderId/session - A member who replaced their account key uploads", async ({
     apiSdk,
   }) => {
-    const { owner, roomId } = await setupRoom(apiSdk);
+    const { owner, ownerToken, roomId } = await setupRoom(apiSdk);
     const [member] = await addAccounts(apiSdk, [{ type: "User", key: true }]);
     await inviteToRoom(owner, roomId, member.id, FileShare.ContentCreator);
     expect(
@@ -614,17 +647,10 @@ test.describe("POST /files/:folderId/session - the uploader's account key", () =
     ).toBe(201);
     expect(await roomKeyHolders(owner, roomId)).toContain(member.id);
 
-    const opened = await openSession(member.api, roomId, { size: 20 });
-    observe(`replaced-key member opens a session: ${opened.status}`);
-    if (opened.status === 200) {
-      const sent = await sendNext(
-        member.api,
-        roomId,
-        opened.id!,
-        Buffer.alloc(20, 9),
-      );
-      observe(`replaced-key member sends the bytes: ${sent.status}`);
-    }
+    // A ContentCreator holding an active key uploads exactly as in the test above.
+    const bytes = markedBytes("UP-REPLACED");
+    const file = await uploadEncrypted(member.api, roomId, { bytes });
+    await expectStored(owner, ownerToken, file.id, { bytes, folderId: roomId });
   });
 
   for (const change of ["deleted", "replaced"] as const) {
@@ -733,8 +759,6 @@ test.describe("POST /files/:folderId/session - file key entries around an upload
     expect(seenByB.data.response?.userKeys?.map((k) => k.userId)).toEqual([
       b.id,
     ]);
-    const entry = seenByA.data.response?.fileKeys?.[0];
-    observe(`entry of member A: ${JSON.stringify(entry)}`);
   });
 
   test("POST /files/:fileId/access - A ContentCreator registers entries for their own upload", async ({
@@ -854,8 +878,7 @@ test.describe("POST /files/:folderId/session - cancelling an upload", () => {
 
     expect(aborted.status).toBe(200);
     const late = await sendNext(owner, roomId, opened.id!, Buffer.alloc(20, 9));
-    observe(`sending into a cancelled session: ${late.status}`);
-    expect(late.status).toBeGreaterThanOrEqual(400);
+    expectClientError(late.status, "sending into a cancelled session");
     await expectUntouched(owner, roomId, before);
     expect(storedFileId(late)).toBe(0);
 
@@ -864,8 +887,7 @@ test.describe("POST /files/:folderId/session - cancelling an upload", () => {
       folderId: roomId,
       sessionId: opened.id!,
     });
-    observe(`second cancel: ${again.status}`);
-    expect(again.status).toBeGreaterThanOrEqual(400);
+    expectClientError(again.status, "a second cancel");
 
     // Uploading again under the same name works and stores the new bytes only.
     const bytes = markedBytes("UP-AFTER-CANCEL");
@@ -941,8 +963,8 @@ test.describe("POST /files/:folderId/session - cancelling an upload", () => {
         folderId: roomId,
         sessionId: s.id!,
       });
-      expect(part.status).toBeGreaterThanOrEqual(400);
-      expect(fin.status).toBeGreaterThanOrEqual(400);
+      expectClientError(part.status, "a part of a cancelled session");
+      expectClientError(fin.status, "finalizing a cancelled session");
       await expectUntouched(owner, roomId, before);
     });
   });
@@ -1014,19 +1036,14 @@ test.describe("POST /files/:folderId/session - cancelling an upload", () => {
       Buffer.alloc(20, 9),
     );
 
-    // JSDoc: "The session is addressed by its id". Whether a non-member may
-    // complete someone else's session is not defined.
-    observe(
-      `a user outside the room sends into a session opened by a member: ${sent.status}`,
+    // JSDoc: "The session is addressed by its id". Whether a non-member may complete someone
+    // else's session is not defined; the answer and the room must still agree.
+    await expectSessionOutcome(
+      owner,
+      roomId,
+      sent,
+      "outsider sends into a session",
     );
-    if (sent.status === 201) {
-      const { data } = await owner.files.getFileInfo({
-        fileId: storedFileId(sent),
-      });
-      observe(
-        `the file is attributed to: ${data.response?.createdBy?.id === creator.id ? "the opener" : "the sender"}`,
-      );
-    }
   });
 });
 
@@ -1051,10 +1068,7 @@ test.describe("POST /files/:folderId/session - the membership changes while a se
       opened.id!,
       Buffer.alloc(20, 9),
     );
-    observe(
-      `the removed member finishes the session opened before: ${sent.status}`,
-    );
-    observe(`files in the room: ${(await filesIn(owner, roomId)).length}`);
+    await expectSessionOutcome(owner, roomId, sent, "removed member finishes");
   });
 
   test("POST /files/:folderId/session/:sessionId - A member lowered to Read during an upload cannot open another, the open one is recorded", async ({
@@ -1080,9 +1094,7 @@ test.describe("POST /files/:folderId/session - the membership changes while a se
       opened.id!,
       Buffer.alloc(20, 9),
     );
-    observe(
-      `the lowered member finishes the session opened before: ${sent.status}`,
-    );
+    await expectSessionOutcome(owner, roomId, sent, "lowered member finishes");
   });
 
   test("POST /files/:folderId/session/:sessionId - A member who deletes their account key during an upload; the open session is recorded", async ({
@@ -1107,7 +1119,7 @@ test.describe("POST /files/:folderId/session - the membership changes while a se
       opened.id!,
       Buffer.alloc(20, 9),
     );
-    observe(`finishing the session after the key was deleted: ${sent.status}`);
+    await expectSessionOutcome(owner, roomId, sent, "keyless member finishes");
   });
 
   test("POST /files/:folderId/session/:sessionId - A room archived during an upload refuses new sessions, the open one is recorded", async ({
@@ -1121,11 +1133,11 @@ test.describe("POST /files/:folderId/session - the membership changes while a se
 
     expect((await openSession(owner, roomId, { size: 20 })).status).toBe(403);
     const sent = await sendNext(owner, roomId, opened.id!, Buffer.alloc(20, 9));
-    observe(
-      `finishing the session after the room was archived: ${sent.status}`,
-    );
-    observe(
-      `files in the archived room: ${(await filesIn(owner, roomId)).length}`,
+    await expectSessionOutcome(
+      owner,
+      roomId,
+      sent,
+      "finishing in an archived room",
     );
   });
 });
@@ -1214,7 +1226,7 @@ test.describe("POST /files/:folderId/session - refused and invalid uploads", () 
 
     const opened = await openSession(owner, "not-a-folder-id", { size: 20 });
 
-    observe(`malformed folder id: ${opened.status}`);
+    expectClientError(opened.status, "malformed folder id");
     expect(opened.id).toBeUndefined();
     await expectUntouched(owner, roomId, []);
   });
@@ -1263,7 +1275,8 @@ test.describe("POST /files/:folderId/session - refused and invalid uploads", () 
 
     expect(simple.status).toBe(403);
     expect(switched.status).toBe(403);
-    observe(`POST /files/{id}/insert with a plain body: ${inserted.status}`);
+    // The status of insert is not defined; no plain file may arrive, and it must not be a server error.
+    expect(inserted.status, "insert: a server error").toBeLessThan(500);
     await expectUntouched(owner, roomId, [control.id]);
   });
 
@@ -1357,9 +1370,6 @@ test.describe("POST /files/:folderId/session - refused and invalid uploads", () 
     expect(idsOf(await filesIn(owner, roomId))).toEqual(
       [first.id, secondId].sort(),
     );
-    observe(
-      `titles of the two files: ${(await filesIn(owner, roomId)).map((f) => f.title).join(" | ")}`,
-    );
   });
 
   test("POST /files/:folderId/session - An empty file is accepted and stored as an empty file (recorded)", async ({
@@ -1367,11 +1377,12 @@ test.describe("POST /files/:folderId/session - refused and invalid uploads", () 
   }) => {
     const { owner, roomId } = await setupRoom(apiSdk);
     const opened = await openSession(owner, roomId, { size: 0 });
-    observe(`opening a session for 0 bytes: ${opened.status}`);
-    if (opened.status === 200) {
-      const sent = await sendNext(owner, roomId, opened.id!, Buffer.alloc(0));
-      observe(`sending 0 bytes: ${sent.status}`);
-      observe(`files in the room: ${(await filesIn(owner, roomId)).length}`);
+    expect(opened.status, "opening: a server error").toBeLessThan(500);
+    if (opened.id) {
+      const sent = await sendNext(owner, roomId, opened.id, Buffer.alloc(0));
+      await expectSessionOutcome(owner, roomId, sent, "an empty file");
+    } else {
+      await expectUntouched(owner, roomId, []);
     }
   });
 
@@ -1391,32 +1402,6 @@ test.describe("POST /files/:folderId/session - refused and invalid uploads", () 
         const fileId = storedFileId(res);
         const info = await owner.files.getFileInfo({ fileId });
         const got = await downloadVia(owner, ownerToken, fileId);
-        observe(
-          `declared 100, sent 50: file info says ${info.data.response?.pureContentLength}, download is ${got.bytes?.length} bytes`,
-        );
-        // The same upload into an ordinary room: the behaviour is not specific to private rooms.
-        const plain = await owner.rooms.createRoom({
-          createRoomRequestDto: {
-            title: "Autotest Upload Plain " + apiSdk.faker.generateString(6),
-            roomType: RoomType.CustomRoom,
-          },
-        });
-        const plainRoom = plain.data.response?.id;
-        if (plainRoom) {
-          const po = await openSession(owner, plainRoom, {
-            size: 100,
-            encrypted: false,
-          });
-          if (po.id) {
-            const pr = await sendNext(owner, plainRoom, po.id, sent);
-            const pi = await owner.files.getFileInfo({
-              fileId: storedFileId(pr),
-            });
-            observe(
-              `ordinary room, declared 100, sent 50: ${pr.status}, file info says ${pi.data.response?.pureContentLength}`,
-            );
-          }
-        }
         expect(info.data.response?.pureContentLength).toBe(got.bytes?.length);
       } else {
         expect(res.status).toBe(400);

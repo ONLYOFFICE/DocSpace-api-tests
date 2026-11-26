@@ -1,6 +1,7 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { FileShare, RoomType, SearchArea } from "@onlyoffice/docspace-api-sdk";
+import { expectNoServerError } from "@/src/helpers/private-room-lifecycle";
 import { ApiSDK, UserType } from "@/src/services/api-sdk";
 import {
   Api,
@@ -37,13 +38,9 @@ import {
  * (room title, folder names, server file names, the marker of an issued file
  * key). The room is read back afterwards to prove the attempts changed nothing.
  *
- * Observations that the contract does not settle (the body of a refusal carries
- * a stack trace, a read that answers 200 with an empty list) are recorded as
- * `observation` annotations.
+ * What the contract does not settle (the body of a refusal carrying a stack
+ * trace, SPEC-038) is kept out of these tests and recorded in the audit.
  */
-
-const observe = (what: string) =>
-  test.info().annotations.push({ type: "observation", description: what });
 
 const TITLE = () => "P3ROOM" + Math.random().toString(36).slice(2, 8);
 
@@ -311,11 +308,18 @@ test.describe("General APIs - a private room is invisible to callers who are not
     }
   });
 
-  test("GET /files/file/:fileId/protectusers - An outsider gets an empty list for a private file, the owner gets the users (recorded)", async ({
+  test("GET /files/file/:fileId/protectusers - An outsider gets no user of a private file, the owner gets the members", async ({
     apiSdk,
   }) => {
     const { owner, scene } = await ownerScene(apiSdk);
-    const [outsider] = await addAccounts(apiSdk, [{ type: "User", key: true }]);
+    const [outsider, member] = await addAccounts(apiSdk, [
+      { type: "User", key: true },
+      { type: "User", key: true },
+    ]);
+    expect(
+      (await inviteToRoom(owner, scene.roomId, member.id, FileShare.Read))
+        .status,
+    ).toBe(200);
 
     const own = await owner.files.getProtectedFileUsers({
       fileId: scene.rootFile.id,
@@ -327,20 +331,28 @@ test.describe("General APIs - a private room is invisible to callers who are not
       fileId: 2147480001,
     });
 
+    // The positive control: the list the outsider must not get names the room's member to the owner
+    // (JSDoc: access inherited from the room counts).
     expect(own.status).toBe(200);
-    // No data reaches the outsider whatever the status is.
+    expect(JSON.stringify(own.data.response), "the owner's list").toContain(
+      member.id,
+    );
+    // No data reaches the outsider; the JSDoc fixes neither the status nor the shape for them, but a crash is not an answer.
+    expectNoServerError(
+      theirs.status,
+      "protectusers for a file the caller cannot open",
+    );
+    expectNoServerError(unknown.status, "protectusers for an unknown id");
+    expect(JSON.stringify(theirs.data)).not.toContain(member.id);
     expect(theirs.data.response ?? []).toEqual([]);
     expect(leaks(scene, theirs.data)).toEqual([]);
     expect(
       (await outsider.api.files.getFileInfo({ fileId: scene.rootFile.id }))
         .status,
     ).toBe(403);
-    observe(
-      `getProtectedFileUsers for a file the caller cannot open: ${theirs.status}; for an unknown id: ${unknown.status}`,
-    );
   });
 
-  test("GET /files/* - A refusal carries no stack trace, token or key (recorded)", async ({
+  test("GET /files/* - A refusal carries no token, key or protected name", async ({
     apiSdk,
   }) => {
     const { owner, scene } = await ownerScene(apiSdk);
@@ -356,13 +368,6 @@ test.describe("General APIs - a private room is invisible to callers who are not
     expect(leaks(scene, text)).toEqual([]);
     expect(text).not.toMatch(
       /Bearer |stream_auth|privateKeyEnc|eyJ[A-Za-z0-9_-]{20,}/,
-    );
-    // SPEC-038: the body names the exception type and a stack of internal frames.
-    const error = (
-      refused.data as { error?: { type?: string; stack?: string } }
-    ).error;
-    observe(
-      `refusal body carries type=${error?.type ? "yes" : "no"} stack=${error?.stack ? "yes" : "no"}`,
     );
   });
 });
@@ -564,12 +569,54 @@ test.describe("General APIs - lists and search never show a private room to a no
     });
   }
 
-  test("GET /files/favorites, /files/recent - A private file cannot be marked a favorite or a recent one, even by a member (recorded)", async ({
+  test("GET /files/favorites, /files/recent - A private file is never listed as a favorite or a recent one, even for a member (an ordinary file is the control)", async ({
     apiSdk,
   }) => {
     const { owner, scene } = await ownerScene(apiSdk);
     const [member] = await addAccounts(apiSdk, [{ type: "User", key: true }]);
-    await inviteToRoom(owner, scene.roomId, member.id, FileShare.Read);
+    expect(
+      (await inviteToRoom(owner, scene.roomId, member.id, FileShare.Read))
+        .status,
+    ).toBe(200);
+
+    // The positive control: the same calls on an ordinary file do show it in both sections.
+    const plainRoom = await owner.rooms.createRoom({
+      createRoomRequestDto: { title: TITLE(), roomType: RoomType.CustomRoom },
+    });
+    expect(plainRoom.status).toBe(200);
+    const plainFile = await owner.files.createFile({
+      folderId: plainRoom.data.response!.id!,
+      createFileRequest: { title: "control.docx" },
+    });
+    expect(plainFile.status).toBe(200);
+    const plainId = plainFile.data.response!.id!;
+    expect(
+      (
+        await owner.files.toggleFileFavorite({
+          fileId: plainId,
+          favorite: true,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (await owner.files.addFileToRecent({ fileId: plainId })).status,
+    ).toBe(200);
+    await expect
+      .poll(async () =>
+        mentionsId(
+          (await owner.folders.getFavoritesFolder({})).data.response,
+          plainId,
+        ),
+      )
+      .toBe(true);
+    await expect
+      .poll(async () =>
+        mentionsId(
+          (await owner.folders.getRecentFolder({})).data.response,
+          plainId,
+        ),
+      )
+      .toBe(true);
 
     const toggled = await member.api.files.toggleFileFavorite({
       fileId: scene.rootFile.id,
@@ -581,10 +628,11 @@ test.describe("General APIs - lists and search never show a private room to a no
     const favorites = await member.api.folders.getFavoritesFolder({});
     const recent = await owner.folders.getRecentFolder({});
 
-    // The calls answer 200 and change nothing: nothing to prove "absent" against here (SPEC-035).
-    observe(
-      `toggleFileFavorite: ${toggled.status}, addFileToRecent: ${added.status}`,
-    );
+    // JSDoc: an encrypted file of a private room is answered normally but never recorded as recent.
+    expect(added.status, "addFileToRecent").toBe(200);
+    expectNoServerError(toggled.status, "toggleFileFavorite");
+    expect(favorites.status).toBe(200);
+    expect(recent.status).toBe(200);
     expect(mentionsId(favorites.data.response, scene.rootFile.id)).toBe(false);
     expect(mentionsId(recent.data.response, scene.rootFile.id)).toBe(false);
   });

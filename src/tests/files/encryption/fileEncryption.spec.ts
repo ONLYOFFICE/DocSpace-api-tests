@@ -23,7 +23,7 @@ async function createPrivateRoomWithFile(
     title: "Autotest File Encryption Room",
     roomType,
   });
-  expect(status).toBe(200);
+  expect(status, `createPrivateRoom: ${JSON.stringify(roomData)}`).toBe(200);
   const roomId = roomData.response!.id!;
   const fileId = await uploadPrivateRoomFile(ownerApi, roomId);
   const { data: me } = await ownerApi.profiles.getSelfProfile();
@@ -196,19 +196,20 @@ test.describe("PUT /files/:fileId/access", () => {
   }) => {
     const { ownerApi, fileId, ownerId } =
       await createPrivateRoomWithFile(apiSdk);
-    await ownerApi.files.setEncryptionInfo({
+    const seeded = await ownerApi.files.setEncryptionInfo({
       fileId,
       accessRequestKeyDto: [
         { userId: ownerId, publicKeyId: ZERO_GUID, privateKeyEnc: "kept" },
       ],
     });
+    expect(seeded.status, JSON.stringify(seeded.data)).toBe(200);
 
-    const { status } = await ownerApi.files.setEncryptionInfo({
+    const { status, data } = await ownerApi.files.setEncryptionInfo({
       fileId,
       accessRequestKeyDto: [],
     });
 
-    expect(status).toBe(200);
+    expect(status, JSON.stringify(data)).toBe(200);
     expect(
       (await readFileKeys(ownerApi, fileId)).map((k) => k.privateKeyEnc),
     ).toEqual(["kept"]);

@@ -1,6 +1,11 @@
 import { randomUUID } from "crypto";
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
+import {
+  assertUniqueIds,
+  expectNoServerError,
+  rawMembers,
+} from "@/src/helpers/private-room-lifecycle";
 import { FileShare, FolderType } from "@onlyoffice/docspace-api-sdk";
 import {
   ZERO_GUID,
@@ -46,9 +51,6 @@ import { settle } from "@/src/helpers/private-room-forbidden";
  * An operation that the owner cannot do in the private room, so there is no
  * positive control, is reported as NO CONTROL and not counted as covered.
  */
-
-const observe = (what: string) =>
-  test.info().annotations.push({ type: "observation", description: what });
 
 const isOk = (status: number) => status >= 200 && status < 300;
 const isOwner = (m: Member) => m.local === "owner";
@@ -420,27 +422,37 @@ const verify = (
   for (const op of ops) {
     const row = table[op.name];
     const control = row["owner"]?.priv ?? row[roles[0].key]?.priv;
-    const lines: string[] = [];
+    // The positive control is part of the test: when the room owner cannot do the operation in the
+    // private room nothing below proves anything, so that is a failure, not a quiet skip.
+    expect
+      .soft(
+        control?.applied,
+        `${op.name}: positive control - the room owner does it in the private room`,
+      )
+      .toBe(true);
+    if (!control?.applied) continue;
     for (const who of roles) {
       const cell = row[who.key];
       if (!cell?.priv || !cell.plain) {
-        lines.push(`${who.key}: n/a`);
+        // No cell means the caller could not make the object the operation acts on. That is legitimate only
+        // for a role that may not create anything; for any other role it is a broken setup, not a skip.
+        expect
+          .soft(
+            !canCreate(who),
+            `${op.name} - ${who.key}: the object to act on could not be made although the role may create`,
+          )
+          .toBe(true);
         continue;
       }
-      lines.push(
-        `${who.key}: ${cell.priv.applied ? "yes" : "no"}${cell.priv.other !== undefined ? `/${cell.priv.other ? "yes" : "no"}` : ""} (${cell.priv.status})`,
+      // A crash is never a correct refusal.
+      expectNoServerError(
+        cell.priv.status,
+        `${op.name} - ${who.key} (private)`,
       );
-    }
-    observe(`${op.name}: ${lines.join(", ")}`);
-    if (!control?.applied) {
-      observe(
-        `${op.name}: NO CONTROL (the room owner could not do it in the private room); not counted as covered`,
+      expectNoServerError(
+        cell.plain.status,
+        `${op.name} - ${who.key} (ordinary)`,
       );
-      continue;
-    }
-    for (const who of roles) {
-      const cell = row[who.key];
-      if (!cell?.priv || !cell.plain) continue;
       expect
         .soft(
           cell.priv.applied,
@@ -513,9 +525,9 @@ test.describe("Role matrix - files and folders of a private room", () => {
   }
 });
 
-const memberIds = async (a: Arena, room: number) => [
-  ...(await roomMemberAccess(a.admin, room)).keys(),
-];
+// The raw list, uniqueness proved on it (a Map would hide a subject listed twice).
+const memberIds = async (a: Arena, room: number) =>
+  assertUniqueIds((await rawMembers(a.admin, room)).map((m) => m.id));
 
 test.describe("Role matrix - members, keys and settings of a private room", () => {
   test("PUT /files/rooms/:id/share - Every role: invite, change a role, remove, leave", async ({
@@ -555,9 +567,7 @@ test.describe("Role matrix - members, keys and settings of a private room", () =
         const inv = await set(m, room, candidate.id, FileShare.Read);
         const invited = (await memberIds(a, room)).includes(candidate.id);
         (out.invite[m.key] ??= { priv: false, plain: false })[k] = invited;
-        observe(
-          `invite (${k}) by ${m.key}: ${inv.status}, member now: ${invited}`,
-        );
+        expectNoServerError(inv.status, `invite (${k}) by ${m.key}`);
         if (invited)
           await inviteToRoom(a.admin, room, candidate.id, FileShare.None);
         // change the role of a member
@@ -566,18 +576,14 @@ test.describe("Role matrix - members, keys and settings of a private room", () =
           (await roomMemberAccess(a.admin, room)).get(target.id) ===
           FileShare.Editing;
         (out.changeRole[m.key] ??= { priv: false, plain: false })[k] = changed;
-        observe(
-          `change role (${k}) by ${m.key}: ${ch.status}, changed: ${changed}`,
-        );
+        expectNoServerError(ch.status, `change role (${k}) by ${m.key}`);
         if (changed)
           await inviteToRoom(a.admin, room, target.id, FileShare.Read);
         // remove a member
         const rm = await set(m, room, target.id, FileShare.None);
         const removed = !(await memberIds(a, room)).includes(target.id);
         (out.remove[m.key] ??= { priv: false, plain: false })[k] = removed;
-        observe(
-          `remove member (${k}) by ${m.key}: ${rm.status}, removed: ${removed}`,
-        );
+        expectNoServerError(rm.status, `remove member (${k}) by ${m.key}`);
         if (removed)
           await inviteToRoom(a.admin, room, target.id, FileShare.Read);
       }
@@ -599,9 +605,8 @@ test.describe("Role matrix - members, keys and settings of a private room", () =
         const left = !(await memberIds(a, room)).includes(m.id);
         const others = (await memberIds(a, room)).length;
         (out.leave[m.key] ??= { priv: false, plain: false })[k] = left;
-        observe(
-          `leave (${k}) by ${m.key}: ${r.status}, left: ${left}, other members kept: ${others === before - 1}`,
-        );
+        // removeSecurityInfo always answers true (JSDoc): a member leaving gets 200.
+        expect.soft(r.status, `leave (${k}) by ${m.key}: status`).toBe(200);
         // A portal administrator's call may revoke everyone in an ORDINARY room (the JSDoc lets an
         // administrator change the access); in the private room only the caller may leave.
         if (k === "priv")
@@ -626,9 +631,17 @@ test.describe("Role matrix - members, keys and settings of a private room", () =
         baseBatchRequestDto: { folderIds: [room] as never },
       });
       const after = await memberIds(a, room);
-      observe(
-        `removeSecurityInfo by a manager (${k}): ${r.status}; members before ${before.length}, after ${after.length}`,
-      );
+      // Documented mass revoke (JSDoc): the call by someone who may change the access removes everyone
+      // but the owner. This is the manager's call, not a member leaving; it is kept apart from them.
+      expect(r.status, `removeSecurityInfo by a manager (${k})`).toBe(200);
+      expect(
+        before.length,
+        `setup: several members before (${k})`,
+      ).toBeGreaterThan(1);
+      expect(
+        after,
+        `removeSecurityInfo by a manager (${k}): members after`,
+      ).toEqual([a.by("owner").id]);
       for (const m of actors.filter((x) => !isOwner(x)))
         if (!(await memberIds(a, room)).includes(m.id))
           await inviteToRoom(a.admin, room, m.id, m.local as FileShare);
@@ -672,7 +685,7 @@ test.describe("Role matrix - members, keys and settings of a private room", () =
     }
   });
 
-  test("GET /privacyroom/:roomId/access/candidates - Only the owner and a room manager read the candidates' keys; every role's view of the missing file keys is recorded", async ({
+  test("GET /privacyroom/:roomId/access/candidates - Only the owner and a room manager read the candidates' keys and the missing file keys", async ({
     apiSdk,
   }) => {
     test.setTimeout(400_000);
@@ -689,18 +702,27 @@ test.describe("Role matrix - members, keys and settings of a private room", () =
         userIds: [candidate.id],
       });
       results[m.key] = cand.status;
-      observe(
-        `${m.key}: candidates ${cand.status}, missing file keys ${miss.status}`,
-      );
-      if (isManager(m))
+      if (isManager(m)) {
         expect.soft(cand.status, `candidates - ${m.key}`).toBe(200);
-      else
+        expect.soft(miss.status, `missing file keys - ${m.key}`).toBe(200);
+      } else {
+        // Refused for other members (JSDoc); the exact status is not fixed here, so a 4xx and never a crash.
+        expect
+          .soft(cand.status, `candidates - ${m.key}: refusal`)
+          .toBeGreaterThanOrEqual(400);
+        expect
+          .soft(cand.status, `candidates - ${m.key}: refusal, not a crash`)
+          .toBeLessThan(500);
+        expect
+          .soft(miss.status, `missing file keys - ${m.key}: refusal`)
+          .toBeGreaterThanOrEqual(400);
         expect
           .soft(
-            cand.status,
-            `candidates - ${m.key}: documented refusal for other members`,
+            miss.status,
+            `missing file keys - ${m.key}: refusal, not a crash`,
           )
-          .not.toBe(200);
+          .toBeLessThan(500);
+      }
     }
     for (const [g, p] of INDEPENDENCE)
       expect
@@ -745,8 +767,13 @@ test.describe("Role matrix - members, keys and settings of a private room", () =
       const onAuthor = await issue(m, authorFile);
       const onOwner = await issue(m, ownerFile);
       rows[m.key] = { author: onAuthor.applied, owner: onOwner.applied };
-      observe(
-        `${m.key}: keys for the ContentCreator's file ${onAuthor.status} (${onAuthor.applied ? "stored" : "not stored"}), for the owner's file ${onOwner.status} (${onOwner.applied ? "stored" : "not stored"})`,
+      expectNoServerError(
+        onAuthor.status,
+        `${m.key}: issuing keys (author's file)`,
+      );
+      expectNoServerError(
+        onOwner.status,
+        `${m.key}: issuing keys (owner's file)`,
       );
     }
     expect(
@@ -787,13 +814,8 @@ test.describe("Role matrix - members, keys and settings of a private room", () =
         "ccAuthor: primary issue for their own file",
       )
       .toBe(true);
-    // Whether a ContentCreator may issue keys for a file somebody else uploaded is not in the guide: recorded.
-    observe(
-      `a ContentCreator who is not the author issues keys for someone else's file: ${rows["ccOther"].author}; for the owner's file: ${rows["ccOther"].owner}`,
-    );
-    observe(
-      `an Editor issues keys: for the owner's file ${rows["editor"].owner}`,
-    );
+    // Whether a ContentCreator who is not the author, or an Editor, may issue keys for someone
+    // else's file is not in the guide: it is not asserted here (research result kept in the audit).
     for (const [g, p] of INDEPENDENCE) {
       expect
         .soft(rows[g].owner, `${g} versus ${p} (owner's file)`)
@@ -826,9 +848,7 @@ test.describe("Role matrix - members, keys and settings of a private room", () =
           isOk(r.status),
           async () => (await state(room)).title === title,
         );
-        observe(
-          `updateRoom (${k}) by ${m.key}: ${r.status}, applied: ${applied}`,
-        );
+        expectNoServerError(r.status, `updateRoom (${k}) by ${m.key}`);
         (updated[m.key] ??= { priv: false, plain: false })[k] = applied;
         if (k === "priv")
           expect
@@ -872,9 +892,8 @@ test.describe("Role matrix - members, keys and settings of a private room", () =
             .toBe(false);
         }
       }
-      observe(
-        `archive by ${m.key}: private ${outcome.priv} (${answers.priv}), ordinary ${outcome.plain} (${answers.plain})`,
-      );
+      for (const [k, status] of Object.entries(answers))
+        expectNoServerError(Number(status), `archive (${k}) by ${m.key}`);
       if (m.key === "owner")
         expect(outcome.priv, "the owner archives (positive control)").toBe(
           true,
@@ -971,9 +990,7 @@ const manageProbe = async (a: Arena, m: Member) => {
     const moved = await m.api.sharing.changeFileOwner({
       changeOwnerRequestDto: { folderIds: [room] as never, userId: mgr.id },
     });
-    observe(
-      `transfer by ${m.key}: ${moved.status} ${moved.status === 200 ? "" : JSON.stringify(moved.data).slice(0, 160)}`,
-    );
+    expectNoServerError(moved.status, `transfer by ${m.key}`);
     out.transfer = (await ownerOf()) !== before;
     if (out.transfer) {
       // The new owner gives the previous one the keys of every encrypted file, then hands the room back.
@@ -1101,7 +1118,6 @@ test.describe("Role matrix - a portal administrator holds only the local role th
       const probes: Record<string, Record<string, boolean | undefined>> = {};
       for (const m of [control, a.by("mgr"), po, a.by(baseline)]) {
         probes[m.key] = await manageProbe(a, m);
-        observe(`${phase}: ${m.key}: ${JSON.stringify(probes[m.key])}`);
       }
       for (const op of Object.keys(probes.admin)) {
         expect(
