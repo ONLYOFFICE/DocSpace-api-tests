@@ -127,8 +127,7 @@ async function expectRefusedOnceSettled(
 }
 
 test.describe("AI Attachments - AI access disabled", () => {
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("POST /api/2.0/ai/attachments/link-to-message - returns 403 when AI access is disabled", async ({
+  test("POST /api/2.0/ai/attachments/link-to-message - returns 403 when AI access is disabled", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -372,11 +371,6 @@ test.describe("AI Attachments - AI access disabled", () => {
 // controller and have not diverged from the single-item ones in any state.
 
 test.describe("AI Attachments - AI Tools wallet service not paid for", () => {
-  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
-  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
-  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
-  test.skip(true, "AI agents removed in DocSpace 4.1.0");
-
   test("POST /api/2.0/ai/attachments/save-file, get, link-to-message, DELETE delete - the attachment lifecycle works with AI Tools unpaid", async ({
     apiSdk,
   }) => {
@@ -387,17 +381,15 @@ test.describe("AI Attachments - AI Tools wallet service not paid for", () => {
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
 
     const profileId = await aiChat.defaultProfileId("owner");
-    const agentId = await aiChat.createAgentId("owner", {
-      title: "Autotest Unpaid Wallet Attachments Agent",
-      profileId,
-    });
+    // No agent: an agent (AI project) cannot be created on a portal that has
+    // not paid for AI Tools, so the thread is an ordinary portal-wide one.
     // `append-user-message` stores the carrier message without asking the model
     // anything, so this setup does not depend on the inference the unpaid state
     // blocks.
     const { threadId, messageId } = await createThreadWithUserMessage(
       aiChat,
       "owner",
-      { profileId, agentId },
+      { profileId },
     );
 
     const draftId = await test.step("save-file", async () => {
@@ -410,7 +402,6 @@ test.describe("AI Attachments - AI Tools wallet service not paid for", () => {
       );
       const { status, data } = await attachments.saveFile("owner", {
         input: { path, content: "", type: FileType.Document },
-        entityId: String(agentId),
       });
       expect(status).toBe(200);
       expect(data?.id).toBeTruthy();
@@ -443,10 +434,14 @@ test.describe("AI Attachments - AI Tools wallet service not paid for", () => {
     });
 
     await test.step("delete", async () => {
-      const { status } = await attachments.deleteOne("owner", draftId);
+      // Only the immediate contract: since 4.1.0 a delete marks the draft and
+      // the worker's orphan pass removes it later (every 15 minutes), so the
+      // draft is still readable right after the call - the openspec change
+      // `2026-11-19-clean-up-unsent-attachments`.
+      const { status, data } = await attachments.deleteOne("owner", draftId);
       expect(status).toBe(200);
-      // Repeated, because one delete is intermittent in every portal state.
-      await attachments.purge("owner", draftId);
+      expect(data?.success).toBe(true);
+      await attachments.expectStored("owner", draftId, "a just-deleted draft");
     });
   });
 });

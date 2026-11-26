@@ -2,26 +2,22 @@ import { expect } from "@playwright/test";
 import { FileShare } from "@onlyoffice/docspace-api-sdk";
 import { AiHttp, AgentRole, Envelope } from "./ai-http";
 
-// The SDK's AgentsApi points at `/internal/ai/integration/agents` (405 through
-// nginx) and ChatApi at `/api/2.0/ai/rooms/{roomId}/chats` (404) — both dead on
-// current builds. The live surface is the rewritten AI stack below.
+// The AI chat surface, driven over plain HTTP so a test can also call it as
+// `anonymous`.
 //
 //   GET    /api/2.0/ai/profiles/list
-//   GET    /api/2.0/ai/agents                 -> response.folders[]
-//   POST   /api/2.0/ai/agents                 { title, color, cover, tags, profileId, prompt }
-//   GET    /api/2.0/ai/agents/{id}            -> response.chatSettings.prompt
-//   PUT    /api/2.0/ai/agents/{id}            { title, tags, profileId, chatSettings: { prompt } }
-//   DELETE /api/2.0/ai/agents/{id}            { deleteAfter }
-//   GET    /api/2.0/ai/agents/news
-//   PUT    /api/2.0/ai/agents/agentquota      { roomIds, quota }
-//   PUT    /api/2.0/ai/agents/resetquota      { roomIds }
+//   POST   /api/2.0/files/rooms               { title, tags, roomType: 12 }  -> an agent
+//   PUT    /api/2.0/files/rooms/{id}/model    { profileId }                  -> its model
 //   POST   /api/2.0/ai/threads/create         { title, profileId, entityId }
 //   POST   /api/2.0/ai/ai/send-with-stream    { threadId, entityId, profileId, actionArgs, userMessage }
 //   GET    /api/2.0/ai/threads/read-messages?threadId=...
 //
-// Asymmetry worth remembering: create takes a FLAT `prompt`, update takes a
-// NESTED `chatSettings.prompt`. A flat `prompt` on update returns 200 and is
-// silently ignored.
+// An agent in DocSpace 4.1.0 is an AI project, a room of type 12 (see
+// src/helpers/ai-agents.ts). The old /api/2.0/ai/agents routes are internal on
+// the server and answer 404 from outside: `createAgent`, `getAgents`,
+// `getAgentInfo`, `updateAgent`, `deleteAgent`, `getAgentsNewItems` and the
+// quota calls below still drive them, for the skipped tests that have not been
+// reworked yet. `createAgentId` is already on the new routes.
 
 export type { AgentRole };
 
@@ -427,24 +423,61 @@ export class AiAgentChat extends AiHttp {
     );
   }
 
-  /** Convenience for the common "make an agent, hand me its id" setup. */
+  /**
+   * Convenience for the common "make an agent, hand me its id" setup.
+   *
+   * An agent in 4.1.0 is an AI project, a room of type 12, built the way the
+   * client builds it: POST /files/rooms, then PUT /files/rooms/{id}/model. See
+   * src/helpers/ai-agents.ts for the SDK-based version the agents suite uses.
+   *
+   * `prompt` is kept in the signature only to fail loudly: an agent has no
+   * prompt any more (createRoom answers 400 for `chatSettings`), so a test that
+   * still passes one was written for the old agent and has to be reworked, not
+   * run with its premise silently dropped.
+   */
   async createAgentId(
     role: AgentRole,
     body: {
       title: string;
       profileId: string;
+      /** @deprecated An agent has no prompt in 4.1.0; passing one throws. */
       prompt?: string;
       tags?: string[];
     },
   ): Promise<number> {
-    const { status, data } = await this.createAgent(role, {
-      prompt: "You are a test assistant",
-      ...body,
-    });
-    if (status !== 200 || !data?.response?.id) {
-      throw new Error(`createAgent failed: ${status} ${JSON.stringify(data)}`);
+    if (body.prompt !== undefined) {
+      throw new Error(
+        "createAgentId: an agent has no prompt in DocSpace 4.1.0 - its " +
+          "instructions are the skills of a linked Instructions room",
+      );
     }
-    return data.response.id;
+
+    const created = await this.call<Envelope<AgentDto>>(
+      role,
+      "post",
+      "/api/2.0/files/rooms",
+      { title: body.title, tags: body.tags, roomType: 12 },
+    );
+    const agentId = created.data?.response?.id;
+    if (created.status !== 200 || !agentId) {
+      throw new Error(
+        `POST /files/rooms (roomType 12) failed: ${created.status} ${created.text}`,
+      );
+    }
+
+    const model = await this.call(
+      role,
+      "put",
+      `/api/2.0/files/rooms/${agentId}/model`,
+      { profileId: body.profileId },
+    );
+    if (model.status !== 200) {
+      throw new Error(
+        `PUT /files/rooms/${agentId}/model failed: ${model.status} ${model.text}`,
+      );
+    }
+
+    return agentId;
   }
 
   // ----------------------------------------------------------------- threads

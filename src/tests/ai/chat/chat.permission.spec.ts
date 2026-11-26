@@ -88,11 +88,6 @@ async function expectNoThreadWasCreated(
 }
 
 test.describe("Threads - access control for non-members", () => {
-  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
-  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
-  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
-  test.skip(true, "AI agents removed in DocSpace 4.1.0");
-
   test("POST /api/2.0/ai/threads/create - DocSpaceAdmin not in the agent cannot start a thread", async ({
     apiSdk,
     paymentsApi,
@@ -127,7 +122,10 @@ test.describe("Threads - access control for non-members", () => {
       profileId,
     );
 
-    expect(error).toBe("Forbidden");
+    // Inside an agent only its owner and its members chat; a DocSpace admin who
+    // is neither is refused by the project gate, with its own message
+    // (ASC.AI.Chat threadsController `assertThreadCreatable`).
+    expect(error).toBe("You cannot chat in this AI project");
     expect(status).toBe(403);
   });
 
@@ -322,11 +320,6 @@ const REFUSED_OPERATIONS: IsolationOperation[] = [
 ];
 
 test.describe("Threads - isolation between members of the same agent", () => {
-  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
-  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
-  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
-  test.skip(true, "AI agents removed in DocSpace 4.1.0");
-
   for (const { type, role } of MEMBER_ROLES) {
     for (const { route, description, act } of REFUSED_OPERATIONS) {
       test(`${route} - ${role} invited to the agent ${description}`, async ({
@@ -385,11 +378,6 @@ test.describe("Threads - isolation between members of the same agent", () => {
 });
 
 test.describe("Threads - anonymous access", () => {
-  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
-  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
-  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
-  test.skip(true, "AI agents removed in DocSpace 4.1.0");
-
   // Each of these endpoints sits behind its own middleware, so a 401 on create
   // says nothing about append or clear — every one of them is checked. That is
   // also why the list covers the whole chat surface and not just the thread CRUD:
@@ -649,65 +637,6 @@ test.describe("Threads - anonymous access", () => {
 
       expect(error).toBe("Unauthorized");
       expect(status).toBe(401);
-    });
-  }
-});
-
-test.describe("Threads - members without content access", () => {
-  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
-  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
-  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
-  test.skip(true, "AI agents removed in DocSpace 4.1.0");
-
-  // Being in the agent room is not enough. A member invited at Read is refused
-  // on the thread surface outright, which is what closes Guests out of agents
-  // altogether: Read is the only level a Guest can be granted.
-  const READ_ONLY_MEMBERS: Array<{ type: UserType; role: AgentRole }> = [
-    { type: "User", role: "user" },
-    { type: "Guest", role: "guest" },
-  ];
-
-  for (const { type, role } of READ_ONLY_MEMBERS) {
-    test(`POST /api/2.0/ai/threads/create - ${role} invited at Read cannot start a thread`, async ({
-      apiSdk,
-      paymentsApi,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      await enableAiGateway(paymentsApi, ownerApi.payment);
-
-      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-      const profileId = await aiChat.defaultProfileId("owner");
-      const agentId = await aiChat.createAgentId("owner", {
-        title: "Autotest Chat Agent",
-        profileId,
-      });
-
-      const { data: memberData } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        type,
-      );
-      // Asserted inside the helper: the refusal below is about the access
-      // level, not about an invitation that never landed.
-      await inviteToAgent(
-        ownerApi.rooms,
-        agentId,
-        memberData.response!.id!,
-        FileShare.Read,
-      );
-
-      const { status, error, threadId } = await aiChat.createThread(role, {
-        title: "Read-only member thread",
-        profileId,
-        agentId,
-      });
-
-      expect(threadId).toBe("");
-      const list = await aiChat.listThreads(role, agentId);
-      expect(list.error).toBe("Forbidden");
-      expect(list.status).toBe(403);
-
-      expect(error).toBe("Forbidden");
-      expect(status).toBe(403);
     });
   }
 });
@@ -1456,65 +1385,6 @@ test.describe("Threads - the room membership is revoked", () => {
       undefined,
     );
   });
-});
-
-test.describe("Agent room membership", () => {
-  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
-  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
-  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
-  test.skip(true, "AI agents removed in DocSpace 4.1.0");
-
-  const REFUSED_GUEST_LEVELS: Array<{ label: string; access: FileShare }> = [
-    { label: "Editing", access: FileShare.Editing },
-    { label: "ContentCreator", access: FileShare.ContentCreator },
-    { label: "RoomManager", access: FileShare.RoomManager },
-  ];
-
-  for (const { label, access } of REFUSED_GUEST_LEVELS) {
-    test(`PUT /api/2.0/files/rooms/{id}/share - an agent room refuses ${label} for a Guest`, async ({
-      apiSdk,
-      paymentsApi,
-    }) => {
-      // Read is the ceiling for a Guest in an agent room, which is why the
-      // positive chat coverage in chat.spec.ts invites Guests at Read.
-      const ownerApi = apiSdk.forRole("owner");
-      await enableAiGateway(paymentsApi, ownerApi.payment);
-
-      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-      const profileId = await aiChat.defaultProfileId("owner");
-      const agentId = await aiChat.createAgentId("owner", {
-        title: "Autotest Chat Agent",
-        profileId,
-      });
-
-      const { data: guestData } = await apiSdk.addMember("owner", "Guest");
-      const guestId = guestData.response!.id!;
-
-      const { status, data } = await ownerApi.rooms.setRoomSecurity({
-        id: agentId,
-        roomInvitationRequest: {
-          invitations: [{ id: guestId, access }],
-          notify: false,
-        },
-      });
-
-      expect(status).toBe(403);
-      expect((data as any).error?.message).toBe(
-        "The role is not available for this user type",
-      );
-
-      // Read still goes through, so the refusal is about the level and not
-      // about Guests being barred from agent rooms altogether.
-      const readInvite = await ownerApi.rooms.setRoomSecurity({
-        id: agentId,
-        roomInvitationRequest: {
-          invitations: [{ id: guestId, access: FileShare.Read }],
-          notify: false,
-        },
-      });
-      expect(readInvite.status).toBe(200);
-    });
-  }
 });
 
 test.describe("Threads - validation", () => {
