@@ -661,7 +661,8 @@ export async function createThreadWithUserMessage(
   role: AgentRole,
   options: {
     profileId: string;
-    agentId: number;
+    /** Omitted for an ordinary portal-wide thread, outside any agent. */
+    agentId?: number;
     title?: string;
     text?: string;
   },

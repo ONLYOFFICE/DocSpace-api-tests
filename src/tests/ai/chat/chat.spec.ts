@@ -28,6 +28,7 @@ import { AiTools } from "@/src/helpers/ai-tools";
 import { agentStorageFolderId } from "@/src/helpers/device-upload";
 import { listFolderFiles } from "@/src/helpers/text-to-docx";
 import { UserType, ApiSDK } from "@/src/services/api-sdk";
+import { Role } from "@/src/services/token-store";
 
 // Chat moved off `/ai/rooms/{roomId}/chats` (404) onto threads:
 //
@@ -75,15 +76,7 @@ const MEMBER_ROLES: Array<{ label: string; type: UserType; role: AgentRole }> =
     { label: "User", type: "User", role: "user" },
   ];
 
-const SHORT_ANSWER_PROMPT =
-  "You are a helpful test assistant. Keep answers very short.";
-
 test.describe("POST /api/2.0/ai/threads/create - Start a chat", () => {
-  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
-  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
-  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
-  test.skip(true, "AI agents removed in DocSpace 4.1.0");
-
   test("POST /api/2.0/ai/threads/create - Owner starts a new thread", async ({
     apiSdk,
     paymentsApi,
@@ -167,11 +160,6 @@ test.describe("POST /api/2.0/ai/threads/create - Start a chat", () => {
 });
 
 test.describe("POST /api/2.0/ai/ai/send-with-stream - Talk to an agent", () => {
-  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
-  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
-  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
-  test.skip(true, "AI agents removed in DocSpace 4.1.0");
-
   test("POST /api/2.0/ai/ai/send-with-stream - Owner gets an assistant reply", async ({
     apiSdk,
     paymentsApi,
@@ -184,7 +172,6 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - Talk to an agent", () => {
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Chat Agent",
       profileId,
-      prompt: SHORT_ANSWER_PROMPT,
     });
     const threadId = await aiChat.createThreadId("owner", {
       title: "Autotest thread",
@@ -228,7 +215,6 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - Talk to an agent", () => {
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Chat Agent",
       profileId,
-      prompt: SHORT_ANSWER_PROMPT,
     });
     const threadId = await aiChat.createThreadId("owner", {
       title: "Autotest thread",
@@ -295,7 +281,6 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - Talk to an agent", () => {
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Chat Agent",
       profileId,
-      prompt: SHORT_ANSWER_PROMPT,
     });
     const first = await aiChat.createThreadId("owner", {
       title: "Autotest thread that knows the word",
@@ -401,7 +386,6 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - Talk to an agent", () => {
       const agentId = await aiChat.createAgentId("owner", {
         title: "Autotest Chat Agent",
         profileId,
-        prompt: SHORT_ANSWER_PROMPT,
       });
 
       const { data: memberData } = await apiSdk.addAuthenticatedMember(
@@ -452,11 +436,6 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - Talk to an agent", () => {
 // profile here would not add coverage. They are still covered by the "on"
 // check, since that reads the whole catalogue.
 test.describe("AI Chat - every catalogue model is alive", () => {
-  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
-  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
-  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
-  test.skip(true, "AI agents removed in DocSpace 4.1.0");
-
   test("every AI model is switched on, and every chat-capable one answers a real question", async ({
     apiSdk,
     paymentsApi,
@@ -501,7 +480,6 @@ test.describe("AI Chat - every catalogue model is alive", () => {
         const agentId = await aiChat.createAgentId("owner", {
           title: `Autotest liveness agent — ${profile.modelId}`,
           profileId: profile.id,
-          prompt: SHORT_ANSWER_PROMPT,
         });
         const threadId = await aiChat.createThreadId("owner", {
           title: `liveness — ${profile.modelId}`,
@@ -578,11 +556,6 @@ const LONG_ANSWER_QUESTION =
   "Count from 1 to 60, separated by commas. Output nothing else.";
 
 test.describe("AI Chat - the stream of one reply", () => {
-  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
-  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
-  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
-  test.skip(true, "AI agents removed in DocSpace 4.1.0");
-
   test("POST /api/2.0/ai/ai/send-with-stream - the reply is streamed as NDJSON frames that match the stored message", async ({
     apiSdk,
     paymentsApi,
@@ -595,7 +568,6 @@ test.describe("AI Chat - the stream of one reply", () => {
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Stream Contract Agent",
       profileId,
-      prompt: SHORT_ANSWER_PROMPT,
     });
     const threadId = await aiChat.createThreadId("owner", {
       title: "Autotest stream thread",
@@ -724,7 +696,6 @@ test.describe("AI Chat - the stream of one reply", () => {
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Stream Transport Agent",
       profileId,
-      prompt: SHORT_ANSWER_PROMPT,
     });
     const threadId = await aiChat.createThreadId("owner", {
       title: "Autotest transport thread",
@@ -806,11 +777,6 @@ test.describe("AI Chat - the stream of one reply", () => {
 });
 
 test.describe("Thread management", () => {
-  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
-  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
-  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
-  test.skip(true, "AI agents removed in DocSpace 4.1.0");
-
   test("GET /api/2.0/ai/threads/list - lists threads of one agent only", async ({
     apiSdk,
     paymentsApi,
@@ -1096,11 +1062,6 @@ test.describe("Thread management", () => {
 });
 
 test.describe("Thread management - a member manages their own thread", () => {
-  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
-  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
-  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
-  test.skip(true, "AI agents removed in DocSpace 4.1.0");
-
   // The isolation matrix in chat.permission.spec.ts only establishes that a
   // member is refused on *someone else's* thread. A backend that treated threads
   // as the owner's property — only the portal owner may rename, clear or delete
@@ -1205,11 +1166,6 @@ test.describe("Thread management - a member manages their own thread", () => {
 });
 
 test.describe("GET /api/2.0/ai/profiles/list - Model catalogue", () => {
-  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
-  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
-  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
-  test.skip(true, "AI agents removed in DocSpace 4.1.0");
-
   // Replaces the removed GET /ai/chats/models.
   test("GET /api/2.0/ai/profiles/list - Owner gets a catalogue that can back an agent", async ({
     apiSdk,
@@ -1248,12 +1204,11 @@ test.describe("GET /api/2.0/ai/profiles/list - Model catalogue", () => {
       title: "Autotest Catalogue Agent",
       profileId: textProfile.id,
     });
-    const { status: agentStatus, data: agent } = await aiChat.getAgentInfo(
-      "owner",
-      agentId,
-    );
-    expect(agentStatus).toBe(200);
-    expect(agent?.response?.id).toBe(agentId);
+    // The agent really runs on the picked profile, not just exists.
+    const { status: modelStatus, data: model } =
+      await ownerApi.roomsAI.getProjectModel({ id: agentId });
+    expect(modelStatus).toBe(200);
+    expect(model.response?.profileId).toBe(textProfile.id);
   });
 });
 
@@ -1274,11 +1229,6 @@ test.describe("GET /api/2.0/ai/profiles/list - Model catalogue", () => {
 // run against and are recorded as gaps.
 
 test.describe("AI Threads - listing", () => {
-  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
-  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
-  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
-  test.skip(true, "AI agents removed in DocSpace 4.1.0");
-
   test("GET /api/2.0/ai/threads/list - threads come back newest-activity first", async ({
     apiSdk,
     paymentsApi,
@@ -1428,8 +1378,7 @@ test.describe("AI Threads - listing", () => {
 });
 
 test.describe("AI Threads - open-or-create", () => {
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("POST /api/2.0/ai/threads/open-or-create - opens an existing thread and replays its history", async ({
+  test("POST /api/2.0/ai/threads/open-or-create - opens an existing thread and replays its history", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1479,8 +1428,7 @@ test.describe("AI Threads - open-or-create", () => {
     expect(listed.data.map((thread) => thread.threadId)).toEqual([threadId]);
   });
 
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("POST /api/2.0/ai/threads/open-or-create - a thread that holds a conversation is replayed whole", async ({
+  test("POST /api/2.0/ai/threads/open-or-create - a thread that holds a conversation is replayed whole", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1503,7 +1451,6 @@ test.describe("AI Threads - open-or-create", () => {
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Threads Agent",
       profileId: profile.id,
-      prompt: SHORT_ANSWER_PROMPT,
     });
     const threadId = await aiChat.createThreadId("owner", {
       title: "Autotest thread with a history",
@@ -1583,8 +1530,7 @@ test.describe("AI Threads - open-or-create", () => {
     ]);
   });
 
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("POST /api/2.0/ai/threads/open-or-create - the whole profile object is required, not just its id", async ({
+  test("POST /api/2.0/ai/threads/open-or-create - the whole profile object is required, not just its id", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1727,8 +1673,7 @@ test.describe("AI Threads - open-or-create", () => {
     ).toBe(second.id);
   });
 
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("POST /api/2.0/ai/threads/open-or-create, GET read-messages - a long history is replayed whole", async ({
+  test("POST /api/2.0/ai/threads/open-or-create, GET read-messages - a long history is replayed whole", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1805,8 +1750,7 @@ test.describe("AI Threads - open-or-create", () => {
     );
   });
 
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("POST /api/2.0/ai/threads/open-or-create - a replayed message keeps its attachments", async ({
+  test("POST /api/2.0/ai/threads/open-or-create - a replayed message keeps its attachments", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1827,7 +1771,6 @@ test.describe("AI Threads - open-or-create", () => {
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Threads Agent",
       profileId: profile.id,
-      prompt: SHORT_ANSWER_PROMPT,
     });
     const threadId = await aiChat.createThreadId("owner", {
       title: "Autotest thread with an attachment",
@@ -1885,8 +1828,7 @@ test.describe("AI Threads - open-or-create", () => {
     ).toEqual([{ id: attachmentId }]);
   });
 
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("BUG 82826: POST /api/2.0/ai/threads/open-or-create - creating a thread from the first message returns 500", async ({
+  test("BUG 82826: POST /api/2.0/ai/threads/open-or-create - creating a thread from the first message returns 500", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1932,11 +1874,6 @@ test.describe("AI Threads - open-or-create", () => {
 });
 
 test.describe("AI Threads - regenerate-title", () => {
-  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
-  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
-  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
-  test.skip(true, "AI agents removed in DocSpace 4.1.0");
-
   test("BUG 82828: POST /api/2.0/ai/threads/regenerate-title - returns 500 on a thread with a real conversation", async ({
     apiSdk,
     paymentsApi,
@@ -2055,6 +1992,24 @@ const DEFAULT_THREAD_TITLE = "New chat";
  * per the DocSpace team: waiting for it before returning the reply would
  * make every first message noticeably slower. Poll instead of reading once.
  */
+/**
+ * The agent's own model as a caller reads it: GET /files/rooms/{id}/model. An
+ * agent is an AI project now, and its model lives there - not in the
+ * assignments, which are portal-wide (server spec "Tasks and the scope of the
+ * assignments").
+ */
+async function agentModelOf(
+  apiSdk: ApiSDK,
+  role: Role,
+  agentId: number,
+): Promise<string | null> {
+  const { status, data } = await apiSdk
+    .forRole(role)
+    .roomsAI.getProjectModel({ id: agentId });
+  expect(status, `GET /files/rooms/${agentId}/model as ${role}`).toBe(200);
+  return data.response?.profileId ?? null;
+}
+
 async function waitForRenamedThread(
   aiChat: AiAgentChat,
   threadId: string,
@@ -2070,11 +2025,6 @@ async function waitForRenamedThread(
 }
 
 test.describe("AI Threads - started by the first message", () => {
-  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
-  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
-  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
-  test.skip(true, "AI agents removed in DocSpace 4.1.0");
-
   test("POST /api/2.0/ai/threads/create - a thread with no message in it is kept and listed", async ({
     apiSdk,
     paymentsApi,
@@ -2194,7 +2144,6 @@ test.describe("AI Threads - started by the first message", () => {
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Threadless Send Agent",
       profileId,
-      prompt: SHORT_ANSWER_PROMPT,
     });
 
     // Nothing exists yet — the thread this send is about to open cannot be one
@@ -2286,7 +2235,6 @@ test.describe("AI Threads - started by the first message", () => {
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Auto Title Agent",
       profileId,
-      prompt: SHORT_ANSWER_PROMPT,
     });
 
     // A distinctive question with an obvious short answer, so a title built
@@ -2590,8 +2538,7 @@ test.describe("AI Chat - the global entry point", () => {
     expect(sent.status, "a Guest sending into a global chat").toBe(403);
   });
 
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("BUG 82855: GET /api/2.0/ai/threads/list - the global chat's history is listed inside rooms and folders", async ({
+  test("BUG 82855: GET /api/2.0/ai/threads/list - the global chat's history is listed inside rooms and folders", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2773,8 +2720,7 @@ test.describe("AI Chat - room and folder entity context", () => {
     expect(listed.data.map((thread) => thread.threadId)).toContain(threadId);
   });
 
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("BUG 82855: GET /api/2.0/ai/threads/list - every non-agent entity shares one thread list", async ({
+  test("BUG 82855: GET /api/2.0/ai/threads/list - every non-agent entity shares one thread list", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2851,8 +2797,7 @@ test.describe("AI Chat - room and folder entity context", () => {
     }
   });
 
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("BUG 82855: GET /api/2.0/ai/threads/list - a thread started in a folder is listed for every other folder and room", async ({
+  test("BUG 82855: GET /api/2.0/ai/threads/list - a thread started in a folder is listed for every other folder and room", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4101,8 +4046,7 @@ test.describe("AI Chat - the model of one thread", () => {
     );
   });
 
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("PUT /api/2.0/ai/threads/* - no route changes a thread's model", async ({
+  test("PUT /api/2.0/ai/threads/* - no route changes a thread's model", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4559,8 +4503,7 @@ test.describe("AI Chat - the model of one thread", () => {
 // accepting it and running the agent's own model anyway.
 
 test.describe("AI Chat - the model of an agent room", () => {
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("POST /api/2.0/ai/ai/send-with-stream - a chat in an agent with no profileId anywhere runs on the agent's profile", async ({
+  test("POST /api/2.0/ai/ai/send-with-stream - a chat in an agent with no profileId anywhere runs on the agent's profile", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4583,7 +4526,6 @@ test.describe("AI Chat - the model of an agent room", () => {
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Fixed Model Agent",
       profileId: first.id,
-      prompt: SHORT_ANSWER_PROMPT,
     });
 
     // A client with no picker sends no profileId at all. The create already
@@ -4596,10 +4538,14 @@ test.describe("AI Chat - the model of an agent room", () => {
     expect(created.status).toBe(200);
     const threadId = created.data?.threadId ?? "";
     expect(threadId).toBeTruthy();
+    // An agent's thread need not carry a model of its own from the create:
+    // inside an AI project every round runs on the project's model (server
+    // spec "The model of a chat"), so an empty profileId here is not a gap.
+    // What it must never carry is another model.
     expect(
-      (await aiChat.getThread("owner", threadId)).data?.profileId,
-      "the thread starts on the agent's own model",
-    ).toBe(first.id);
+      [undefined, null, first.id],
+      "the thread starts on the agent's own model or on none",
+    ).toContain((await aiChat.getThread("owner", threadId)).data?.profileId);
 
     // …and the message that follows sends no profileId either.
     const sent = await aiChat.sendMessage("owner", {
@@ -4615,16 +4561,13 @@ test.describe("AI Chat - the model of an agent room", () => {
 
     // The agent's own binding is what answered, and it is what the thread now
     // carries.
-    const resolved = await profiles.resolveForAction("owner", "Chat", agentId);
-    expect(resolved.status).toBe(200);
-    expect(resolved.data?.profileId).toBe(first.id);
+    expect(await agentModelOf(apiSdk, "owner", agentId)).toBe(first.id);
     expect((await aiChat.getThread("owner", threadId)).data?.profileId).toBe(
       first.id,
     );
   });
 
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("PUT /api/2.0/ai/agents/{id} - a new profileId moves the agent's model and leaves existing threads alone", async ({
+  test("PUT /api/2.0/files/rooms/{id}/model - a new model moves the agent and leaves existing threads alone", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4634,14 +4577,12 @@ test.describe("AI Chat - the model of an agent room", () => {
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
     const routes = new ThreadRoutes(apiSdk.request, apiSdk.tokenStore);
     const [first, second] = twoTextProfiles(await aiChat.listProfiles("owner"));
 
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Fixed Model Agent",
       profileId: first.id,
-      prompt: SHORT_ANSWER_PROMPT,
     });
     const before = await aiChat.createThreadId("owner", {
       title: "Autotest thread from before the switch",
@@ -4649,22 +4590,17 @@ test.describe("AI Chat - the model of an agent room", () => {
       agentId,
     });
 
-    const updated = await aiChat.updateAgent("owner", agentId, {
-      title: "Autotest Fixed Model Agent",
-      profileId: second.id,
+    const updated = await ownerApi.roomsAI.setProjectModel({
+      id: agentId,
+      updateAiProjectModelRequest: { profileId: second.id },
     });
     expect(updated.status).toBe(200);
 
-    // The agent resolves to the new model in every read the composer uses.
+    // The agent resolves to the new model in the read the composer uses.
     expect(
-      (await aiChat.getAgentInfo("owner", agentId)).data?.response?.profileId,
-      "the agent record carries the new model",
+      await agentModelOf(apiSdk, "owner", agentId),
+      "the agent carries the new model",
     ).toBe(second.id);
-    const binding = await profiles.getAllAssignments("owner", agentId);
-    expect(binding.status).toBe(200);
-    expect(binding.data?.Chat).toBe(second.id);
-    const resolved = await profiles.resolveForAction("owner", "Chat", agentId);
-    expect(resolved.data?.profileId).toBe(second.id);
 
     // A conversation started before the switch keeps the model it ran on.
     expect(
@@ -4698,8 +4634,7 @@ test.describe("AI Chat - the model of an agent room", () => {
     );
   });
 
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("GET /api/2.0/ai/agents/{id} - the agent publishes its fixed model, and a member can read it", async ({
+  test("GET /api/2.0/files/rooms/{id}/model - the agent publishes its fixed model, and a member can read it", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4713,23 +4648,14 @@ test.describe("AI Chat - the model of an agent room", () => {
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
     const [first] = twoTextProfiles(await aiChat.listProfiles("owner"));
 
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Fixed Model Agent",
       profileId: first.id,
-      prompt: SHORT_ANSWER_PROMPT,
     });
 
-    const info = await aiChat.getAgentInfo("owner", agentId);
-    expect(info.status).toBe(200);
-    expect(info.data?.response?.profileId).toBe(first.id);
-    expect(info.data?.response?.chatSettings?.prompt).toBe(SHORT_ANSWER_PROMPT);
-
-    const binding = await profiles.getAllAssignments("owner", agentId);
-    expect(binding.status).toBe(200);
-    expect(binding.data?.Chat).toBe(first.id);
+    expect(await agentModelOf(apiSdk, "owner", agentId)).toBe(first.id);
 
     // A member of the agent reads both of them.
     const { data: memberData } = await apiSdk.addAuthenticatedMember(
@@ -4738,13 +4664,7 @@ test.describe("AI Chat - the model of an agent room", () => {
     );
     await inviteToAgent(ownerApi.rooms, agentId, memberData.response!.id!);
 
-    const memberInfo = await aiChat.getAgentInfo("user", agentId);
-    expect(memberInfo.status).toBe(200);
-    expect(memberInfo.data?.response?.profileId).toBe(first.id);
-
-    const memberBinding = await profiles.getAllAssignments("user", agentId);
-    expect(memberBinding.status).toBe(200);
-    expect(memberBinding.data?.Chat).toBe(first.id);
+    expect(await agentModelOf(apiSdk, "user", agentId)).toBe(first.id);
   });
 
   // Owner is the agent's author; the member is invited at ContentCreator, the
@@ -4754,8 +4674,7 @@ test.describe("AI Chat - the model of an agent room", () => {
     { label: "Owner", role: "owner", type: undefined },
     { label: "a member", role: "user", type: "User" },
   ] as Array<{ label: string; role: AgentRole; type?: UserType }>) {
-    // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-    test.skip(`BUG 82914: POST /api/2.0/ai/ai/send-with-stream - ${label} can override the fixed model of an agent room`, async ({
+    test(`BUG 82914: POST /api/2.0/ai/ai/send-with-stream - ${label} can override the fixed model of an agent room`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -4767,7 +4686,6 @@ test.describe("AI Chat - the model of an agent room", () => {
       await enableAiGateway(paymentsApi, ownerApi.payment);
 
       const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-      const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
       const [first, second] = twoTextProfiles(
         await aiChat.listProfiles("owner"),
       );
@@ -4775,7 +4693,6 @@ test.describe("AI Chat - the model of an agent room", () => {
       const agentId = await aiChat.createAgentId("owner", {
         title: "Autotest Fixed Model Agent",
         profileId: first.id,
-        prompt: SHORT_ANSWER_PROMPT,
       });
 
       if (type) {
@@ -4789,7 +4706,7 @@ test.describe("AI Chat - the model of an agent room", () => {
       // Setup premise: the agent really is fixed on A, and the thread starts on
       // it, so the value read at the end can only have come from the send.
       expect(
-        (await profiles.getAllAssignments("owner", agentId)).data?.Chat,
+        await agentModelOf(apiSdk, "owner", agentId),
         "the agent is bound to the first profile",
       ).toBe(first.id);
       const threadId = await aiChat.createThreadId(role, {
@@ -4814,8 +4731,7 @@ test.describe("AI Chat - the model of an agent room", () => {
       ).not.toBe(second.id);
     });
 
-    // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-    test.skip(`BUG 82915: POST /api/2.0/ai/threads/create - ${label} can start a thread in an agent room on another model`, async ({
+    test(`BUG 82915: POST /api/2.0/ai/threads/create - ${label} can start a thread in an agent room on another model`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -4827,7 +4743,6 @@ test.describe("AI Chat - the model of an agent room", () => {
       await enableAiGateway(paymentsApi, ownerApi.payment);
 
       const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-      const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
       const [first, second] = twoTextProfiles(
         await aiChat.listProfiles("owner"),
       );
@@ -4835,7 +4750,6 @@ test.describe("AI Chat - the model of an agent room", () => {
       const agentId = await aiChat.createAgentId("owner", {
         title: "Autotest Fixed Model Agent",
         profileId: first.id,
-        prompt: SHORT_ANSWER_PROMPT,
       });
 
       if (type) {
@@ -4847,7 +4761,7 @@ test.describe("AI Chat - the model of an agent room", () => {
       }
 
       expect(
-        (await profiles.getAllAssignments("owner", agentId)).data?.Chat,
+        await agentModelOf(apiSdk, "owner", agentId),
         "the agent is bound to the first profile",
       ).toBe(first.id);
 
@@ -4862,8 +4776,13 @@ test.describe("AI Chat - the model of an agent room", () => {
         ? (await aiChat.getThread(role, created.threadId)).data?.profileId
         : undefined;
 
-      // Fixed: confirmed 2026-08-26 — a thread in an agent can no longer be
-      // created on another model.
+      // Fixed on the old agent (2026-08-26), back on the new one: inside an AI
+      // project `threads/create` passes the request's profileId to the engine
+      // unchanged, so the thread stores profile B (2026-11-26). Rounds still run
+      // on the agent's model (BUG 82914 above). The server's own
+      // `Create_ThreadInProjectOnAnotherModel_DoesNotStoreIt` is red too
+      // (openspec/deviations.md, run 2026-11-18).
+      test.fail();
       expect(
         stored,
         "a thread in an agent cannot be created on another model",
@@ -4878,60 +4797,43 @@ test.describe("AI Chat - the model of an agent room", () => {
   // down measures from a room, except that in a room the user picked the profile
   // and can pick another one, while in an agent the model is fixed and the
   // picker is hidden. Every conversation in such an agent is dead on arrival.
-  test("BUG 82926: POST /api/2.0/ai/agents - an agent can be built on an image profile and then cannot chat at all", async ({
+  test("BUG 82926: PUT /api/2.0/files/rooms/{id}/model - an agent is not built on an image profile", async ({
     apiSdk,
     paymentsApi,
   }) => {
+    // The old agent was created straight onto an image profile and then could
+    // not chat at all. An agent is now built in two steps - the room, then its
+    // model - and the model step is where the image profile has to be refused.
+    // Fixed since 2026-08-26 on the old route; pinned here on the new one.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
     const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
     const imageProfile = AiProfiles.byCapabilities(
       await profiles.catalogue("owner"),
       AI_CAPS.imageOnly,
     );
 
-    const created = await aiChat.createAgent("owner", {
-      title: "Autotest Image Model Agent",
-      profileId: imageProfile.id,
-      prompt: SHORT_ANSWER_PROMPT,
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Image Model Agent",
+        roomType: RoomType.AiProjectRoom,
+      },
+    });
+    const agentId = room.response!.id!;
+
+    const { status } = await ownerApi.roomsAI.setProjectModel({
+      id: agentId,
+      updateAiProjectModelRequest: { profileId: imageProfile.id },
+    });
+    const { data: model } = await ownerApi.roomsAI.getProjectModel({
+      id: agentId,
     });
 
-    // Everything below runs only while the create is accepted.
-    const agentId = created.data?.response?.id;
-    let chatFailedWith: string | undefined;
-
-    if (agentId) {
-      expect(
-        (await profiles.getAllAssignments("owner", agentId)).data?.Chat,
-        "the image profile really is what the agent is bound to",
-      ).toBe(imageProfile.id);
-
-      const threadId = await aiChat.createThreadId("owner", {
-        title: "Autotest image agent thread",
-        profileId: imageProfile.id,
-        agentId,
-      });
-      // Sent the way a client with a hidden picker sends: no profileId, so the
-      // model is whatever the agent was built on.
-      await aiChat.sendMessage("owner", {
-        threadId,
-        agentId,
-        message: "Reply with the single word OK.",
-      });
-      const reply = AiAgentChat.assistantMessages(
-        await aiChat.waitForAssistantReply("owner", threadId),
-      )[0];
-      chatFailedWith = reply?.status?.error?.code;
-    }
-
-    // Fixed: confirmed 2026-08-26 — the create now refuses an image profile,
-    // so no agent is built on a model that cannot hold a conversation.
     expect(
-      { agentCreated: agentId !== undefined, chatFailedWith },
+      { status, model: model.response?.profileId ?? null },
       "an agent is not built on a model that cannot hold a conversation",
-    ).toEqual({ agentCreated: false, chatFailedWith: undefined });
+    ).toEqual({ status: 400, model: null });
   });
 
   // The same hole on the other endpoint, and the one that matters even after
@@ -4939,8 +4841,7 @@ test.describe("AI Chat - the model of an agent room", () => {
   // use, is moved onto the image profile by an ordinary update. It is accepted,
   // both reads of the model follow it, and from then on the agent answers
   // nothing — see the test above for what a chat in it looks like.
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("BUG 82927: PUT /api/2.0/ai/agents/{id} - a working agent can be moved onto an image profile", async ({
+  test("BUG 82927: PUT /api/2.0/files/rooms/{id}/model - a working agent is not moved onto an image profile", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4959,33 +4860,40 @@ test.describe("AI Chat - the model of an agent room", () => {
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Capability Agent",
       profileId: textProfile.id,
-      prompt: SHORT_ANSWER_PROMPT,
     });
 
-    // Setup premise: the agent is on a model that can chat before the update.
-    expect(
-      (await profiles.getAllAssignments("owner", agentId)).data?.Chat,
-      "the agent starts on a text profile",
-    ).toBe(textProfile.id);
-
-    await aiChat.updateAgent("owner", agentId, {
-      title: "Autotest Capability Agent",
-      profileId: imageProfile.id,
+    const { status } = await ownerApi.roomsAI.setProjectModel({
+      id: agentId,
+      updateAiProjectModelRequest: { profileId: imageProfile.id },
+    });
+    const { data: model } = await ownerApi.roomsAI.getProjectModel({
+      id: agentId,
     });
 
-    const info = await aiChat.getAgentInfo("owner", agentId);
-    const scope = await profiles.getAllAssignments("owner", agentId);
-
-    // Fixed: confirmed 2026-08-26 — the update now refuses to move a working
-    // agent onto an image profile.
+    // Fixed since 2026-08-26 on the old route; pinned here on the new one.
     expect(
-      { profileId: info.data?.response?.profileId, chat: scope.data?.Chat },
+      { status, model: model.response?.profileId },
       "an agent is not moved onto a model that cannot hold a conversation",
-    ).toEqual({ profileId: textProfile.id, chat: textProfile.id });
+    ).toEqual({ status: 400, model: textProfile.id });
+
+    // And the agent still holds a conversation on its text model.
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest capability thread",
+      profileId: textProfile.id,
+      agentId,
+    });
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      agentId,
+      message: "Reply with the single word OK.",
+    });
+    expect(sent.status).toBe(200);
+    expectHealthyAssistantReply(
+      await aiChat.waitForAssistantReply("owner", threadId),
+    );
   });
 
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("BUG 82895: GET /api/2.0/ai/assignments/* - the scope of an agent the caller is not in is refused with 403", async ({
+  test("BUG 82895: GET /api/2.0/ai/assignments/* - the scope of an agent the caller is not in is refused with 403", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -5040,8 +4948,7 @@ test.describe("AI Chat - the model of an agent room", () => {
   // are read separately.
   const UNRESOLVABLE_PROFILE_ID = "019ed118-0000-0000-0000-0000000000ff";
 
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("POST /api/2.0/ai/threads/open-or-create - opening an agent thread with another profile does not stamp it", async ({
+  test("POST /api/2.0/ai/threads/open-or-create - opening an agent thread with another profile does not stamp it", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -5056,19 +4963,17 @@ test.describe("AI Chat - the model of an agent room", () => {
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
     const routes = new ThreadRoutes(apiSdk.request, apiSdk.tokenStore);
     const [first, second] = twoTextProfiles(await aiChat.listProfiles("owner"));
 
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Fixed Model Agent",
       profileId: first.id,
-      prompt: SHORT_ANSWER_PROMPT,
     });
     // Setup premise: the agent really is fixed on the first profile, so the
     // second one below is a model this conversation has no business running on.
     expect(
-      (await profiles.getAllAssignments("owner", agentId)).data?.Chat,
+      await agentModelOf(apiSdk, "owner", agentId),
       "the agent is bound to the first profile",
     ).toBe(first.id);
 
@@ -5080,10 +4985,14 @@ test.describe("AI Chat - the model of an agent room", () => {
     expect(created.status).toBe(200);
     const threadId = created.data?.threadId ?? "";
     expect(threadId).toBeTruthy();
+    // An agent's thread need not carry a model of its own from the create:
+    // inside an AI project every round runs on the project's model (server
+    // spec "The model of a chat"), so an empty profileId here is not a gap.
+    // What it must never carry is another model.
     expect(
-      (await aiChat.getThread("owner", threadId)).data?.profileId,
-      "the thread starts on the agent's own model",
-    ).toBe(first.id);
+      [undefined, null, first.id],
+      "the thread starts on the agent's own model or on none",
+    ).toContain((await aiChat.getThread("owner", threadId)).data?.profileId);
 
     const opened = await aiChat.openOrCreateThread("owner", {
       threadId,
@@ -5098,10 +5007,12 @@ test.describe("AI Chat - the model of an agent room", () => {
     expect(opened.data?.threadId, "the existing thread is reused").toBe(
       threadId,
     );
+    // An agent's thread may hold no model of its own (see above); what the
+    // open must not do is write the profile it carried onto it.
     expect(
-      (await aiChat.getThread("owner", threadId)).data?.profileId,
+      [undefined, null, first.id],
       "the open did not overwrite it with the profile it carried",
-    ).toBe(first.id);
+    ).toContain((await aiChat.getThread("owner", threadId)).data?.profileId);
 
     // Positive control, and the point of the test in one step: the conversation
     // that follows the open runs on the agent's model. Without it "nothing was
@@ -5124,8 +5035,7 @@ test.describe("AI Chat - the model of an agent room", () => {
     ).toBe(first.id);
   });
 
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("POST /api/2.0/ai/ai/send-with-stream - a blank profileId in an agent does not let the portal's model in", async ({
+  test("POST /api/2.0/ai/ai/send-with-stream - a blank profileId in an agent does not let the portal's model in", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -5159,12 +5069,11 @@ test.describe("AI Chat - the model of an agent room", () => {
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Fixed Model Agent",
       profileId: first.id,
-      prompt: SHORT_ANSWER_PROMPT,
     });
     // Setup premise: the two bindings really do point at different models, or
     // "the portal's model did not get in" is unobservable.
     expect(
-      (await profiles.getAllAssignments("owner", agentId)).data?.Chat,
+      await agentModelOf(apiSdk, "owner", agentId),
       "the agent is bound to the first profile",
     ).toBe(first.id);
     expect(
@@ -5206,8 +5115,7 @@ test.describe("AI Chat - the model of an agent room", () => {
     ).toBe(stored);
   });
 
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("BUG 83160 FIXED: POST /api/2.0/ai/ai/send-with-stream - a profileId that names no model is refused in an agent too", async ({
+  test("BUG 83160 FIXED: POST /api/2.0/ai/ai/send-with-stream - a profileId that names no model is ignored in an agent, which answers on its own model", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -5223,20 +5131,25 @@ test.describe("AI Chat - the model of an agent room", () => {
     //
     // Reachable through a plain client, too: an agent built on a profile that is
     // later deleted leaves exactly this id in the composer's hands.
+    //
+    // Since the agent became an AI project the consequence is gone, and so is
+    // the refusal: a round sent into a project runs on the project's own model
+    // whatever profileId it carries, an unknown one included, and never moves
+    // the thread (server spec "The model of a chat"). The model that answers is
+    // the one the agent's author chose, so ignoring the id is the fix here, not
+    // the defect. The room half keeps the 400 (the test above).
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
     const [first] = twoTextProfiles(await aiChat.listProfiles("owner"));
 
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Fixed Model Agent",
       profileId: first.id,
-      prompt: SHORT_ANSWER_PROMPT,
     });
     expect(
-      (await profiles.getAllAssignments("owner", agentId)).data?.Chat,
+      await agentModelOf(apiSdk, "owner", agentId),
       "the agent is bound to the first profile",
     ).toBe(first.id);
     const threadId = await aiChat.createThreadId("owner", {
@@ -5253,12 +5166,8 @@ test.describe("AI Chat - the model of an agent room", () => {
       timeoutMs: STREAM_CAP_MS,
     });
 
-    // Fix-agnostic: a 4xx, or an `error` frame inside the 200 the way a model
-    // failure is reported. Only silent success fails this.
-    expect(
-      bad.status !== 200 || bad.streamError !== undefined,
-      "a model choice the backend cannot resolve is reported, not dropped",
-    ).toBe(true);
+    expect(bad.status).toBe(200);
+    expect(bad.streamError).toBeUndefined();
 
     // The thread was not corrupted — it neither took the unresolvable id nor
     // lost the agent's model.
@@ -5267,17 +5176,12 @@ test.describe("AI Chat - the model of an agent room", () => {
       "the thread stays on the agent's model",
     ).toBe(first.id);
 
-    // The reply is only read while the send is accepted: a refusal leaves
-    // nothing to wait for.
-    if (bad.status === 200 && bad.streamError === undefined) {
-      expectHealthyAssistantReply(
-        await aiChat.waitForAssistantReply("owner", threadId),
-      );
-    }
+    expectHealthyAssistantReply(
+      await aiChat.waitForAssistantReply("owner", threadId),
+    );
   });
 
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("GET /api/2.0/ai/profiles/list - the catalogue is served whole inside an agent, for a member as well", async ({
+  test("GET /api/2.0/ai/profiles/list - the catalogue is served whole inside an agent, for a member as well", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -5296,17 +5200,15 @@ test.describe("AI Chat - the model of an agent room", () => {
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
     const catalogue = await aiChat.listProfiles("owner");
     const [first, second] = twoTextProfiles(catalogue);
 
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Fixed Model Agent",
       profileId: first.id,
-      prompt: SHORT_ANSWER_PROMPT,
     });
     expect(
-      (await profiles.getAllAssignments("owner", agentId)).data?.Chat,
+      await agentModelOf(apiSdk, "owner", agentId),
       "the agent is fixed on the first profile",
     ).toBe(first.id);
 
@@ -5337,9 +5239,7 @@ test.describe("AI Chat - the model of an agent room", () => {
     // And nothing in the entity's own scope narrows it either: the agent
     // publishes one model, which is a default to draw a label from and not a
     // list of what is allowed.
-    const resolved = await profiles.resolveForAction("user", "Chat", agentId);
-    expect(resolved.status).toBe(200);
-    expect(resolved.data?.profileId).toBe(first.id);
+    expect(await agentModelOf(apiSdk, "user", agentId)).toBe(first.id);
   });
 });
 
@@ -5410,7 +5310,6 @@ test.describe("AI Chat - an agent picked in the composer from another location",
     const agentId = await aiChat.createAgentId("owner", {
       title: agentTitle,
       profileId: agentProfile.id,
-      prompt: SHORT_ANSWER_PROMPT,
     });
 
     // 1. What the picker is drawn from. The agent list is portal-wide and takes no
@@ -5500,8 +5399,7 @@ test.describe("AI Chat - an agent picked in the composer from another location",
     ).toBe(agentTitle);
   });
 
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("GET /api/2.0/ai/threads/list - picking an agent moves the thread out of the room the composer was opened in", async ({
+  test("GET /api/2.0/ai/threads/list - picking an agent moves the thread out of the room the composer was opened in", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -5527,7 +5425,6 @@ test.describe("AI Chat - an agent picked in the composer from another location",
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Picked Agent",
       profileId: agentProfile.id,
-      prompt: SHORT_ANSWER_PROMPT,
     });
 
     // Two threads from the same place: one with nothing picked, one with the
@@ -5728,217 +5625,6 @@ test.describe("AI Chat - an agent picked in the composer from another location",
 });
 
 // ---------------------------------------------------------------------------
-// An AI room made through the rooms API instead of the agent factory.
-//
-// `RoomType.AiRoom` (9) is accepted by POST /files/rooms, which gives a second
-// way to end up with a room a client would treat as an agent — and it is not the
-// same object. Measured 2026-08-06: the room comes back with roomType 9,
-// `security.UseChat`/`CanUseAi` true and an empty `chatSettings`, and threads in
-// it work, but it has no model of its own and it is missing from the agent list.
-// So the two halves of "an agent room" — the room type the client hides the
-// picker on, and the Chat binding the picker would have been hidden in favour of
-// — come apart on this path.
-
-test.describe("AI Chat - an AI room created through the rooms API", () => {
-  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
-  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
-  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
-  test.skip(true, "AI agents removed in DocSpace 4.1.0");
-
-  test("POST /api/2.0/files/rooms - a roomType 9 room has no model of its own and is absent from the agent list", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
-    const profileId = await aiChat.defaultProfileId("owner");
-
-    // The reference object: an agent made the intended way, in the same portal.
-    const agentId = await aiChat.createAgentId("owner", {
-      title: "Autotest Reference Agent",
-      profileId,
-      prompt: SHORT_ANSWER_PROMPT,
-    });
-
-    const created = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest Rooms API AI Room",
-        roomType: RoomType.AiRoom,
-      },
-    });
-    expect(created.status).toBe(200);
-    expect(created.data.response?.roomType).toBe(RoomType.AiRoom);
-    const aiRoomId = created.data.response!.id!;
-    // Nothing was carried over from the agent factory: no prompt, no model.
-    expect(created.data.response?.chatSettings?.prompt).toBeUndefined();
-
-    // The agents list does not have it, though the agent read answers for it.
-    const agents = await aiChat.getAgents("owner");
-    expect(agents.status).toBe(200);
-    const listedIds = agents.data?.response?.folders?.map((agent) => agent.id);
-    expect(listedIds, "the reference agent is listed").toContain(agentId);
-    expect(listedIds, "the rooms-API AI room is not").not.toContain(aiRoomId);
-
-    const info = await aiChat.getAgentInfo("owner", aiRoomId);
-    expect(info.status).toBe(200);
-    expect(info.data?.response?.roomType).toBe(RoomType.AiRoom);
-    // …and answers without the model field a real agent carries there.
-    expect(info.data?.response?.profileId).toBeUndefined();
-    expect(
-      (await aiChat.getAgentInfo("owner", agentId)).data?.response?.profileId,
-      "the reference agent does carry one",
-    ).toBe(profileId);
-
-    // No Chat binding, and — unlike every other entity — not even the
-    // portal-wide fallback: the scope of a roomType 9 room comes back empty.
-    // Both other scopes are read here so "empty" cannot be this route answering
-    // empty for everything.
-    const roomScope = await profiles.getAllAssignments("owner", aiRoomId);
-    expect(roomScope.status).toBe(200);
-    expect(roomScope.data).toEqual({});
-
-    const agentScope = await profiles.getAllAssignments("owner", agentId);
-    expect(agentScope.data?.Chat).toBe(profileId);
-
-    const { data: custom } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest Custom Room",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const customScope = await profiles.getAllAssignments(
-      "owner",
-      custom.response!.id!,
-    );
-    expect(
-      customScope.data?.Default,
-      "an ordinary room falls back to the portal-wide scope",
-    ).toBeTruthy();
-
-    // A chat in it is therefore answered by the portal-wide Default, exactly as
-    // in an ordinary room — a client that hid its picker on the room type has
-    // nothing of the room's to hide it in favour of.
-    const portalDefault = (await profiles.getAllAssignments("owner")).data
-      ?.Default;
-    expect(portalDefault).toBeTruthy();
-    const resolved = await profiles.resolveForAction("owner", "Chat", aiRoomId);
-    expect(resolved.data?.profileId).toBe(portalDefault);
-
-    const threadId = await aiChat.createThreadId("owner", {
-      title: "Autotest AI room thread",
-      profileId,
-      agentId: aiRoomId,
-    });
-    const sent = await aiChat.sendMessage("owner", {
-      threadId,
-      agentId: aiRoomId,
-      message: "Reply with the single word OK.",
-    });
-    expect(sent.status).toBe(200);
-    expect(sent.streamError).toBeUndefined();
-    expectHealthyAssistantReply(
-      await aiChat.waitForAssistantReply("owner", threadId),
-    );
-    // The thread keeps the model it was opened on rather than the room's, which
-    // is the point: the room has none to impose. What the room resolves to is
-    // the portal default, asserted above — a client that hid its picker on the
-    // room type has nothing of the room's to hide it in favour of.
-    expect(portalDefault).not.toBe(profileId);
-    expect(
-      (await aiChat.getThread("owner", threadId)).data?.profileId,
-      "no model of the room's overrode the thread's own",
-    ).toBe(profileId);
-  });
-
-  test("GET /api/2.0/ai/threads/list - a roomType 9 room scopes its threads the way an agent does", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    // The one thing this room does get right. Measured 2026-08-13: a roomType 9
-    // room made through /files/rooms has a thread list of its own, both ways —
-    // its threads stay in it, and the shared bucket every other entity lists
-    // (BUG 82855) does not reach into it. So the scoping is keyed on the AI room
-    // type rather than on having gone through the agent factory, which is why
-    // this room is scoped while being absent from the agent list, carrying no
-    // model and having an empty assignment scope (the test above).
-    //
-    // Worth pinning as its own contract: this room is the only entity that is
-    // scoped without being an agent, so a future change to how non-agent scope
-    // is resolved (BUG 82855 is closed as by-design, but the resolution logic
-    // could still move) could easily drop it back into the bucket, and nothing
-    // else in the suite would notice.
-    const ownerApi = apiSdk.forRole("owner");
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-    const profileId = await aiChat.defaultProfileId("owner");
-
-    const agentId = await aiChat.createAgentId("owner", {
-      title: "Autotest AI Room Control Agent",
-      profileId,
-    });
-    const { data: aiRoom } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest Rooms API AI Room Scope",
-        roomType: RoomType.AiRoom,
-      },
-    });
-    const aiRoomId = aiRoom.response!.id!;
-    const { data: other } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest Unrelated Room",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const otherRoomId = other.response!.id!;
-
-    const inAiRoom = await aiChat.createThreadId("owner", {
-      title: "Autotest thread in the rooms-API AI room",
-      profileId,
-      agentId: aiRoomId,
-    });
-    const inAgent = await aiChat.createThreadId("owner", {
-      title: "Autotest thread in the real agent",
-      profileId,
-      agentId,
-    });
-    // The thread that proves the bucket is populated: an ordinary room's thread
-    // is the one every unscoped entity lists. Without it, "the AI room lists
-    // only its own" would also pass on a portal where the bucket happens to be
-    // empty.
-    const inOtherRoom = await aiChat.createThreadId("owner", {
-      title: "Autotest thread in an ordinary room",
-      profileId,
-      agentId: otherRoomId,
-    });
-
-    // The AI room holds exactly its own conversation: neither the agent's thread
-    // nor the ordinary room's reaches it.
-    const ownList = await aiChat.listThreads("owner", aiRoomId);
-    expect(ownList.status).toBe(200);
-    expect(ownList.data.map((thread) => thread.threadId)).toEqual([inAiRoom]);
-
-    // And its conversation does not leak the other way, into the shared bucket
-    // or into the real agent.
-    const unrelated = await aiChat.listThreads("owner", otherRoomId);
-    expect(unrelated.status).toBe(200);
-    const bucket = unrelated.data.map((thread) => thread.threadId);
-    expect(bucket, "the shared bucket is not empty").toContain(inOtherRoom);
-    expect(
-      bucket,
-      "the AI room's thread is not in the shared bucket",
-    ).not.toContain(inAiRoom);
-
-    const agentList = await aiChat.listThreads("owner", agentId);
-    expect(agentList.status).toBe(200);
-    expect(agentList.data.map((thread) => thread.threadId)).toEqual([inAgent]);
-  });
-});
-
-// ---------------------------------------------------------------------------
 // Generating an image from a chat.
 //
 // There is no image route: `/ai/ai/generate-image`, `/ai/images/generate` and
@@ -6078,8 +5764,7 @@ async function waitForNewFile(
 }
 
 test.describe("AI Chat - image generation", () => {
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("BUG 82861: POST /api/2.0/ai/ai/send-with-stream - a request for an image resolves the generate_image call", async ({
+  test("BUG 82861: POST /api/2.0/ai/ai/send-with-stream - a request for an image resolves the generate_image call", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -6233,8 +5918,7 @@ test.describe("AI Chat - image generation", () => {
   // / get-all-assignments / resolve-for-action kept naming the same image
   // profile. `unassign` now actually clears it, so the second half below
   // (drawing with no image model bound) is reachable.
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("DELETE /api/2.0/ai/assignments/unassign - the portal's seeded ImageGeneration model can be taken away", async ({
+  test("DELETE /api/2.0/ai/assignments/unassign - the portal's seeded ImageGeneration model can be taken away", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -6653,11 +6337,6 @@ async function startReply(
 }
 
 test.describe("AI Threads - mutated while the model is still writing", () => {
-  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
-  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
-  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
-  test.skip(true, "AI agents removed in DocSpace 4.1.0");
-
   test("PUT /api/2.0/ai/threads/rename - a rename mid-reply survives the reply", async ({
     apiSdk,
     paymentsApi,
@@ -7140,8 +6819,7 @@ async function setProfileCulture(
 }
 
 test.describe("AI Chat - a provider failure lands in the thread", () => {
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("POST /api/2.0/ai/ai/send-with-stream - a refused turn does not corrupt the thread, which carries on once the provider stops refusing", async ({
+  test("POST /api/2.0/ai/ai/send-with-stream - a refused turn does not corrupt the thread, which carries on once the provider stops refusing", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -7156,21 +6834,16 @@ test.describe("AI Chat - a provider failure lands in the thread", () => {
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
     const profileId = await aiChat.defaultProfileId("owner");
-    const agentId = await aiChat.createAgentId("owner", {
-      title: "Autotest Provider Failure Agent",
-      profileId,
-      prompt: SHORT_ANSWER_PROMPT,
-    });
+    // No agent: an agent (AI project) cannot be created on a portal that has
+    // not paid for AI Tools, so the thread is an ordinary portal-wide one.
     const threadId = await aiChat.createThreadId("owner", {
       title: "Autotest failure thread",
       profileId,
-      agentId,
     });
 
     const refused = await aiChat.sendMessage("owner", {
       threadId,
       profileId,
-      agentId,
       message: "Reply with the single word OK.",
     });
     expect(refused.status).toBe(402);
@@ -7187,7 +6860,7 @@ test.describe("AI Chat - a provider failure lands in the thread", () => {
     expect(read.status).toBe(200);
     expect(read.data?.threadId).toBe(threadId);
 
-    const listed = await aiChat.listThreads("owner", agentId);
+    const listed = await aiChat.listThreads("owner");
     expect(listed.status).toBe(200);
     expect(listed.data.map((thread) => thread.threadId)).toContain(threadId);
 
@@ -7207,7 +6880,6 @@ test.describe("AI Chat - a provider failure lands in the thread", () => {
     const recovery = await aiChat.sendMessage("owner", {
       threadId,
       profileId,
-      agentId,
       message: "Reply with the single word OK.",
     });
     expect(recovery.streamError).toBeUndefined();
@@ -7311,8 +6983,7 @@ test.describe("AI Chat - a provider failure lands in the thread", () => {
     expect(AiAgentChat.userMessages(settled)).toHaveLength(2);
   });
 
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("POST /api/2.0/ai/ai/regenerate-stream - regenerating a failed reply reports the same failure and keeps the thread", async ({
+  test("POST /api/2.0/ai/ai/regenerate-stream - regenerating a failed reply reports the same failure and keeps the thread", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -7334,7 +7005,6 @@ test.describe("AI Chat - a provider failure lands in the thread", () => {
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Retry Agent",
       profileId,
-      prompt: SHORT_ANSWER_PROMPT,
     });
     const threadId = await aiChat.createThreadId("owner", {
       title: "Autotest retry thread",
@@ -7376,11 +7046,6 @@ test.describe("AI Chat - a provider failure lands in the thread", () => {
 });
 
 test.describe("AI Chat - a failure the chat cannot show", () => {
-  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
-  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
-  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
-  test.skip(true, "AI agents removed in DocSpace 4.1.0");
-
   test("BUG 83045 FIXED: POST /api/2.0/ai/ai/send-with-stream - a profileId the backend cannot parse is refused with 400", async ({
     apiSdk,
     paymentsApi,
@@ -7391,21 +7056,20 @@ test.describe("AI Chat - a failure the chat cannot show", () => {
     // and nothing stored in the thread, so the chat had neither an answer nor a
     // failure to render and nothing to look a translation up by. Now refused
     // outright with a plain 400, matching the rest of this surface.
+    //
+    // Outside an agent only: inside an AI project the round runs on the
+    // project's model whatever `profileId` it carries, a malformed one included,
+    // so the same send there answers 200 by contract (server spec "The model of
+    // a chat"; "Messages of a thread" - malformed profileId 400 outside a project).
     test.setTimeout(300000);
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
     const profileId = await aiChat.defaultProfileId("owner");
-    const agentId = await aiChat.createAgentId("owner", {
-      title: "Autotest Bad Profile Agent",
-      profileId,
-      prompt: SHORT_ANSWER_PROMPT,
-    });
     const threadId = await aiChat.createThreadId("owner", {
       title: "Autotest bad profile thread",
       profileId,
-      agentId,
     });
 
     // Control: this thread answers before the bad send, so what follows is the
@@ -7413,7 +7077,6 @@ test.describe("AI Chat - a failure the chat cannot show", () => {
     await aiChat.sendMessage("owner", {
       threadId,
       profileId,
-      agentId,
       message: "Reply with the single word OK.",
     });
     expectHealthyAssistantReply(
@@ -7423,7 +7086,6 @@ test.describe("AI Chat - a failure the chat cannot show", () => {
     const bad = await aiChat.sendMessage("owner", {
       threadId,
       profileId: "not-a-guid",
-      agentId,
       message: "This one goes nowhere.",
       timeoutMs: STREAM_CAP_MS,
     });
@@ -7447,7 +7109,6 @@ test.describe("AI Chat - a failure the chat cannot show", () => {
     await aiChat.sendMessage("owner", {
       threadId,
       profileId,
-      agentId,
       message: "Reply with the single word OK.",
     });
     expectHealthyAssistantReply(
@@ -7473,7 +7134,6 @@ test.describe("AI Chat - a failure the chat cannot show", () => {
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Oversized Agent",
       profileId,
-      prompt: SHORT_ANSWER_PROMPT,
     });
     const threadId = await aiChat.createThreadId("owner", {
       title: "Autotest oversized thread",
@@ -7525,7 +7185,6 @@ test.describe("AI Chat - a failure the chat cannot show", () => {
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Abandoned Reply Agent",
       profileId,
-      prompt: SHORT_ANSWER_PROMPT,
     });
     const threadId = await aiChat.createThreadId("owner", {
       title: "Autotest abandoned reply thread",
@@ -7739,8 +7398,7 @@ test.describe("AI Chat - the language a failed reply is reported in", () => {
     });
   }
 
-  // Skipped: needs an AI agent; POST /api/2.0/ai/agents was removed in DocSpace 4.1.0.
-  test.skip("BUG 84023: PUT /people/{userId}/culture, POST /api/2.0/ai/ai/send-with-stream - the portal's own gateway refusal is translated", async ({
+  test("BUG 84023: PUT /people/{userId}/culture, POST /api/2.0/ai/ai/send-with-stream - the portal's own gateway refusal is translated", async ({
     apiSdk,
   }) => {
     // Worth its own test because the string is DocSpace's, not a provider's:
@@ -7758,11 +7416,8 @@ test.describe("AI Chat - the language a failed reply is reported in", () => {
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
     const profileId = await aiChat.defaultProfileId("owner");
-    const agentId = await aiChat.createAgentId("owner", {
-      title: "Autotest Gateway Language Agent",
-      profileId,
-      prompt: SHORT_ANSWER_PROMPT,
-    });
+    // No agent: an agent (AI project) cannot be created on a portal that has
+    // not paid for AI Tools, so the thread is an ordinary portal-wide one.
 
     const { data: self } = await ownerApi.profiles.getSelfProfile();
     const ownerId = self.response!.id!;
@@ -7771,12 +7426,10 @@ test.describe("AI Chat - the language a failed reply is reported in", () => {
       const threadId = await aiChat.createThreadId("owner", {
         title,
         profileId,
-        agentId,
       });
       const sent = await aiChat.sendMessage("owner", {
         threadId,
         profileId,
-        agentId,
         message: "Say hi",
       });
       expect(sent.status, `the send in ${title} was refused`).toBe(402);
@@ -7815,11 +7468,6 @@ type ThreadIdOperation = {
 };
 
 test.describe("AI Threads - renaming, deleting and clearing: validation", () => {
-  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
-  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
-  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
-  test.skip(true, "AI agents removed in DocSpace 4.1.0");
-
   test("BUG 83094: PUT /api/2.0/ai/threads/rename - a blank title is accepted and wipes the thread's name", async ({
     apiSdk,
     paymentsApi,
@@ -8195,11 +7843,6 @@ test.describe("AI Threads - renaming, deleting and clearing: validation", () => 
 });
 
 test.describe("AI Threads - a cleared thread carries on", () => {
-  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
-  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
-  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
-  test.skip(true, "AI agents removed in DocSpace 4.1.0");
-
   test("DELETE /api/2.0/ai/threads/clear-messages, POST /api/2.0/ai/ai/send-with-stream - a cleared thread answers again and no longer knows the cleared history", async ({
     apiSdk,
     paymentsApi,
@@ -8221,7 +7864,6 @@ test.describe("AI Threads - a cleared thread carries on", () => {
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Cleared Chat Agent",
       profileId,
-      prompt: SHORT_ANSWER_PROMPT,
     });
     const threadId = await aiChat.createThreadId("owner", {
       title: "Autotest cleared thread",
