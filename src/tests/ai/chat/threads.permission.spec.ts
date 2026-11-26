@@ -55,10 +55,12 @@ const ACTORS: Actor[] = [
     type: "DocSpaceAdmin",
     access: FileShare.ContentCreator,
   },
+  // An agent offers Content creator only: a RoomManager invite answers 403
+  // (agents.permission.spec.ts), so there is no manager to try here.
   {
-    label: "a RoomAdmin who manages the agent room (RoomManager)",
+    label: "a RoomAdmin invited as ContentCreator",
     type: "RoomAdmin",
-    access: FileShare.RoomManager,
+    access: FileShare.ContentCreator,
   },
   {
     label: "a User invited as ContentCreator",
@@ -211,11 +213,6 @@ async function seedOwnerThread(
 }
 
 test.describe("Threads - nobody but the owner reaches the owner's thread", () => {
-  // Skipped: AI agents were removed from the API in DocSpace 4.1.0 -
-  // POST /api/2.0/ai/agents answers 404 - and every test here needs an agent.
-  // To be rewritten against AI project rooms (RoomType.AiProjectRoom).
-  test.skip(true, "AI agents removed in DocSpace 4.1.0");
-
   for (const actor of ACTORS) {
     test(`ThreadsApi - ${actor.label} is refused every route on the Owner's thread and message`, async ({
       apiSdk,
