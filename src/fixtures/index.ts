@@ -28,45 +28,28 @@ type TestFixtures = {
 };
 
 export const test = base.extend<TestFixtures>({
-  api: async ({ playwright }, use, testInfo) => {
+  api: async ({ playwright }, use) => {
     const ownerContext = await playwright.request.newContext({
       timeout: 30000,
     });
     const api = new API(ownerContext);
 
-    // A failed cleanup is shown in the report of the test (an annotation), in the
-    // console and once more when the worker exits; it never hides the test's own result.
-    const deletePortal = async () => {
-      try {
-        await api.auth.authenticateOwner();
-        console.log(`Deleting portal: ${api.portalDomain}`);
-        await api.cleanup();
-      } catch (error) {
-        orphanedPortals.push(api.portalDomain);
-        testInfo.annotations.push({
-          type: "orphaned-portal",
-          description: `cleanup failed for ${api.portalDomain}: ${error}`,
-        });
-        console.warn(
-          `ORPHANED PORTAL: cleanup failed for ${api.portalDomain}. Reason: ${error}`,
-        );
-      }
-    };
-
-    try {
-      await api.setup();
-    } catch (error) {
-      // The portal may already exist (registered, but the login or the readiness wait failed):
-      // remove it, release the context and report the original error.
-      if (api.portalDomain) await deletePortal();
-      await ownerContext.dispose();
-      throw error;
-    }
+    await api.setup();
     console.log(`Portal domain: ${api.portalDomain}`);
 
     await use(api);
 
-    await deletePortal();
+    try {
+      await api.auth.authenticateOwner();
+      console.log(`Deleting portal: ${api.portalDomain}`);
+      await api.cleanup();
+    } catch (error) {
+      orphanedPortals.push(api.portalDomain);
+      console.warn(
+        `ORPHANED PORTAL: cleanup failed for ${api.portalDomain}. Reason: ${error}`,
+      );
+    }
+
     await ownerContext.dispose();
   },
 
