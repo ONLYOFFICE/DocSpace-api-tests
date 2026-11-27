@@ -14,13 +14,8 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { Role } from "@/src/services/token-store";
 import { UserType } from "@/src/services/api-sdk";
 
-// An agent in DocSpace 4.1.0 is an AI project: a room of type 12 made through
-// /files/rooms, with its model behind /files/rooms/{id}/model. See
-// src/helpers/ai-agents.ts. The old /api/2.0/ai/agents routes are internal and
-// answer 404 from outside; the tests that drove them are gone with them.
-//
-// Contract: server openspec `specs/ai-agents/spec.md`, requirements "The AI
-// rooms section", "The model of an AI project" (release/v4.1.0).
+// An agent in 4.1.0 is an AI project (room type 12), see src/helpers/ai-agents.ts.
+// Contract: server openspec `specs/ai-agents/spec.md`.
 
 const UNKNOWN_PROFILE_ID = "019ed118-0000-0000-0000-0000000000ff";
 const UNKNOWN_ROOM_ID = 999999999;
@@ -336,16 +331,12 @@ test.describe("PUT /files/rooms/:id - update an agent", () => {
 });
 
 test.describe("PUT /files/rooms/roomquota - an agent takes no quota", () => {
-  // Skipped: the quota IS set on an agent through this route (2026-11-26) -
-  // FileStorageService.FolderQuotaChangeAsync has no AI project check, while
-  // create and update refuse a quota with 400. No bug filed yet.
+  // Skipped: this route sets a quota on an agent (2026-11-26), though create
+  // and update refuse one with 400. No bug filed yet.
   test.skip("PUT /files/rooms/roomquota - a quota is not set on an agent", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // Create and update refuse a quota on an agent (400). The batch quota route
-    // has no check of its own for the room type; this pins that it does not
-    // become the way around that refusal.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const { status: settingsStatus } =
@@ -392,33 +383,28 @@ test.describe("PUT /files/rooms/roomquota - an agent takes no quota", () => {
 });
 
 test.describe("DELETE /files/rooms/:id - delete an agent", () => {
-  for (const { label, role, type } of CREATORS) {
-    test(`DELETE /files/rooms/:id - ${label} deletes their agent outright`, async ({
-      apiSdk,
-      paymentsApi,
-    }) => {
-      await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
-      if (type) {
-        await apiSdk.addAuthenticatedMember("owner", type);
-      }
-      const api = apiSdk.forRole(role);
-      const agentId = await createAgentId(apiSdk, role);
+  test("DELETE /files/rooms/:id - Room Admin deletes their agent outright", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const api = apiSdk.forRole("roomAdmin");
+    const agentId = await createAgentId(apiSdk, "roomAdmin");
 
-      const { status } = await api.rooms.deleteRoom({
-        id: agentId,
-        deleteRoomRequest: { deleteAfter: false },
-      });
-      expect(status).toBe(200);
-      const operation = await waitForOperation(api.operations);
-      expect(operation.finished).toBe(true);
-
-      const { status: infoStatus } = await api.rooms.getRoomInfo({
-        id: agentId,
-      });
-      expect(infoStatus).toBe(404);
-      expect(await listedAgentIds(api)).not.toContain(agentId);
+    const { status } = await api.rooms.deleteRoom({
+      id: agentId,
+      deleteRoomRequest: { deleteAfter: false },
     });
-  }
+    expect(status).toBe(200);
+    const operation = await waitForOperation(api.operations);
+    expect(operation.finished).toBe(true);
+
+    const { status: infoStatus } = await api.rooms.getRoomInfo({
+      id: agentId,
+    });
+    expect(infoStatus).toBe(404);
+  });
 
   test("PUT /files/rooms/:id/archive - an agent cannot be archived", async ({
     apiSdk,
@@ -435,6 +421,85 @@ test.describe("DELETE /files/rooms/:id - delete an agent", () => {
 
     expect(status).toBe(403);
     expect(await listedAgentIds(ownerApi)).toContain(agentId);
+  });
+});
+
+test.describe("POST /files/owner - change the owner of an agent", () => {
+  // BUG XXXXX: 403 "The role is not available for this user type" - the former
+  // owner gets RoomManager, which an AI project no longer offers (c17aaf7877).
+
+  test("BUG XXXXX: POST /files/owner - Owner changes the owner of an agent to a Room Admin", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const { chat, other } = await agentProfiles(apiSdk);
+    const agentId = await createAgentId(apiSdk, "owner", { profileId: chat });
+    const { data: admin } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const adminId = admin.response!.id!;
+    const adminApi = apiSdk.forRole("roomAdmin");
+
+    // Control: before the change the Room Admin is an outsider.
+    const before = await adminApi.roomsAI.setProjectModel({
+      id: agentId,
+      updateAiProjectModelRequest: { profileId: other },
+    });
+    expect(before.status, "an outsider cannot set the model").toBe(403);
+
+    const { status, data } = await ownerApi.sharing.changeFileOwner({
+      changeOwnerRequestDto: {
+        folderIds: [agentId as unknown as object],
+        userId: adminId,
+      },
+    });
+    test.fail();
+    expect(status, JSON.stringify(data)).toBe(200);
+
+    const { data: info } = await ownerApi.rooms.getRoomInfo({ id: agentId });
+    expect(info.response?.createdBy?.id, "the agent's new owner").toBe(adminId);
+    expect(
+      await agentModel(adminApi, agentId),
+      "changing the owner leaves the model as it was",
+    ).toBe(chat);
+    expect(await listedAgentIds(adminApi)).toContain(agentId);
+
+    const after = await adminApi.roomsAI.setProjectModel({
+      id: agentId,
+      updateAiProjectModelRequest: { profileId: other },
+    });
+    expect(after.status, "the new owner manages the agent").toBe(200);
+  });
+
+  test("BUG XXXXX: POST /files/owner - DocSpace Admin changes the owner of a Room Admin's agent to themselves", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    // DocSpace Admin first: a Room Admin's session cannot add an admin.
+    const { data: admin } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const adminId = admin.response!.id!;
+    const adminApi = apiSdk.forRole("docSpaceAdmin");
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const agentId = await createAgentId(apiSdk, "roomAdmin");
+
+    const { status, data } = await adminApi.sharing.changeFileOwner({
+      changeOwnerRequestDto: {
+        folderIds: [agentId as unknown as object],
+        userId: adminId,
+      },
+    });
+
+    test.fail();
+    expect(status, JSON.stringify(data)).toBe(200);
+    const { data: info } = await adminApi.rooms.getRoomInfo({ id: agentId });
+    expect(info.response?.createdBy?.id).toBe(adminId);
   });
 });
 

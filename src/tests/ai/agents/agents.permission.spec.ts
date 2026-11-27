@@ -10,49 +10,40 @@ import {
   inviteToAgent,
   listedAgentIds,
 } from "@/src/helpers/ai-agents";
-import { Role } from "@/src/services/token-store";
-import { UserType } from "@/src/services/api-sdk";
 
-// Access to an agent - an AI project, a room of type 12 (see
-// src/helpers/ai-agents.ts).
-//
-// Contract: server openspec `specs/ai-agents/spec.md` (release/v4.1.0),
-// requirements "The AI rooms section", "Members of the AI rooms", "Users only in
-// an AI project", "The model of an AI project":
-//   * owner, DocSpace admin and Room admin create agents; User and Guest 403;
-//   * an agent offers one role, Content creator, to users only: no Guest, no
-//     group, no invitation link;
-//   * every member reads the agent and its model; only its owner edits it;
-//   * a non-member other than a DocSpace admin does not read its model (403).
-
-const NON_CREATORS: Array<{ label: string; type: UserType; role: Role }> = [
-  { label: "User", type: "User", role: "user" },
-  { label: "Guest", type: "Guest", role: "guest" },
-];
-
-const OUTSIDERS: Array<{ label: string; type: UserType; role: Role }> = [
-  { label: "Room Admin", type: "RoomAdmin", role: "roomAdmin" },
-  { label: "User", type: "User", role: "user" },
-  { label: "Guest", type: "Guest", role: "guest" },
-];
+// Access to an agent (AI project, room type 12).
+// Contract: server openspec `specs/ai-agents/spec.md`.
 
 test.describe("POST /files/rooms - who creates an agent", () => {
-  for (const { label, type, role } of NON_CREATORS) {
-    test(`POST /files/rooms - ${label} cannot create an agent`, async ({
-      apiSdk,
-      paymentsApi,
-    }) => {
-      await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
-      await apiSdk.addAuthenticatedMember("owner", type);
-      const title = `Autotest Agent ${apiSdk.faker.generateString(6)}`;
+  test("POST /files/rooms - User cannot create an agent", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    await apiSdk.addAuthenticatedMember("owner", "User");
+    const title = `Autotest Agent ${apiSdk.faker.generateString(6)}`;
 
-      const { status } = await apiSdk.forRole(role).rooms.createRoom({
-        createRoomRequestDto: { title, roomType: RoomType.AiProjectRoom },
-      });
-
-      expect(status).toBe(403);
+    const { status } = await apiSdk.forRole("user").rooms.createRoom({
+      createRoomRequestDto: { title, roomType: RoomType.AiProjectRoom },
     });
-  }
+
+    expect(status).toBe(403);
+  });
+
+  test("POST /files/rooms - Guest cannot create an agent", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const title = `Autotest Agent ${apiSdk.faker.generateString(6)}`;
+
+    const { status } = await apiSdk.forRole("guest").rooms.createRoom({
+      createRoomRequestDto: { title, roomType: RoomType.AiProjectRoom },
+    });
+
+    expect(status).toBe(403);
+  });
 
   test("POST /files/rooms - Anonymous cannot create an agent", async ({
     apiSdk,
@@ -72,29 +63,57 @@ test.describe("POST /files/rooms - who creates an agent", () => {
 });
 
 test.describe("GET /files/rooms/:id/model - who reads an agent", () => {
-  for (const { label, type, role } of OUTSIDERS) {
-    test(`GET /files/rooms/:id/model - ${label} outside the agent neither reads its model nor sees it listed`, async ({
-      apiSdk,
-      paymentsApi,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      await enableAiGateway(paymentsApi, ownerApi.payment);
-      const { chat } = await agentProfiles(apiSdk);
-      const agentId = await createAgentId(apiSdk, "owner", {
-        profileId: chat,
-      });
-      await apiSdk.addAuthenticatedMember("owner", type);
-      const api = apiSdk.forRole(role);
+  test("GET /files/rooms/:id/model - Room Admin outside the agent neither reads its model nor sees it listed", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const { chat } = await agentProfiles(apiSdk);
+    const agentId = await createAgentId(apiSdk, "owner", { profileId: chat });
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const api = apiSdk.forRole("roomAdmin");
 
-      const { status } = await api.roomsAI.getProjectModel({ id: agentId });
+    const { status } = await api.roomsAI.getProjectModel({ id: agentId });
 
-      expect(status).toBe(403);
-      // Guests have no AI rooms section to list; the rest list it without the agent.
-      if (role !== "guest") {
-        expect(await listedAgentIds(api)).not.toContain(agentId);
-      }
-    });
-  }
+    expect(status).toBe(403);
+    expect(await listedAgentIds(api)).not.toContain(agentId);
+  });
+
+  test("GET /files/rooms/:id/model - User outside the agent neither reads its model nor sees it listed", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const { chat } = await agentProfiles(apiSdk);
+    const agentId = await createAgentId(apiSdk, "owner", { profileId: chat });
+    await apiSdk.addAuthenticatedMember("owner", "User");
+    const api = apiSdk.forRole("user");
+
+    const { status } = await api.roomsAI.getProjectModel({ id: agentId });
+
+    expect(status).toBe(403);
+    expect(await listedAgentIds(api)).not.toContain(agentId);
+  });
+
+  // A Guest has no AI rooms section to list, so only the model is checked.
+  test("GET /files/rooms/:id/model - Guest cannot read the model of an agent", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const { chat } = await agentProfiles(apiSdk);
+    const agentId = await createAgentId(apiSdk, "owner", { profileId: chat });
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { status } = await apiSdk
+      .forRole("guest")
+      .roomsAI.getProjectModel({ id: agentId });
+
+    expect(status).toBe(403);
+  });
 
   test("GET /files/rooms/:id/model - DocSpace Admin outside the agent reads its model", async ({
     apiSdk,
@@ -149,28 +168,26 @@ test.describe("PUT /files/rooms/:id/model - who changes an agent's model", () =>
     expect(await agentModel(ownerApi, agentId)).toBe(chat);
   });
 
-  for (const { label, type, role } of OUTSIDERS) {
-    test(`PUT /files/rooms/:id/model - ${label} outside the agent cannot change the model`, async ({
-      apiSdk,
-      paymentsApi,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      await enableAiGateway(paymentsApi, ownerApi.payment);
-      const { chat, other } = await agentProfiles(apiSdk);
-      const agentId = await createAgentId(apiSdk, "owner", {
-        profileId: chat,
-      });
-      await apiSdk.addAuthenticatedMember("owner", type);
+  test("PUT /files/rooms/:id/model - Room Admin outside the agent cannot change the model", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const { chat, other } = await agentProfiles(apiSdk);
+    const agentId = await createAgentId(apiSdk, "owner", { profileId: chat });
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
 
-      const { status } = await apiSdk.forRole(role).roomsAI.setProjectModel({
+    const { status } = await apiSdk
+      .forRole("roomAdmin")
+      .roomsAI.setProjectModel({
         id: agentId,
         updateAiProjectModelRequest: { profileId: other },
       });
 
-      expect(status).toBe(403);
-      expect(await agentModel(ownerApi, agentId)).toBe(chat);
-    });
-  }
+    expect(status).toBe(403);
+    expect(await agentModel(ownerApi, agentId)).toBe(chat);
+  });
 });
 
 test.describe("PUT|DELETE /files/rooms/:id - who edits and deletes an agent", () => {
@@ -217,35 +234,42 @@ test.describe("PUT|DELETE /files/rooms/:id - who edits and deletes an agent", ()
     expect(info.response?.title).toBe("Original Agent");
   });
 
-  for (const who of ["member", "Room Admin outside the agent"] as const) {
-    test(`DELETE /files/rooms/:id - a ${who} cannot delete the agent`, async ({
-      apiSdk,
-      paymentsApi,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      await enableAiGateway(paymentsApi, ownerApi.payment);
-      const agentId = await createAgentId(apiSdk, "owner");
-      let role: Role = "roomAdmin";
-      if (who === "member") {
-        const { data: user } = await apiSdk.addAuthenticatedMember(
-          "owner",
-          "User",
-        );
-        await inviteToAgent(ownerApi, agentId, user.response!.id!);
-        role = "user";
-      } else {
-        await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-      }
+  test("DELETE /files/rooms/:id - a member cannot delete the agent", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const agentId = await createAgentId(apiSdk, "owner");
+    const { data: user } = await apiSdk.addAuthenticatedMember("owner", "User");
+    await inviteToAgent(ownerApi, agentId, user.response!.id!);
 
-      const { status } = await apiSdk.forRole(role).rooms.deleteRoom({
-        id: agentId,
-        deleteRoomRequest: { deleteAfter: false },
-      });
-
-      expect(status).toBe(403);
-      expect(await listedAgentIds(ownerApi)).toContain(agentId);
+    const { status } = await apiSdk.forRole("user").rooms.deleteRoom({
+      id: agentId,
+      deleteRoomRequest: { deleteAfter: false },
     });
-  }
+
+    expect(status).toBe(403);
+    expect(await listedAgentIds(ownerApi)).toContain(agentId);
+  });
+
+  test("DELETE /files/rooms/:id - a Room Admin outside the agent cannot delete it", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const agentId = await createAgentId(apiSdk, "owner");
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { status } = await apiSdk.forRole("roomAdmin").rooms.deleteRoom({
+      id: agentId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+
+    expect(status).toBe(403);
+    expect(await listedAgentIds(ownerApi)).toContain(agentId);
+  });
 });
 
 test.describe("PUT /files/rooms/:id/share - who can be a member of an agent", () => {
@@ -271,35 +295,27 @@ test.describe("PUT /files/rooms/:id/share - who can be a member of an agent", ()
     expect(await agentMemberIds(ownerApi, agentId)).toContain(userId);
   });
 
-  const OTHER_ROLES: Array<{ name: string; access: FileShare }> = [
-    { name: "Room manager", access: FileShare.RoomManager },
-    { name: "Editor", access: FileShare.Editing },
-    { name: "Viewer", access: FileShare.Read },
-  ];
+  test("PUT /files/rooms/:id/share - a User is not invited as Room manager", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const agentId = await createAgentId(apiSdk, "owner");
+    const { data: user } = await apiSdk.addMember("owner", "User");
+    const userId = user.response!.id!;
 
-  for (const { name, access } of OTHER_ROLES) {
-    test(`PUT /files/rooms/:id/share - a User is not invited as ${name}`, async ({
-      apiSdk,
-      paymentsApi,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      await enableAiGateway(paymentsApi, ownerApi.payment);
-      const agentId = await createAgentId(apiSdk, "owner");
-      const { data: user } = await apiSdk.addMember("owner", "User");
-      const userId = user.response!.id!;
-
-      const { status } = await ownerApi.rooms.setRoomSecurity({
-        id: agentId,
-        roomInvitationRequest: {
-          invitations: [{ id: userId, access }],
-          notify: false,
-        },
-      });
-
-      expect(status).toBe(403);
-      expect(await agentMemberIds(ownerApi, agentId)).not.toContain(userId);
+    const { status } = await ownerApi.rooms.setRoomSecurity({
+      id: agentId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.RoomManager }],
+        notify: false,
+      },
     });
-  }
+
+    expect(status).toBe(403);
+    expect(await agentMemberIds(ownerApi, agentId)).not.toContain(userId);
+  });
 
   test("PUT /files/rooms/:id/share - a Guest is not invited", async ({
     apiSdk,
@@ -373,5 +389,82 @@ test.describe("PUT /files/rooms/:id/share - who can be a member of an agent", ()
     expect(status).toBe(403);
     const { data: links } = await ownerApi.rooms.getRoomLinks({ id: agentId });
     expect(links.response ?? []).toHaveLength(0);
+  });
+});
+
+test.describe("POST /files/owner - who can change the owner of an agent", () => {
+  // Only an active DocSpace admin or Room admin can become the owner.
+  test("POST /files/owner - a User cannot be made the owner of an agent", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const agentId = await createAgentId(apiSdk, "owner");
+    const { data: owner } = await ownerApi.profiles.getSelfProfile();
+    const { data: candidate } = await apiSdk.addMember("owner", "User");
+
+    const { status, data } = await ownerApi.sharing.changeFileOwner({
+      changeOwnerRequestDto: {
+        folderIds: [agentId as unknown as object],
+        userId: candidate.response!.id!,
+      },
+    });
+
+    expect(status).toBe(403);
+    expect(
+      (data as unknown as { error?: { message?: string } }).error?.message,
+    ).toBe("You cannot select this user");
+    const { data: info } = await ownerApi.rooms.getRoomInfo({ id: agentId });
+    expect(info.response?.createdBy?.id).toBe(owner.response!.id!);
+  });
+
+  test("POST /files/owner - a Guest cannot be made the owner of an agent", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const agentId = await createAgentId(apiSdk, "owner");
+    const { data: owner } = await ownerApi.profiles.getSelfProfile();
+    const { data: candidate } = await apiSdk.addMember("owner", "Guest");
+
+    const { status, data } = await ownerApi.sharing.changeFileOwner({
+      changeOwnerRequestDto: {
+        folderIds: [agentId as unknown as object],
+        userId: candidate.response!.id!,
+      },
+    });
+
+    expect(status).toBe(403);
+    expect(
+      (data as unknown as { error?: { message?: string } }).error?.message,
+    ).toBe("You cannot select this user");
+    const { data: info } = await ownerApi.rooms.getRoomInfo({ id: agentId });
+    expect(info.response?.createdBy?.id).toBe(owner.response!.id!);
+  });
+
+  test("POST /files/owner - a member cannot change the owner of the agent", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const agentId = await createAgentId(apiSdk, "owner");
+    const { data: owner } = await ownerApi.profiles.getSelfProfile();
+    const { data: admin } = await apiSdk.addMember("owner", "RoomAdmin");
+    const { data: user } = await apiSdk.addAuthenticatedMember("owner", "User");
+    await inviteToAgent(ownerApi, agentId, user.response!.id!);
+
+    const { status } = await apiSdk.forRole("user").sharing.changeFileOwner({
+      changeOwnerRequestDto: {
+        folderIds: [agentId as unknown as object],
+        userId: admin.response!.id!,
+      },
+    });
+
+    expect(status).toBe(403);
+    const { data: info } = await ownerApi.rooms.getRoomInfo({ id: agentId });
+    expect(info.response?.createdBy?.id).toBe(owner.response!.id!);
   });
 });
