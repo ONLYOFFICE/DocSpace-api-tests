@@ -25,7 +25,7 @@ import {
  * Operations a private ROOM must refuse (PR-RFORB-*, PR-ROOM-021, PR-INV-005/006/028).
  *
  * The functional prohibitions come from the product guide (private-rooms-
- * onboarding.html, "Недоступно для приватной комнаты"): no external links, no
+ * onboarding.html, "Unavailable for a private room"): no external links, no
  * links for members, no embedding settings, no Share tab, no editing or exporting
  * the index, no saving as a template, no duplicating the room, no AI chat, AI
  * actions or plugins for the room, its folders and files; and "the type and the

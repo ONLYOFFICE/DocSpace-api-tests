@@ -82,7 +82,7 @@ test.describe("Ownership transfer - only the owner", () => {
       "the owner transfers (positive control)",
     ).toBe(true);
     for (const who of a.members.filter((m) => m.key !== "owner")) {
-      // The guide's table: "Передать комнату другому участнику - Владелец".
+      // The guide's table: "Transfer the room to another member - Owner".
       expect
         .soft(
           outcome[who.key].priv,
