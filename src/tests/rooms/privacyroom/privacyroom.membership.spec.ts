@@ -9,6 +9,8 @@ import {
   getOwnerId,
   inviteToRoom,
   roomKeyHolders,
+  okBody,
+  okList,
   roomMemberAccess,
   uploadPrivateRoomFile,
 } from "@/src/helpers/private-rooms";
@@ -60,7 +62,10 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - membership changes", (
     const [m1] = await addKeyedMembers(apiSdk, 1);
     const ownerId = await getOwnerId(owner);
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
+    expect(
+      (await inviteToRoom(owner, roomId, m1.id, FileShare.Read)).status,
+      "inviteToRoom (setup)",
+    ).toBe(200);
 
     for (const access of [
       FileShare.ContentCreator,
@@ -89,7 +94,10 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - membership changes", (
     const [m1] = await addKeyedMembers(apiSdk, 1);
     const ownerId = await getOwnerId(owner);
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    await inviteToRoom(owner, roomId, m1.id, FileShare.Editing);
+    expect(
+      (await inviteToRoom(owner, roomId, m1.id, FileShare.Editing)).status,
+      "inviteToRoom (setup)",
+    ).toBe(200);
     expect(
       (await m1.api.privacyroom.getUserKeysForRoom({ roomId })).status,
     ).toBe(200);
@@ -112,8 +120,10 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - membership changes", (
       const { data, status } = await m1.api.privacyroom.getUserKeysForRoom({
         roomId,
       });
-      expect(status).toBe(200);
-      const own = data.response!.filter((k) => k.userId === m1.id);
+      const own = okList(
+        { data, status },
+        "getUserKeysForRoom (member)",
+      ).filter((k) => k.userId === m1.id);
       expect(own).toHaveLength(1);
       expect(own[0].publicKey).toBe(m1.publicKey);
       expect((await roomKeyHolders(owner, roomId)).sort()).toEqual(
@@ -129,7 +139,10 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - membership changes", (
     const [m1] = await addKeyedMembers(apiSdk, 1);
     const ownerId = await getOwnerId(owner);
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
+    expect(
+      (await inviteToRoom(owner, roomId, m1.id, FileShare.Read)).status,
+      "inviteToRoom (setup)",
+    ).toBe(200);
     expect((await roomKeyHolders(m1.api, roomId)).sort()).toEqual(
       [ownerId, m1.id].sort(),
     );
@@ -158,14 +171,17 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - membership changes", (
       const { data, status } = await m1.api.privacyroom.getUserKeysForRoom({
         roomId,
       });
-      expect(status).toBe(200);
-      const own = data.response!.filter((k) => k.userId === m1.id);
+      const own = okList(
+        { data, status },
+        "getUserKeysForRoom (member)",
+      ).filter((k) => k.userId === m1.id);
       expect(own.map((k) => k.publicKey)).toEqual([publicKey]);
-      const ownerView = await owner.privacyroom.getUserKeysForRoom({ roomId });
+      const ownerView = okList(
+        await owner.privacyroom.getUserKeysForRoom({ roomId }),
+        "getUserKeysForRoom (owner)",
+      );
       expect(
-        ownerView.data
-          .response!.filter((k) => k.userId === m1.id)
-          .map((k) => k.publicKey),
+        ownerView.filter((k) => k.userId === m1.id).map((k) => k.publicKey),
       ).toEqual([publicKey]);
     });
   });
@@ -176,7 +192,10 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - membership changes", (
     const owner = apiSdk.forRole("owner");
     const [m1] = await addKeyedMembers(apiSdk, 1);
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
+    expect(
+      (await inviteToRoom(owner, roomId, m1.id, FileShare.Read)).status,
+      "inviteToRoom (setup)",
+    ).toBe(200);
 
     const newPublicKey = "member-pk-rot-" + apiSdk.faker.generateString(10);
     const newPrivate = "member-prv-rot-" + apiSdk.faker.generateString(10);
@@ -188,20 +207,22 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - membership changes", (
     });
     expect(replaced.status).toBe(200);
 
-    const ownerView = await owner.privacyroom.getUserKeysForRoom({ roomId });
-    const seen = ownerView.data.response!.filter((k) => k.userId === m1.id);
+    const ownerView = okList(
+      await owner.privacyroom.getUserKeysForRoom({ roomId }),
+      "getUserKeysForRoom (owner)",
+    );
+    const seen = ownerView.filter((k) => k.userId === m1.id);
     expect(seen).toHaveLength(1);
     expect(seen[0].publicKey).toBe(newPublicKey);
     expect(seen[0].privateKeyEnc ?? null).toBeNull();
-    expect(ownerView.data.response!.map((k) => k.publicKey)).not.toContain(
-      m1.publicKey,
-    );
+    expect(ownerView.map((k) => k.publicKey)).not.toContain(m1.publicKey);
 
     // Positive control: the member's own entry does carry the private half, so
     // the absence above is a rule and not an empty read.
-    const own = (
-      await m1.api.privacyroom.getUserKeysForRoom({ roomId })
-    ).data.response!.find((k) => k.userId === m1.id);
+    const own = okList(
+      await m1.api.privacyroom.getUserKeysForRoom({ roomId }),
+      "getUserKeysForRoom (member)",
+    ).find((k) => k.userId === m1.id);
     expect(own?.privateKeyEnc).toBe(newPrivate);
   });
 
@@ -213,8 +234,14 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - membership changes", (
     const ownerId = await getOwnerId(owner);
     const roomA = await createOwnerPrivateRoom(apiSdk);
     const roomB = await createOwnerPrivateRoom(apiSdk);
-    await inviteToRoom(owner, roomA, m1.id, FileShare.Read);
-    await inviteToRoom(owner, roomB, m1.id, FileShare.Read);
+    expect(
+      (await inviteToRoom(owner, roomA, m1.id, FileShare.Read)).status,
+      "inviteToRoom (setup)",
+    ).toBe(200);
+    expect(
+      (await inviteToRoom(owner, roomB, m1.id, FileShare.Read)).status,
+      "inviteToRoom (setup)",
+    ).toBe(200);
     for (const roomId of [roomA, roomB]) {
       expect((await roomKeyHolders(owner, roomId)).sort()).toEqual(
         [ownerId, m1.id].sort(),
@@ -243,23 +270,27 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - isolation between priv
     const ownerId = await getOwnerId(owner);
     const roomA = await createOwnerPrivateRoom(apiSdk);
     const roomB = await createOwnerPrivateRoom(apiSdk);
-    await inviteToRoom(owner, roomA, m1.id, FileShare.Read);
-    await inviteToRoom(owner, roomB, m3.id, FileShare.Read);
+    expect(
+      (await inviteToRoom(owner, roomA, m1.id, FileShare.Read)).status,
+      "inviteToRoom (setup)",
+    ).toBe(200);
+    expect(
+      (await inviteToRoom(owner, roomB, m3.id, FileShare.Read)).status,
+      "inviteToRoom (setup)",
+    ).toBe(200);
 
-    const a = await owner.privacyroom.getUserKeysForRoom({ roomId: roomA });
-    const b = await owner.privacyroom.getUserKeysForRoom({ roomId: roomB });
-    expect(a.data.response!.map((k) => k.userId).sort()).toEqual(
-      [ownerId, m1.id].sort(),
+    const a = okList(
+      await owner.privacyroom.getUserKeysForRoom({ roomId: roomA }),
+      "getUserKeysForRoom A",
     );
-    expect(b.data.response!.map((k) => k.userId).sort()).toEqual(
-      [ownerId, m3.id].sort(),
+    const b = okList(
+      await owner.privacyroom.getUserKeysForRoom({ roomId: roomB }),
+      "getUserKeysForRoom B",
     );
-    expect(a.data.response!.map((k) => k.publicKey)).not.toContain(
-      m3.publicKey,
-    );
-    expect(b.data.response!.map((k) => k.publicKey)).not.toContain(
-      m1.publicKey,
-    );
+    expect(a.map((k) => k.userId).sort()).toEqual([ownerId, m1.id].sort());
+    expect(b.map((k) => k.userId).sort()).toEqual([ownerId, m3.id].sort());
+    expect(a.map((k) => k.publicKey)).not.toContain(m3.publicKey);
+    expect(b.map((k) => k.publicKey)).not.toContain(m1.publicKey);
   });
 
   test("GET /api/2.0/privacyroom/{roomId}/access - A member of one private room cannot read another's key set", async ({
@@ -269,8 +300,14 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - isolation between priv
     const [m1, m3] = await addKeyedMembers(apiSdk, 2);
     const roomA = await createOwnerPrivateRoom(apiSdk);
     const roomB = await createOwnerPrivateRoom(apiSdk);
-    await inviteToRoom(owner, roomA, m1.id, FileShare.Read);
-    await inviteToRoom(owner, roomB, m3.id, FileShare.Read);
+    expect(
+      (await inviteToRoom(owner, roomA, m1.id, FileShare.Read)).status,
+      "inviteToRoom (setup)",
+    ).toBe(200);
+    expect(
+      (await inviteToRoom(owner, roomB, m3.id, FileShare.Read)).status,
+      "inviteToRoom (setup)",
+    ).toBe(200);
 
     // Positive controls: each reads the room they belong to.
     expect(
@@ -298,7 +335,11 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - isolation between priv
       const owner = apiSdk.forRole("owner");
       const ownerId = await getOwnerId(owner);
       const roomId = await createOwnerPrivateRoom(apiSdk);
-      const { userData } = await apiSdk.addMember("owner", type);
+      const { userData, status: addStatus } = await apiSdk.addMember(
+        "owner",
+        type,
+      );
+      expect(addStatus, `addMember ${type}`).toBe(200);
       await apiSdk.authenticateMember(userData, type);
 
       const { status } = await apiSdk
@@ -317,7 +358,10 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - isolation between priv
     const [m1] = await addKeyedMembers(apiSdk, 1);
     const ownerId = await getOwnerId(owner);
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
+    expect(
+      (await inviteToRoom(owner, roomId, m1.id, FileShare.Read)).status,
+      "inviteToRoom (setup)",
+    ).toBe(200);
 
     await archiveRoomAndWait(apiSdk, roomId);
 
@@ -333,13 +377,16 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - ids that are not priva
   }) => {
     const owner = apiSdk.forRole("owner");
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    const { data } = await owner.folders.createFolder({
+    const { data, status: folderStatus } = await owner.folders.createFolder({
       folderId: roomId,
       createFolderRequest: {
         title: "Autotest sub " + apiSdk.faker.generateString(6),
       },
     });
+    expect(folderStatus, "createFolder in the private room").toBe(200);
 
+    // Positive control: the room itself answers its key set.
+    await roomKeyHolders(owner, roomId);
     const { status } = await owner.privacyroom.getUserKeysForRoom({
       roomId: data.response!.id!,
     });
@@ -365,10 +412,14 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - ids that are not priva
     apiSdk,
   }) => {
     const owner = apiSdk.forRole("owner");
-    const { data } = await owner.folders.getMyFolder();
+    const data = {
+      response: okBody(await owner.folders.getMyFolder(), "getMyFolder"),
+    };
 
+    // Positive control: a private room answers its key set.
+    await roomKeyHolders(owner, await createOwnerPrivateRoom(apiSdk));
     const { status } = await owner.privacyroom.getUserKeysForRoom({
-      roomId: data.response!.current!.id!,
+      roomId: data.response.current!.id!,
     });
     expect(status).toBe(400);
   });

@@ -1,7 +1,15 @@
 import { expect } from "@playwright/test";
 import { FileShare, RoomType, SearchArea } from "@onlyoffice/docspace-api-sdk";
 import { ApiSDK } from "../services/api-sdk";
-import { Api, createOwnerPrivateRoom, inviteToRoom } from "./private-rooms";
+import {
+  Api,
+  createOwnerPrivateRoom,
+  getOwnerId,
+  inviteToRoom,
+  okBody,
+  okList,
+} from "./private-rooms";
+import { listRoomIds } from "./private-room-lifecycle";
 import { KitRole } from "./private-room-forbidden";
 import {
   UploadedFile,
@@ -44,7 +52,7 @@ export async function buildRoomKit(
 ): Promise<RoomKit> {
   const ownerApi = apiSdk.forRole("owner");
   const ownerToken = apiSdk.tokenStore.getToken("owner");
-  const ownerId = (await ownerApi.profiles.getSelfProfile()).data.response!.id!;
+  const ownerId = await getOwnerId(ownerApi);
   const specs =
     role === "manager"
       ? [{ type: "RoomAdmin" as const, key: true }]
@@ -133,27 +141,40 @@ export async function buildRoomKit(
 const ids = (entries?: unknown[] | null) =>
   ((entries ?? []) as { id?: number }[]).map((e) => e.id).sort();
 
-/** The parts of a room the forbidden operations must not change. */
+/**
+ * The parts of a room the forbidden operations must not change. Every read must
+ * succeed: a snapshot of error answers would be identical before and after and
+ * would "prove" that nothing changed.
+ */
 export async function roomState(reader: Api, roomId: number) {
-  const info = (await reader.rooms.getRoomInfo({ id: roomId })).data.response!;
-  const content = (
-    await reader.folders.getFolderByFolderId({ folderId: roomId })
-  ).data.response;
-  const members = (await reader.rooms.getRoomSecurityInfo({ id: roomId })).data
-    .response;
-  const links = (await reader.rooms.getRoomLinks({ id: roomId })).data.response;
-  const files = (content?.files ?? []) as {
+  const info = okBody(
+    await reader.rooms.getRoomInfo({ id: roomId }),
+    "getRoomInfo",
+  );
+  const content = okBody(
+    await reader.folders.getFolderByFolderId({ folderId: roomId }),
+    "getFolderByFolderId",
+  );
+  const members = okList(
+    await reader.rooms.getRoomSecurityInfo({ id: roomId }),
+    "getRoomSecurityInfo",
+  );
+  const links = okList(
+    await reader.rooms.getRoomLinks({ id: roomId }),
+    "getRoomLinks",
+  );
+  const files = (content.files ?? []) as {
     id?: number;
     encrypted?: boolean;
   }[];
   const keys: string[] = [];
-  for (const f of files)
-    keys.push(
-      JSON.stringify(
-        (await reader.files.getEncryptionInfo({ fileId: f.id! })).data.response
-          ?.fileKeys ?? [],
-      ),
+  for (const f of files) {
+    const k = okBody(
+      await reader.files.getEncryptionInfo({ fileId: f.id! }),
+      `getEncryptionInfo(${f.id})`,
     );
+    keys.push(JSON.stringify(k.fileKeys ?? []));
+  }
   return {
     info: {
       roomType: info.roomType,
@@ -167,8 +188,8 @@ export async function roomState(reader: Api, roomId: number) {
     },
     files: ids(files),
     encrypted: files.map((f) => f.encrypted === true),
-    folders: ids(content?.folders),
-    members: (members ?? [])
+    folders: ids(content.folders),
+    members: members
       .map((m) => `${(m.sharedTo as { id?: string }).id}:${m.access}`)
       .sort(),
     links: ids(links),
@@ -176,17 +197,14 @@ export async function roomState(reader: Api, roomId: number) {
   };
 }
 
-/** The rooms and templates the caller can list, by id. */
+/** The rooms and templates the caller can list, by id (all pages; every request must succeed). */
 export async function portalState(actor: Api, admin: Api) {
-  const roomsOf = async (api: Api, area?: SearchArea) =>
-    ids(
-      (await api.rooms.getRoomsFolder({ searchArea: area, count: 100 })).data
-        .response?.folders,
-    );
+  const sorted = async (api: Api, area: SearchArea) =>
+    (await listRoomIds(api, area)).sort();
   return {
-    any: await roomsOf(admin, SearchArea.Any),
-    privateRooms: await roomsOf(admin, SearchArea.PrivateRooms),
-    archive: await roomsOf(admin, SearchArea.Archive),
-    templates: await roomsOf(actor, SearchArea.Templates),
+    any: await sorted(admin, SearchArea.Any),
+    privateRooms: await sorted(admin, SearchArea.PrivateRooms),
+    archive: await sorted(admin, SearchArea.Archive),
+    templates: await sorted(actor, SearchArea.Templates),
   };
 }

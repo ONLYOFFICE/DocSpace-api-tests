@@ -5,7 +5,9 @@ export async function waitForRoomTemplate(rooms: RoomsApi): Promise<number> {
   let templateId = -1;
 
   await expect(async () => {
-    const { data } = await rooms.getRoomTemplateCreatingStatus();
+    const { data, status } = await rooms.getRoomTemplateCreatingStatus();
+    expect(status, "getRoomTemplateCreatingStatus: HTTP status").toBe(200);
+    expect(data.response, "no creating status in the answer").toBeTruthy();
     expect(data.response!.isCompleted).toBe(true);
     templateId = data.response!.templateId;
   }).toPass({

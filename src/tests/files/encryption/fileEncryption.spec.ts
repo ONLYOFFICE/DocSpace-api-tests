@@ -6,7 +6,7 @@ import {
   createPrivateRoom,
   privateSupportedRoomTypes,
 } from "@/src/helpers/rooms";
-import { uploadPrivateRoomFile } from "@/src/helpers/private-rooms";
+import { okBody, uploadPrivateRoomFile } from "@/src/helpers/private-rooms";
 
 const ZERO_GUID = "00000000-0000-0000-0000-000000000000";
 
@@ -24,20 +24,44 @@ async function createPrivateRoomWithFile(
     roomType,
   });
   expect(status, `createPrivateRoom: ${JSON.stringify(roomData)}`).toBe(200);
+  expect(roomData.response?.private, "the room is not private").toBe(true);
   const roomId = roomData.response!.id!;
   const fileId = await uploadPrivateRoomFile(ownerApi, roomId);
-  const { data: me } = await ownerApi.profiles.getSelfProfile();
+  const me = okBody(await ownerApi.profiles.getSelfProfile(), "getSelfProfile");
   return {
     ownerApi,
     roomId,
     fileId,
-    ownerId: me.response!.id!,
+    ownerId: me.id!,
   };
 }
 
+// The read must succeed: an error answer is not "no file keys".
 async function readFileKeys(api: OwnerApi, fileId: number) {
-  const { data } = await api.files.getEncryptionInfo({ fileId });
-  return data.response?.fileKeys ?? [];
+  const info = okBody(
+    await api.files.getEncryptionInfo({ fileId }),
+    `getEncryptionInfo(${fileId})`,
+  );
+  expect(Array.isArray(info.fileKeys), "fileKeys is not a list").toBe(true);
+  return info.fileKeys!;
+}
+
+// A write that is a precondition of the test: the exact status is asserted.
+async function seedKey(
+  api: OwnerApi,
+  fileId: number,
+  userId: string,
+  privateKeyEnc: string,
+) {
+  const res = await api.files.setEncryptionInfo({
+    fileId,
+    accessRequestKeyDto: [{ userId, publicKeyId: ZERO_GUID, privateKeyEnc }],
+  });
+  expect(
+    res.status,
+    `seed key ${privateKeyEnc}: ${JSON.stringify(res.data)}`,
+  ).toBe(200);
+  expect(res.data.response?.skippedUserIds, "seed key was skipped").toEqual([]);
 }
 
 test.describe("GET /files/:fileId/access", () => {
@@ -55,6 +79,7 @@ test.describe("GET /files/:fileId/access", () => {
       });
 
       expect(status).toBe(200);
+      expect(Array.isArray(data.response?.fileKeys)).toBe(true);
       expect(data.response?.userKeys).toHaveLength(1);
       expect(data.response?.userKeys?.[0].userId).toBe(ownerId);
       expect(data.response?.userKeys?.[0].publicKey).toMatch(/^pk-/);
@@ -72,6 +97,8 @@ test.describe("GET /files/:fileId/access", () => {
 
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
+    expect(first.data.response?.userKeys).toHaveLength(1);
+    expect(first.data.response?.fileKeys).toEqual([]);
     expect(second.data.response).toEqual(first.data.response);
   });
 
@@ -127,16 +154,12 @@ test.describe("PUT /files/:fileId/access", () => {
   }) => {
     const { ownerApi, fileId, ownerId } =
       await createPrivateRoomWithFile(apiSdk);
-    const setKey = (privateKeyEnc: string) =>
-      ownerApi.files.setEncryptionInfo({
-        fileId,
-        accessRequestKeyDto: [
-          { userId: ownerId, publicKeyId: ZERO_GUID, privateKeyEnc },
-        ],
-      });
 
-    expect((await setKey("first")).status).toBe(200);
-    expect((await setKey("second")).status).toBe(200);
+    await seedKey(ownerApi, fileId, ownerId, "first");
+    expect(
+      (await readFileKeys(ownerApi, fileId)).map((k) => k.privateKeyEnc),
+    ).toEqual(["first"]);
+    await seedKey(ownerApi, fileId, ownerId, "second");
 
     const fileKeys = await readFileKeys(ownerApi, fileId);
     expect(fileKeys.map((k) => k.privateKeyEnc)).toEqual(["second"]);
@@ -147,12 +170,17 @@ test.describe("PUT /files/:fileId/access", () => {
   }) => {
     const { ownerApi, roomId, fileId, ownerId } =
       await createPrivateRoomWithFile(apiSdk);
-    const { api: memberApi, data: memberData } =
-      await apiSdk.addAuthenticatedMember("owner", "User");
+    const {
+      api: memberApi,
+      data: memberData,
+      status: addStatus,
+    } = await apiSdk.addAuthenticatedMember("owner", "User");
+    expect(addStatus).toBe(200);
     const memberId = memberData.response!.id!;
-    await memberApi.privacyroom.setKeys({
+    const { status: keysStatus } = await memberApi.privacyroom.setKeys({
       encryptionKeyRequestDto: { publicKey: "mpk", privateKeyEnc: "mprv" },
     });
+    expect(keysStatus).toBe(201);
     const { status: inviteStatus } = await ownerApi.rooms.setRoomSecurity({
       id: roomId,
       roomInvitationRequest: {
@@ -162,26 +190,12 @@ test.describe("PUT /files/:fileId/access", () => {
     });
     expect(inviteStatus).toBe(200);
 
-    await ownerApi.files.setEncryptionInfo({
-      fileId,
-      accessRequestKeyDto: [
-        {
-          userId: memberId,
-          publicKeyId: ZERO_GUID,
-          privateKeyEnc: "for-member",
-        },
-      ],
-    });
+    await seedKey(ownerApi, fileId, memberId, "for-member");
     expect(
       (await readFileKeys(memberApi, fileId)).map((k) => k.privateKeyEnc),
     ).toEqual(["for-member"]);
 
-    await ownerApi.files.setEncryptionInfo({
-      fileId,
-      accessRequestKeyDto: [
-        { userId: ownerId, publicKeyId: ZERO_GUID, privateKeyEnc: "for-owner" },
-      ],
-    });
+    await seedKey(ownerApi, fileId, ownerId, "for-owner");
 
     expect(
       (await readFileKeys(memberApi, fileId)).map((k) => k.privateKeyEnc),
@@ -196,13 +210,7 @@ test.describe("PUT /files/:fileId/access", () => {
   }) => {
     const { ownerApi, fileId, ownerId } =
       await createPrivateRoomWithFile(apiSdk);
-    const seeded = await ownerApi.files.setEncryptionInfo({
-      fileId,
-      accessRequestKeyDto: [
-        { userId: ownerId, publicKeyId: ZERO_GUID, privateKeyEnc: "kept" },
-      ],
-    });
-    expect(seeded.status, JSON.stringify(seeded.data)).toBe(200);
+    await seedKey(ownerApi, fileId, ownerId, "kept");
 
     const { status, data } = await ownerApi.files.setEncryptionInfo({
       fileId,
@@ -269,30 +277,40 @@ test.describe("PUT /files/:fileId/access", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data: me } = await ownerApi.profiles.getSelfProfile();
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest Not Private Room",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const { data: fileData } = await ownerApi.files.createFile({
-      folderId: roomData.response!.id!,
-      createFileRequest: { title: "Autotest Plain File.docx" },
-    });
+    const me = okBody(
+      await ownerApi.profiles.getSelfProfile(),
+      "getSelfProfile",
+    );
+    const room = okBody(
+      await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Not Private Room",
+          roomType: RoomType.CustomRoom,
+        },
+      }),
+      "createRoom",
+    );
+    expect(room.private, "the room must not be private").toBeFalsy();
+    const plainFileId = okBody(
+      await ownerApi.files.createFile({
+        folderId: room.id!,
+        createFileRequest: { title: "Autotest Plain File.docx" },
+      }),
+      "createFile",
+    ).id!;
 
     const { status } = await ownerApi.files.setEncryptionInfo({
-      fileId: fileData.response!.id!,
+      fileId: plainFileId,
       accessRequestKeyDto: [
         {
-          userId: me.response!.id!,
+          userId: me.id!,
           publicKeyId: ZERO_GUID,
           privateKeyEnc: "k",
         },
       ],
     });
 
-    expect(await readFileKeys(ownerApi, fileData.response!.id!)).toEqual([]);
+    expect(await readFileKeys(ownerApi, plainFileId)).toEqual([]);
     expect(status).toBe(403);
   });
 
@@ -300,16 +318,22 @@ test.describe("PUT /files/:fileId/access", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data: me } = await ownerApi.profiles.getSelfProfile();
-    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileRequest: { title: "Autotest My Documents File.docx" },
-    });
+    const me = okBody(
+      await ownerApi.profiles.getSelfProfile(),
+      "getSelfProfile",
+    );
+    const myDocsFileId = okBody(
+      await ownerApi.files.createFileInMyDocuments({
+        createFileRequest: { title: "Autotest My Documents File.docx" },
+      }),
+      "createFileInMyDocuments",
+    ).id!;
 
     const { status } = await ownerApi.files.setEncryptionInfo({
-      fileId: fileData.response!.id!,
+      fileId: myDocsFileId,
       accessRequestKeyDto: [
         {
-          userId: me.response!.id!,
+          userId: me.id!,
           publicKeyId: ZERO_GUID,
           privateKeyEnc: "k",
         },
@@ -320,96 +344,103 @@ test.describe("PUT /files/:fileId/access", () => {
   });
 
   // A blank key is stored and silently overwrites the real one.
-  test.fail(
-    "BUG XXXXX: PUT /files/:fileId/access - Blank privateKeyEnc returns 400 and keeps the existing key",
-    async ({ apiSdk }) => {
-      const { ownerApi, fileId, ownerId } =
-        await createPrivateRoomWithFile(apiSdk);
-      await ownerApi.files.setEncryptionInfo({
-        fileId,
-        accessRequestKeyDto: [
-          {
-            userId: ownerId,
-            publicKeyId: ZERO_GUID,
-            privateKeyEnc: "real-key",
-          },
-        ],
-      });
+  test("BUG XXXXX: PUT /files/:fileId/access - Blank privateKeyEnc returns 400 and keeps the existing key", async ({
+    apiSdk,
+  }) => {
+    const { ownerApi, fileId, ownerId } =
+      await createPrivateRoomWithFile(apiSdk);
+    await seedKey(ownerApi, fileId, ownerId, "real-key");
+    expect(
+      (await readFileKeys(ownerApi, fileId)).map((k) => k.privateKeyEnc),
+      "setup: the real key is stored",
+    ).toEqual(["real-key"]);
 
-      const { status } = await ownerApi.files.setEncryptionInfo({
-        fileId,
-        accessRequestKeyDto: [
-          { userId: ownerId, publicKeyId: ZERO_GUID, privateKeyEnc: "" },
-        ],
-      });
+    const { status } = await ownerApi.files.setEncryptionInfo({
+      fileId,
+      accessRequestKeyDto: [
+        { userId: ownerId, publicKeyId: ZERO_GUID, privateKeyEnc: "" },
+      ],
+    });
 
-      expect(
-        (await readFileKeys(ownerApi, fileId)).map((k) => k.privateKeyEnc),
-      ).toEqual(["real-key"]);
-      expect(status).toBe(400);
-    },
-  );
+    // Every read comes first; only the two assertions of the violation follow the marker.
+    const stored = (await readFileKeys(ownerApi, fileId)).map(
+      (k) => k.privateKeyEnc,
+    );
+    // Known violation (setup succeeded): the blank key overwrites the real one.
+    test.fail();
+    expect(stored).toEqual(["real-key"]);
+    expect(status).toBe(400);
+  });
 
   // A missing privateKeyEnc crashes on the database write (500).
-  test.fail(
-    "BUG XXXXX: PUT /files/:fileId/access - Missing privateKeyEnc returns 400",
-    async ({ apiSdk }) => {
-      const { ownerApi, fileId, ownerId } =
-        await createPrivateRoomWithFile(apiSdk);
+  test("BUG XXXXX: PUT /files/:fileId/access - Missing privateKeyEnc returns 400", async ({
+    apiSdk,
+  }) => {
+    const { ownerApi, fileId, ownerId } =
+      await createPrivateRoomWithFile(apiSdk);
+    expect(await readFileKeys(ownerApi, fileId), "setup: no keys").toEqual([]);
 
-      const { status } = await ownerApi.files.setEncryptionInfo({
-        fileId,
-        accessRequestKeyDto: [{ userId: ownerId, publicKeyId: ZERO_GUID }],
-      });
+    const { status } = await ownerApi.files.setEncryptionInfo({
+      fileId,
+      accessRequestKeyDto: [{ userId: ownerId, publicKeyId: ZERO_GUID }],
+    });
 
-      expect(await readFileKeys(ownerApi, fileId)).toEqual([]);
-      expect(status).toBe(400);
-    },
-  );
+    const stored = await readFileKeys(ownerApi, fileId);
+    // Known violation (setup succeeded): 500 instead of 400.
+    test.fail();
+    expect(stored).toEqual([]);
+    expect(status).toBe(400);
+  });
 
   // The same account twice in one request surfaces an EF Core tracking exception as 403.
-  test.fail(
-    "BUG XXXXX: PUT /files/:fileId/access - Same account twice in one request returns 400",
-    async ({ apiSdk }) => {
-      const { ownerApi, fileId, ownerId } =
-        await createPrivateRoomWithFile(apiSdk);
+  test("BUG XXXXX: PUT /files/:fileId/access - Same account twice in one request returns 400", async ({
+    apiSdk,
+  }) => {
+    const { ownerApi, fileId, ownerId } =
+      await createPrivateRoomWithFile(apiSdk);
+    expect(await readFileKeys(ownerApi, fileId), "setup: no keys").toEqual([]);
 
-      const { status, data } = await ownerApi.files.setEncryptionInfo({
-        fileId,
-        accessRequestKeyDto: [
-          { userId: ownerId, publicKeyId: ZERO_GUID, privateKeyEnc: "d1" },
-          { userId: ownerId, publicKeyId: ZERO_GUID, privateKeyEnc: "d2" },
-        ],
-      });
+    const { status, data } = await ownerApi.files.setEncryptionInfo({
+      fileId,
+      accessRequestKeyDto: [
+        { userId: ownerId, publicKeyId: ZERO_GUID, privateKeyEnc: "d1" },
+        { userId: ownerId, publicKeyId: ZERO_GUID, privateKeyEnc: "d2" },
+      ],
+    });
 
-      expect(await readFileKeys(ownerApi, fileId)).toEqual([]);
-      expect(status).toBe(400);
-      expect(JSON.stringify(data)).not.toContain("DbFileKeys");
-    },
-  );
+    const stored = await readFileKeys(ownerApi, fileId);
+    // Known violation (setup succeeded): 403 with an EF Core exception text.
+    test.fail();
+    expect(stored).toEqual([]);
+    expect(status).toBe(400);
+    expect(JSON.stringify(data)).not.toContain("DbFileKeys");
+  });
 
   // A publicKeyId that names none of the account's keys is accepted and stored.
-  test.fail(
-    "BUG XXXXX: PUT /files/:fileId/access - publicKeyId of a key the account does not own returns 400",
-    async ({ apiSdk }) => {
-      const { ownerApi, fileId, ownerId } =
-        await createPrivateRoomWithFile(apiSdk);
+  test("BUG XXXXX: PUT /files/:fileId/access - publicKeyId of a key the account does not own returns 400", async ({
+    apiSdk,
+  }) => {
+    const { ownerApi, fileId, ownerId } =
+      await createPrivateRoomWithFile(apiSdk);
+    expect(await readFileKeys(ownerApi, fileId), "setup: no keys").toEqual([]);
 
-      const { status } = await ownerApi.files.setEncryptionInfo({
-        fileId,
-        accessRequestKeyDto: [
-          {
-            userId: ownerId,
-            publicKeyId: "22222222-2222-2222-2222-222222222222",
-            privateKeyEnc: "k",
-          },
-        ],
-      });
+    const { status } = await ownerApi.files.setEncryptionInfo({
+      fileId,
+      accessRequestKeyDto: [
+        {
+          userId: ownerId,
+          publicKeyId: "22222222-2222-2222-2222-222222222222",
+          privateKeyEnc: "k",
+        },
+      ],
+    });
 
-      expect(await readFileKeys(ownerApi, fileId)).toEqual([]);
-      expect(status).toBe(400);
-    },
-  );
+    const stored = await readFileKeys(ownerApi, fileId);
+    // Known violation (setup succeeded): the key is accepted and stored.
+    test.fail();
+    expect(stored).toEqual([]);
+    expect(status).toBe(400);
+  });
 
   // Documented: "a file outside a private room and a file that does not exist
   // are all refused with 403".
@@ -431,7 +462,11 @@ test.describe("PUT /files/:fileId/access", () => {
     apiSdk,
   }) => {
     const { ownerApi, fileId } = await createPrivateRoomWithFile(apiSdk);
-    const { data: outsider } = await apiSdk.addMember("owner", "User");
+    const { data: outsider, status: addStatus } = await apiSdk.addMember(
+      "owner",
+      "User",
+    );
+    expect(addStatus).toBe(200);
     const outsiderId = outsider.response!.id!;
 
     const { data, status } = await ownerApi.files.setEncryptionInfo({

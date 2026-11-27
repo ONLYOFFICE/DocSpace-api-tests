@@ -1,6 +1,8 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
+import { FileShare, FolderType, RoomType } from "@onlyoffice/docspace-api-sdk";
+import { ApiSDK } from "@/src/services/api-sdk";
+import { okBody } from "@/src/helpers/private-rooms";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
 // Private Rooms are being tested again (skips removed 2026-11-05). History: the
@@ -10,7 +12,7 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
 // contract may have changed. On 2026-11-05 (DocSpace 4.1.0) the markers of BUGs
 // 82544 / 82545 / 82546 / 82551 / 82552 / 82553 / 82554 / 82800 / 82803 were
 // removed: setKeys answers 201, deleteKeys 204, and the validation is in place.
-// Only the partial-body replaceKey (82802) is still expected to fail. BUG 82524 (a Guest cannot create encryption keys) is closed as
+// The partial-body replaceKey (82802) was re-verified on 2026-11-27: it now answers 400 and leaves the key intact, so its test.fail marker was removed. BUG 82524 (a Guest cannot create encryption keys) is closed as
 // by-design and is not treated as a bug.
 
 /**
@@ -43,8 +45,9 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
  *  - replaceKey updates the key whose id matches (in place, leaving the others
  *    untouched); with no matching id it is rejected and creates nothing.
  *  - replaceKey rejects an empty/absent body and empty or whitespace key fields
- *    with 400 and leaves the stored key intact. A body with only publicKey is
- *    still a FULL overwrite that erases privateKeyEnc (BUG 82802): only the
+ *    with 400 and leaves the stored key intact. A body with only publicKey was
+ *    a FULL overwrite that erased privateKeyEnc (BUG 82802, fixed: it now is a
+ *    400 that leaves the key intact); the reason it mattered: only the
  *    client holds the plaintext private key, so a wiped privateKeyEnc cannot
  *    be restored and every private room it protects becomes undecryptable.
  *  - A publicKey of 8192 chars is stored intact; oversized values are rejected
@@ -71,6 +74,22 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
  */
 const ZERO_GUID = "00000000-0000-0000-0000-000000000000";
 
+type Owner = ReturnType<ApiSDK["forRole"]>;
+
+/** A private Custom room of the caller (who must already hold a key); asserts the creation. */
+async function makePrivateRoom(api: Owner, suffix: string) {
+  const { data, status } = await api.rooms.createRoom({
+    createRoomRequestDto: {
+      title: "Autotest Privacy Room " + suffix,
+      roomType: RoomType.CustomRoom,
+      private: true,
+    },
+  });
+  expect(status, "creating the private room").toBe(200);
+  expect(data.response?.private, "the room is not private").toBe(true);
+  return data.response!.id! as number;
+}
+
 test.describe("API privacyroom methods", () => {
   test.describe("GET /api/2.0/privacyroom/keys - getUserKeys", () => {
     test("GET /api/2.0/privacyroom/keys - Owner has no keys initially", async ({
@@ -93,9 +112,14 @@ test.describe("API privacyroom methods", () => {
       const publicKey = "pk-" + apiSdk.faker.generateString(16);
       const privateKeyEnc = "prv-" + apiSdk.faker.generateString(16);
 
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey, privateKeyEnc },
-      });
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: { publicKey, privateKeyEnc },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
 
       const { data, status } = await owner.privacyroom.getUserKeys();
 
@@ -117,20 +141,27 @@ test.describe("API privacyroom methods", () => {
       // CALLER (not some other user), date must be a real timestamp, and every
       // key must report the same crypto engine.
       const owner = apiSdk.forRole("owner");
-      const self = await owner.profiles.getSelfProfile();
-      const selfId = self.data.response!.id;
+      const selfId = okBody(
+        await owner.profiles.getSelfProfile(),
+        "getSelfProfile",
+      ).id;
       const before = Date.now();
 
       const idA = "b0b0b0b0-0000-0000-0000-00000000000a";
       const idB = "b0b0b0b0-0000-0000-0000-00000000000b";
       for (const id of [idA, idB]) {
-        await owner.privacyroom.setKeys({
-          encryptionKeyRequestDto: {
-            id,
-            publicKey: "pk-" + id,
-            privateKeyEnc: "prv-" + id,
-          },
-        });
+        expect(
+          (
+            await owner.privacyroom.setKeys({
+              encryptionKeyRequestDto: {
+                id,
+                publicKey: "pk-" + id,
+                privateKeyEnc: "prv-" + id,
+              },
+            })
+          ).status,
+          "setKeys (setup)",
+        ).toBe(201);
       }
 
       const { data, status } = await owner.privacyroom.getUserKeys();
@@ -161,18 +192,32 @@ test.describe("API privacyroom methods", () => {
       apiSdk,
     }) => {
       const owner = apiSdk.forRole("owner");
-      await apiSdk.addAuthenticatedMember("owner", "User");
-      const user = apiSdk.forRole("user");
+      const added = await apiSdk.addAuthenticatedMember("owner", "User");
+      expect(added.status, "addAuthenticatedMember User").toBe(200);
+      const user = added.api;
 
       const ownerPk = "owner-" + apiSdk.faker.generateString(12);
       const userPk = "user-" + apiSdk.faker.generateString(12);
 
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey: ownerPk, privateKeyEnc: "op" },
-      });
-      await user.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey: userPk, privateKeyEnc: "up" },
-      });
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              publicKey: ownerPk,
+              privateKeyEnc: "op",
+            },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
+      expect(
+        (
+          await user.privacyroom.setKeys({
+            encryptionKeyRequestDto: { publicKey: userPk, privateKeyEnc: "up" },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
 
       const ownerKeys = await owner.privacyroom.getUserKeys();
       const userKeys = await user.privacyroom.getUserKeys();
@@ -228,13 +273,18 @@ test.describe("API privacyroom methods", () => {
       const pkA = "pkA-" + apiSdk.faker.generateString(12);
       const pkB = "pkB-" + apiSdk.faker.generateString(12);
 
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: {
-          id: idA,
-          publicKey: pkA,
-          privateKeyEnc: "a",
-        },
-      });
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              id: idA,
+              publicKey: pkA,
+              privateKeyEnc: "a",
+            },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
       // Creating the additional key should return 201 Created; the API returns
       // 200. Data assertions run first, only the status drives the failure.
       const { data, status } = await owner.privacyroom.setKeys({
@@ -267,13 +317,18 @@ test.describe("API privacyroom methods", () => {
         "aaaaaaaa-0000-0000-0000-000000000003",
       ];
       for (const id of ids) {
-        await owner.privacyroom.setKeys({
-          encryptionKeyRequestDto: {
-            id,
-            publicKey: "pk-" + id,
-            privateKeyEnc: "prv",
-          },
-        });
+        expect(
+          (
+            await owner.privacyroom.setKeys({
+              encryptionKeyRequestDto: {
+                id,
+                publicKey: "pk-" + id,
+                privateKeyEnc: "prv",
+              },
+            })
+          ).status,
+          "setKeys (setup)",
+        ).toBe(201);
       }
 
       const { data, status } = await owner.privacyroom.getUserKeys();
@@ -294,13 +349,18 @@ test.describe("API privacyroom methods", () => {
       const original = "pk-orig-" + apiSdk.faker.generateString(12);
       const attempted = "pk-new-" + apiSdk.faker.generateString(12);
 
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: {
-          id,
-          publicKey: original,
-          privateKeyEnc: "prv1",
-        },
-      });
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              id,
+              publicKey: original,
+              privateKeyEnc: "prv1",
+            },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
 
       const { status } = await owner.privacyroom.setKeys({
         encryptionKeyRequestDto: {
@@ -468,12 +528,17 @@ test.describe("API privacyroom methods", () => {
     }) => {
       const owner = apiSdk.forRole("owner");
 
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: {
-          publicKey: "pk-" + apiSdk.faker.generateString(16),
-          privateKeyEnc: "prv-" + apiSdk.faker.generateString(16),
-        },
-      });
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              publicKey: "pk-" + apiSdk.faker.generateString(16),
+              privateKeyEnc: "prv-" + apiSdk.faker.generateString(16),
+            },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
 
       const newPublicKey = "pk-new-" + apiSdk.faker.generateString(16);
       const newPrivateKeyEnc = "prv-new-" + apiSdk.faker.generateString(16);
@@ -503,12 +568,28 @@ test.describe("API privacyroom methods", () => {
       const oldPk = "old-" + apiSdk.faker.generateString(12);
       const newPk = "new-" + apiSdk.faker.generateString(12);
 
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey: oldPk, privateKeyEnc: "oldprv" },
-      });
-      await owner.privacyroom.replaceKey({
-        encryptionKeyRequestDto: { publicKey: newPk, privateKeyEnc: "newprv" },
-      });
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              publicKey: oldPk,
+              privateKeyEnc: "oldprv",
+            },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
+      expect(
+        (
+          await owner.privacyroom.replaceKey({
+            encryptionKeyRequestDto: {
+              publicKey: newPk,
+              privateKeyEnc: "newprv",
+            },
+          })
+        ).status,
+        "replaceKey (setup)",
+      ).toBe(200);
 
       const all = await owner.privacyroom.getUserKeys();
       expect(all.status).toBe(200);
@@ -549,20 +630,30 @@ test.describe("API privacyroom methods", () => {
       const pkB = "pkB-" + apiSdk.faker.generateString(10);
       const pkBNew = "pkB-new-" + apiSdk.faker.generateString(10);
 
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: {
-          id: idA,
-          publicKey: pkA,
-          privateKeyEnc: "a",
-        },
-      });
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: {
-          id: idB,
-          publicKey: pkB,
-          privateKeyEnc: "b",
-        },
-      });
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              id: idA,
+              publicKey: pkA,
+              privateKeyEnc: "a",
+            },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              id: idB,
+              publicKey: pkB,
+              privateKeyEnc: "b",
+            },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
 
       const { status } = await owner.privacyroom.replaceKey({
         encryptionKeyRequestDto: {
@@ -598,15 +689,30 @@ test.describe("API privacyroom methods", () => {
       const v3 = "v3-" + apiSdk.faker.generateString(10);
 
       // No id supplied -> every call targets the same (zero-GUID) key.
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey: v1, privateKeyEnc: "p1" },
-      });
-      await owner.privacyroom.replaceKey({
-        encryptionKeyRequestDto: { publicKey: v2, privateKeyEnc: "p2" },
-      });
-      await owner.privacyroom.replaceKey({
-        encryptionKeyRequestDto: { publicKey: v3, privateKeyEnc: "p3" },
-      });
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: { publicKey: v1, privateKeyEnc: "p1" },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
+      expect(
+        (
+          await owner.privacyroom.replaceKey({
+            encryptionKeyRequestDto: { publicKey: v2, privateKeyEnc: "p2" },
+          })
+        ).status,
+        "replaceKey (setup)",
+      ).toBe(200);
+      expect(
+        (
+          await owner.privacyroom.replaceKey({
+            encryptionKeyRequestDto: { publicKey: v3, privateKeyEnc: "p3" },
+          })
+        ).status,
+        "replaceKey (setup)",
+      ).toBe(200);
 
       const all = await owner.privacyroom.getUserKeys();
       // Only the single zero-GUID slot exists, holding the latest value.
@@ -713,9 +819,14 @@ test.describe("API privacyroom methods", () => {
       const owner = apiSdk.forRole("owner");
       const publicKey = "orig-pk-" + apiSdk.faker.generateString(12);
       const privateKeyEnc = "orig-prv-" + apiSdk.faker.generateString(12);
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey, privateKeyEnc },
-      });
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: { publicKey, privateKeyEnc },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
 
       const { status } = await owner.privacyroom.replaceKey();
 
@@ -733,28 +844,36 @@ test.describe("API privacyroom methods", () => {
       // it did not mention is dropped from the stored key. Either the endpoint
       // must merge (leaving privateKeyEnc intact) or it must reject a partial
       // body with 400 — silently discarding the private key is neither.
-      test.fail(
-        true,
-        "BUG 82802: replaceKey with only publicKey supplied returns 200 and erases the stored privateKeyEnc",
-      );
       const owner = apiSdk.forRole("owner");
       const privateKeyEnc = "orig-prv-" + apiSdk.faker.generateString(12);
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey: "orig-pk", privateKeyEnc },
-      });
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: { publicKey: "orig-pk", privateKeyEnc },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
 
       const newPublicKey = "pk-rotated-" + apiSdk.faker.generateString(12);
+      // BUG 82802 (fixed, re-verified 2026-11-27): the partial body used to answer 200 and
+      // erase privateKeyEnc. The accepted outcomes are the two the comment above names:
+      // a merge (200, both halves present) or a rejection (400, the stored key untouched).
       const { status } = await owner.privacyroom.replaceKey({
         encryptionKeyRequestDto: { publicKey: newPublicKey },
       });
-      expect(status).toBe(200);
+      expect([200, 400], "partial replaceKey: merge or reject").toContain(
+        status,
+      );
 
       const after = await owner.privacyroom.getUserKeys();
+      expect(after.status).toBe(200);
       expect(after.data.count).toBe(1);
-      // The half that was sent is applied...
-      expect(after.data.response![0].publicKey).toBe(newPublicKey);
-      // ...and the half that was not sent must still be there.
+      // Whatever the answer, the private half must still be there.
       expect(after.data.response![0].privateKeyEnc).toBe(privateKeyEnc);
+      if (status === 200)
+        expect(after.data.response![0].publicKey).toBe(newPublicKey);
+      else expect(after.data.response![0].publicKey).toBe("orig-pk");
     });
 
     test("PUT /api/2.0/privacyroom/keys - An oversized publicKey must not destroy the caller's key set", async ({
@@ -766,16 +885,29 @@ test.describe("API privacyroom methods", () => {
       const owner = apiSdk.forRole("owner");
       const otherId = "aaaa0000-0000-0000-0000-000000000001";
       const otherPk = "other-pk-" + apiSdk.faker.generateString(10);
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey: "zero-pk", privateKeyEnc: "zp" },
-      });
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: {
-          id: otherId,
-          publicKey: otherPk,
-          privateKeyEnc: "op",
-        },
-      });
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              publicKey: "zero-pk",
+              privateKeyEnc: "zp",
+            },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              id: otherId,
+              publicKey: otherPk,
+              privateKeyEnc: "op",
+            },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
       const before = await owner.privacyroom.getUserKeys();
       expect(before.data.count).toBe(2);
 
@@ -806,12 +938,17 @@ test.describe("API privacyroom methods", () => {
     }) => {
       const owner = apiSdk.forRole("owner");
 
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: {
-          publicKey: "pk-" + apiSdk.faker.generateString(16),
-          privateKeyEnc: "prv-enc",
-        },
-      });
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              publicKey: "pk-" + apiSdk.faker.generateString(16),
+              privateKeyEnc: "prv-enc",
+            },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
 
       // Deleting an existing resource should return 204 No Content; the API
       // returns 200. The key is verified gone first, only the status fails.
@@ -871,14 +1008,22 @@ test.describe("API privacyroom methods", () => {
       // now-missing key and returns 404 Not Found.
       const owner = apiSdk.forRole("owner");
 
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: {
-          publicKey: "pk-" + apiSdk.faker.generateString(16),
-          privateKeyEnc: "prv-enc",
-        },
-      });
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              publicKey: "pk-" + apiSdk.faker.generateString(16),
+              privateKeyEnc: "prv-enc",
+            },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
 
-      await owner.privacyroom.deleteKeys({ id: ZERO_GUID });
+      expect(
+        (await owner.privacyroom.deleteKeys({ id: ZERO_GUID })).status,
+        "deleteKeys (setup)",
+      ).toBe(204);
       const second = await owner.privacyroom.deleteKeys({ id: ZERO_GUID });
 
       // The key is gone regardless; only the status of the re-delete drives this.
@@ -896,13 +1041,18 @@ test.describe("API privacyroom methods", () => {
       const idC = "88888888-8888-8888-8888-888888888888";
 
       for (const id of [idA, idB, idC]) {
-        await owner.privacyroom.setKeys({
-          encryptionKeyRequestDto: {
-            id,
-            publicKey: "pk-" + id,
-            privateKeyEnc: "prv",
-          },
-        });
+        expect(
+          (
+            await owner.privacyroom.setKeys({
+              encryptionKeyRequestDto: {
+                id,
+                publicKey: "pk-" + id,
+                privateKeyEnc: "prv",
+              },
+            })
+          ).status,
+          "setKeys (setup)",
+        ).toBe(201);
       }
 
       // Deleting an existing key should return 204 No Content; the API returns
@@ -925,18 +1075,21 @@ test.describe("API privacyroom methods", () => {
       const ownerPk = "owner-" + apiSdk.faker.generateString(16);
 
       // Encryption keys must exist before a private room can be created.
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey: ownerPk, privateKeyEnc: "op" },
-      });
-      const { data: room } = await owner.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
-          roomType: RoomType.CustomRoom,
-          private: true,
-        },
-      });
-      expect(room.response?.private).toBe(true);
-      const roomId = room.response!.id! as number;
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              publicKey: ownerPk,
+              privateKeyEnc: "op",
+            },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
+      const roomId = await makePrivateRoom(
+        owner,
+        apiSdk.faker.generateString(6),
+      );
 
       const { data, status } = await owner.privacyroom.getUserKeysForRoom({
         roomId,
@@ -966,18 +1119,23 @@ test.describe("API privacyroom methods", () => {
         },
       ];
       for (const { id, pk } of keys) {
-        await owner.privacyroom.setKeys({
-          encryptionKeyRequestDto: { id, publicKey: pk, privateKeyEnc: "prv" },
-        });
+        expect(
+          (
+            await owner.privacyroom.setKeys({
+              encryptionKeyRequestDto: {
+                id,
+                publicKey: pk,
+                privateKeyEnc: "prv",
+              },
+            })
+          ).status,
+          "setKeys (setup)",
+        ).toBe(201);
       }
-      const { data: room } = await owner.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
-          roomType: RoomType.CustomRoom,
-          private: true,
-        },
-      });
-      const roomId = room.response!.id! as number;
+      const roomId = await makePrivateRoom(
+        owner,
+        apiSdk.faker.generateString(6),
+      );
 
       const { data, status } = await owner.privacyroom.getUserKeysForRoom({
         roomId,
@@ -1001,24 +1159,30 @@ test.describe("API privacyroom methods", () => {
       const pkARotated = "pk-a-rotated-" + apiSdk.faker.generateString(8);
       const pkZero = "pk-zero-" + apiSdk.faker.generateString(8);
 
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey: pkZero, privateKeyEnc: "zp" },
-      });
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: {
-          id: idA,
-          publicKey: pkA,
-          privateKeyEnc: "ap",
-        },
-      });
-      const { data: room } = await owner.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
-          roomType: RoomType.CustomRoom,
-          private: true,
-        },
-      });
-      const roomId = room.response!.id! as number;
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: { publicKey: pkZero, privateKeyEnc: "zp" },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              id: idA,
+              publicKey: pkA,
+              privateKeyEnc: "ap",
+            },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
+      const roomId = await makePrivateRoom(
+        owner,
+        apiSdk.faker.generateString(6),
+      );
 
       const rotate = await owner.privacyroom.replaceKey({
         encryptionKeyRequestDto: {
@@ -1046,28 +1210,37 @@ test.describe("API privacyroom methods", () => {
       const pkA = "pk-a-" + apiSdk.faker.generateString(8);
       const pkZero = "pk-zero-" + apiSdk.faker.generateString(8);
 
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey: pkZero, privateKeyEnc: "zp" },
-      });
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: {
-          id: idA,
-          publicKey: pkA,
-          privateKeyEnc: "ap",
-        },
-      });
-      const { data: room } = await owner.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
-          roomType: RoomType.CustomRoom,
-          private: true,
-        },
-      });
-      const roomId = room.response!.id! as number;
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: { publicKey: pkZero, privateKeyEnc: "zp" },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              id: idA,
+              publicKey: pkA,
+              privateKeyEnc: "ap",
+            },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
+      const roomId = await makePrivateRoom(
+        owner,
+        apiSdk.faker.generateString(6),
+      );
       const before = await owner.privacyroom.getUserKeysForRoom({ roomId });
       expect(before.data.count).toBe(2);
 
-      await owner.privacyroom.deleteKeys({ id: idA });
+      expect(
+        (await owner.privacyroom.deleteKeys({ id: idA })).status,
+        "deleteKeys (setup)",
+      ).toBe(204);
 
       const { data, status } = await owner.privacyroom.getUserKeysForRoom({
         roomId,
@@ -1084,20 +1257,21 @@ test.describe("API privacyroom methods", () => {
       // deletes their last key they are denied their OWN private room with 403,
       // even though the room itself is untouched and still listed as private.
       const owner = apiSdk.forRole("owner");
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: {
-          publicKey: "pk-" + apiSdk.faker.generateString(12),
-          privateKeyEnc: "op",
-        },
-      });
-      const { data: room } = await owner.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
-          roomType: RoomType.CustomRoom,
-          private: true,
-        },
-      });
-      const roomId = room.response!.id! as number;
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              publicKey: "pk-" + apiSdk.faker.generateString(12),
+              privateKeyEnc: "op",
+            },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
+      const roomId = await makePrivateRoom(
+        owner,
+        apiSdk.faker.generateString(6),
+      );
       const before = await owner.privacyroom.getUserKeysForRoom({ roomId });
       expect(before.status).toBe(200);
 
@@ -1127,20 +1301,21 @@ test.describe("API privacyroom methods", () => {
       // instead of silently erasing (see BUG 82802 test above), so the key
       // material — and this endpoint's report of it — stays intact.
       const owner = apiSdk.forRole("owner");
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: {
-          publicKey: "pk-" + apiSdk.faker.generateString(12),
-          privateKeyEnc: "op",
-        },
-      });
-      const { data: room } = await owner.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
-          roomType: RoomType.CustomRoom,
-          private: true,
-        },
-      });
-      const roomId = room.response!.id! as number;
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              publicKey: "pk-" + apiSdk.faker.generateString(12),
+              privateKeyEnc: "op",
+            },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
+      const roomId = await makePrivateRoom(
+        owner,
+        apiSdk.faker.generateString(6),
+      );
 
       const replace = await owner.privacyroom.replaceKey({
         encryptionKeyRequestDto: {},
@@ -1164,25 +1339,37 @@ test.describe("API privacyroom methods", () => {
     }) => {
       const owner = apiSdk.forRole("owner");
       const ownerPk = "owner-" + apiSdk.faker.generateString(12);
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey: ownerPk, privateKeyEnc: "op" },
-      });
-      const { data: room } = await owner.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
-          roomType: RoomType.CustomRoom,
-          private: true,
-        },
-      });
-      const roomId = room.response!.id! as number;
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              publicKey: ownerPk,
+              privateKeyEnc: "op",
+            },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
+      const roomId = await makePrivateRoom(
+        owner,
+        apiSdk.faker.generateString(6),
+      );
 
       const archive = await owner.rooms.archiveRoom({
         id: roomId,
         archiveRoomRequest: { deleteAfter: false },
       });
       expect(archive.status).toBe(200);
-      const operation = await waitForOperation(owner.operations);
+      // The operation of THIS archive request, and the room really in the Archive afterwards.
+      const operation = await waitForOperation(owner.operations, {
+        started: archive.data.response,
+        failOnError: true,
+      });
       expect(operation.finished).toBe(true);
+      expect(
+        okBody(await owner.rooms.getRoomInfo({ id: roomId }), "getRoomInfo")
+          .rootFolderType,
+      ).toBe(FolderType.Archive);
 
       const { data, status } = await owner.privacyroom.getUserKeysForRoom({
         roomId,
@@ -1197,28 +1384,33 @@ test.describe("API privacyroom methods", () => {
       // Once the room is in Trash its keys are gone from the endpoint's point of
       // view, so it answers like a room that never existed.
       const owner = apiSdk.forRole("owner");
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: {
-          publicKey: "owner-" + apiSdk.faker.generateString(12),
-          privateKeyEnc: "op",
-        },
-      });
-      const { data: room } = await owner.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
-          roomType: RoomType.CustomRoom,
-          private: true,
-        },
-      });
-      const roomId = room.response!.id! as number;
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              publicKey: "owner-" + apiSdk.faker.generateString(12),
+              privateKeyEnc: "op",
+            },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
+      const roomId = await makePrivateRoom(
+        owner,
+        apiSdk.faker.generateString(6),
+      );
       const before = await owner.privacyroom.getUserKeysForRoom({ roomId });
       expect(before.status).toBe(200);
 
-      await owner.rooms.deleteRoom({
+      const deleted = await owner.rooms.deleteRoom({
         id: roomId,
         deleteRoomRequest: { deleteAfter: false },
       });
-      const operation = await waitForOperation(owner.operations);
+      expect(deleted.status, "deleteRoom").toBe(200);
+      const operation = await waitForOperation(owner.operations, {
+        started: deleted.data.response,
+        failOnError: true,
+      });
       expect(operation.finished).toBe(true);
 
       const { status } = await owner.privacyroom.getUserKeysForRoom({ roomId });
@@ -1233,13 +1425,30 @@ test.describe("API privacyroom methods", () => {
       // ("Specified method is not supported."); that is BUG 82543, fixed —
       // verified on a live portal on 2026-08-04.
       const owner = apiSdk.forRole("owner");
-      const { data: room } = await owner.rooms.createRoom({
+      const { data: room, status: roomStatus } = await owner.rooms.createRoom({
         createRoomRequestDto: {
           title: "Autotest Plain Room " + apiSdk.faker.generateString(6),
           roomType: RoomType.CustomRoom,
         },
       });
+      expect(roomStatus, "creating the ordinary room").toBe(200);
       const roomId = room.response!.id!;
+      // Positive control: a private room of the same caller answers its key set.
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              publicKey: "pk-ctrl",
+              privateKeyEnc: "prv",
+            },
+          })
+        ).status,
+      ).toBe(201);
+      const privateId = await makePrivateRoom(owner, "ctrl");
+      expect(
+        (await owner.privacyroom.getUserKeysForRoom({ roomId: privateId }))
+          .status,
+      ).toBe(200);
 
       const { status } = await owner.privacyroom.getUserKeysForRoom({
         roomId: roomId as number,
@@ -1340,28 +1549,38 @@ test.describe("API privacyroom methods", () => {
       const userPk = "user-" + apiSdk.faker.generateString(12);
 
       // Owner has keys and creates a private room.
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey: ownerPk, privateKeyEnc: "op" },
-      });
-      const { data: room } = await owner.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
-          roomType: RoomType.CustomRoom,
-          private: true,
-        },
-      });
-      const roomId = room.response!.id! as number;
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              publicKey: ownerPk,
+              privateKeyEnc: "op",
+            },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
+      const roomId = await makePrivateRoom(
+        owner,
+        apiSdk.faker.generateString(6),
+      );
 
       // A user with their own keys, not yet invited.
-      const { data: memberData } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "User",
-      );
+      const {
+        data: memberData,
+        status: memberStatus,
+        api: user,
+      } = await apiSdk.addAuthenticatedMember("owner", "User");
+      expect(memberStatus, "addAuthenticatedMember User").toBe(200);
       const userId = memberData.response!.id as string;
-      const user = apiSdk.forRole("user");
-      await user.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey: userPk, privateKeyEnc: "up" },
-      });
+      expect(
+        (
+          await user.privacyroom.setKeys({
+            encryptionKeyRequestDto: { publicKey: userPk, privateKeyEnc: "up" },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
 
       await test.step("before invite the user is denied (403)", async () => {
         const { status } = await user.privacyroom.getUserKeysForRoom({
@@ -1422,24 +1641,30 @@ test.describe("API privacyroom methods", () => {
       const oldPk = "old-" + apiSdk.faker.generateString(12);
       const newPk = "new-" + apiSdk.faker.generateString(12);
 
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey: oldPk, privateKeyEnc: "op" },
-      });
-      const { data: room } = await owner.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
-          roomType: RoomType.CustomRoom,
-          private: true,
-        },
-      });
-      const roomId = room.response!.id! as number;
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: { publicKey: oldPk, privateKeyEnc: "op" },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
+      const roomId = await makePrivateRoom(
+        owner,
+        apiSdk.faker.generateString(6),
+      );
 
       const before = await owner.privacyroom.getUserKeysForRoom({ roomId });
       expect(before.data.response?.map((k) => k.publicKey)).toContain(oldPk);
 
-      await owner.privacyroom.replaceKey({
-        encryptionKeyRequestDto: { publicKey: newPk, privateKeyEnc: "np" },
-      });
+      expect(
+        (
+          await owner.privacyroom.replaceKey({
+            encryptionKeyRequestDto: { publicKey: newPk, privateKeyEnc: "np" },
+          })
+        ).status,
+        "replaceKey (setup)",
+      ).toBe(200);
 
       // Only the key rows are observable over REST: the room's access keys now
       // carry the rotated key and the old one is gone. Whether the room's file
@@ -1461,22 +1686,28 @@ test.describe("API privacyroom methods", () => {
       // about the user, the access level or the room.
       const owner = apiSdk.forRole("owner");
       const ownerPk = "owner-" + apiSdk.faker.generateString(12);
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey: ownerPk, privateKeyEnc: "op" },
-      });
-      const { data: room } = await owner.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
-          roomType: RoomType.CustomRoom,
-          private: true,
-        },
-      });
-      const roomId = room.response!.id! as number;
-
-      const { data: memberData, userData } = await apiSdk.addMember(
-        "owner",
-        "User",
+      expect(
+        (
+          await owner.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              publicKey: ownerPk,
+              privateKeyEnc: "op",
+            },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
+      const roomId = await makePrivateRoom(
+        owner,
+        apiSdk.faker.generateString(6),
       );
+
+      const {
+        data: memberData,
+        userData,
+        status: memberStatus,
+      } = await apiSdk.addMember("owner", "User");
+      expect(memberStatus, "addMember User").toBe(200);
       const userId = memberData.response!.id as string;
       const invitation = {
         invitations: [{ id: userId, access: FileShare.ContentCreator }],

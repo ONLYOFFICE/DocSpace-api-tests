@@ -6,7 +6,9 @@ import {
   Api,
   ZERO_GUID,
   createOwnerPrivateRoom,
-  inviteToRoom,
+  getOwnerId,
+  inviteToRoom as inviteRaw,
+  okBody,
   roomMemberAccess,
 } from "@/src/helpers/private-rooms";
 import {
@@ -46,6 +48,15 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
  *
  * The session ids used are the tests' own; nothing is guessed.
  */
+
+/** Invites a member and proves the invitation went through: every "not a member" below rests on it. */
+const inviteToRoom = async (
+  ...args: Parameters<typeof inviteRaw>
+): Promise<Awaited<ReturnType<typeof inviteRaw>>> => {
+  const res = await inviteRaw(...args);
+  expect(res.status, "inviting a member").toBe(200);
+  return res;
+};
 
 /** A DocSpaceAdmin's private room with a ContentCreator (the opener), a reader and outsiders. */
 const sessionRoom = async (apiSdk: ApiSDK) => {
@@ -128,9 +139,10 @@ const describeFile = async (
   creatorId: string,
   senderId: string,
 ) => {
-  const info = await admin.files.getFileInfo({ fileId });
-  const f = info.data.response!;
+  const f = okBody(await admin.files.getFileInfo({ fileId }), "getFileInfo");
   const got = await downloadVia(admin, token, fileId);
+  expect(got.issued, "presigneduri").toBe(200);
+  expect(got.fetched, "fetching the bytes").toBe(200);
   return {
     folderId: f.folderId,
     encrypted: f.encrypted,
@@ -234,7 +246,7 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
       [
         "the Portal Owner who is not a member",
         portalOwner,
-        (await portalOwner.profiles.getSelfProfile()).data.response!.id!,
+        await getOwnerId(portalOwner),
       ],
     ];
     for (const [who, api, senderId] of holders) {
@@ -248,6 +260,14 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
 
       const after = await filesIn(admin.api, roomId);
       const gained = after.filter((f) => !before.includes(f.id));
+      expect(sent.status, `${who} sends: not a server error`).toBeLessThan(500);
+      expect(
+        gained.length,
+        `${who}: files from one session`,
+      ).toBeLessThanOrEqual(1);
+      // An answer that carries a stored file means the file exists, and the other way round.
+      if (storedFileId(sent))
+        expect(gained.map((f) => f.id)).toEqual([storedFileId(sent)]);
       if (gained.length === 1) {
         const f = await describeFile(
           admin.api,
@@ -262,22 +282,29 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
         expect(f.bytes.equals(theirs)).toBe(true);
       }
       const late = await sendNext(creator.api, roomId, opened.id!, mine);
-      expect(sent.status, `${who} sends: not a server error`).toBeLessThan(500);
       expect(late.status, `the opener sends after ${who}`).toBeLessThan(500);
-      expect(
-        gained.length,
-        `${who}: files from one session`,
-      ).toBeLessThanOrEqual(1);
-      // One session never yields a second file, whoever completed it.
+      // One session yields exactly one file, whoever completed it: the holder's, or
+      // the opener's own when the holder was refused.
       const final = (await filesIn(admin.api, roomId)).filter(
         (f) => !before.includes(f.id),
       );
-      expect(
-        final.length,
-        `${who}: files after the opener's send`,
-      ).toBeLessThanOrEqual(1);
+      expect(final.length, `${who}: files from the session`).toBe(1);
       if (gained.length === 1)
         expect(final.map((f) => f.id)).toEqual([gained[0].id]);
+      else {
+        const f = await describeFile(
+          admin.api,
+          ownerToken,
+          final[0].id,
+          creator.id,
+          creator.id,
+        );
+        expect(f.folderId).toBe(roomId);
+        expect(f.encrypted).toBe(true);
+        expect(f.bytes.equals(mine), `${who}: the opener's own bytes`).toBe(
+          true,
+        );
+      }
     }
     expect(await unfinishedOperations(admin.api)).toEqual([]);
   });
@@ -309,19 +336,25 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
       // An answer that carries a stored file means the file exists.
       if (storedFileId(done))
         expect(gained.map((f) => f.id)).toEqual([storedFileId(done)]);
-      if (gained.length === 1) {
-        const f = await describeFile(
-          admin.api,
-          ownerToken,
-          gained[0].id,
-          creator.id,
-          outsider.id,
-        );
-        expect(f.folderId).toBe(roomId);
-        expect(f.encrypted).toBe(true);
-        // Whatever the policy, the file holds the parts that were sent, whole.
-        expect(f.bytes.equals(Buffer.concat([head, tail]))).toBe(true);
+      let fileId = gained[0]?.id;
+      if (gained.length === 0) {
+        // The other account's part was refused: the opener still completes the session.
+        const finish = await sendNext(creator.api, roomId, opened.id!, tail);
+        expect(finish.status, "the opener completes the session").toBe(201);
+        fileId = storedFileId(finish);
       }
+      const f = await describeFile(
+        admin.api,
+        ownerToken,
+        fileId,
+        creator.id,
+        outsider.id,
+      );
+      expect(f.folderId).toBe(roomId);
+      expect(f.encrypted).toBe(true);
+      // Whatever the policy, the file holds the parts that were sent, whole.
+      expect(f.bytes.equals(Buffer.concat([head, tail]))).toBe(true);
+      expect(await filesIn(admin.api, roomId)).toHaveLength(before.length + 1);
     });
 
     await test.step("another account finalizes a numbered upload", async () => {
@@ -360,13 +393,23 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
         sessionId: opened.id!,
       });
       expect(again.status, "the opener then finalizes").toBeLessThan(500);
+      // Exactly one file, whoever finalized: the other account's, or the opener's own.
       const final = (await filesIn(admin.api, roomId)).filter(
         (f) => !before.includes(f.id),
       );
-      expect(
-        final.length,
-        "files after the opener's finalize",
-      ).toBeLessThanOrEqual(1);
+      expect(final.length, "files after the opener's finalize").toBe(1);
+      if (gained.length === 1)
+        expect(final.map((f) => f.id)).toEqual([gained[0].id]);
+      const whole = await describeFile(
+        admin.api,
+        ownerToken,
+        final[0].id,
+        creator.id,
+        outsider.id,
+      );
+      expect(whole.folderId).toBe(roomId);
+      expect(whole.encrypted).toBe(true);
+      expect(whole.bytes.equals(full), "the file is whole").toBe(true);
     });
   });
 
@@ -438,6 +481,7 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
         FileShare.ContentCreator,
       );
       const keys = await creator.api.privacyroom.getUserKeys();
+      expect(keys.status, "getUserKeys").toBe(200);
       if ((keys.data.count ?? 0) === 0)
         expect(
           (
@@ -484,6 +528,9 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
       );
       expect(second.status, `${change}: second part`).toBeLessThan(500);
       expect(fin.status, `${change}: finalize`).toBeLessThan(500);
+      // An answer that carries a stored file means the file exists.
+      if (storedFileId(fin))
+        expect(gained.map((f) => f.id)).toEqual([storedFileId(fin)]);
       if (gained.length === 1) {
         const f = await describeFile(
           admin.api,
@@ -501,6 +548,7 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
         `${change}: files from one session`,
       ).toBeLessThanOrEqual(1);
     }
+    expect(await unfinishedOperations(admin.api)).toEqual([]);
   });
 
   test("POST /files/:folderId/session/:sessionId - A session of a deleted folder or a deleted room is gone and stores nothing", async ({
@@ -508,26 +556,30 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
   }) => {
     const owner = apiSdk.forRole("owner");
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    const folder = (
+    const folder = okBody(
       await owner.folders.createFolder({
         folderId: roomId,
         createFolderRequest: { title: "p3-gone" },
-      })
-    ).data.response!.id!;
+      }),
+      "createFolder",
+    ).id!;
     const inFolder = await openSession(owner, folder, { size: 20 });
     const inRoom = await openSession(owner, roomId, { size: 20 });
     expect(inFolder.status).toBe(200);
     expect(inRoom.status).toBe(200);
 
+    const folderDeleted = await owner.folders.deleteFolder({
+      folderId: folder,
+      deleteFolderRequest: { deleteAfter: false, immediately: true },
+    });
+    expect(folderDeleted.status, "deleteFolder").toBe(200);
     expect(
       (
-        await owner.folders.deleteFolder({
-          folderId: folder,
-          deleteFolderRequest: { deleteAfter: false, immediately: true },
+        await waitForOperation(owner.operations, {
+          started: folderDeleted.data.response,
         })
-      ).status,
-    ).toBe(200);
-    expect((await waitForOperation(owner.operations)).error).toBe("");
+      ).error,
+    ).toBe("");
     const afterFolder = await sendNext(
       owner,
       folder,
@@ -538,24 +590,30 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
     expect(await filesIn(owner, roomId)).toEqual([]);
 
     // The room is archived and deleted for good.
+    const archived = await owner.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    expect(archived.status, "archiveRoom").toBe(200);
     expect(
       (
-        await owner.rooms.archiveRoom({
-          id: roomId,
-          archiveRoomRequest: { deleteAfter: false },
+        await waitForOperation(owner.operations, {
+          started: [archived.data.response!],
         })
-      ).status,
-    ).toBe(200);
-    expect((await waitForOperation(owner.operations)).error).toBe("");
+      ).error,
+    ).toBe("");
+    const roomDeleted = await owner.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    expect(roomDeleted.status, "deleteRoom").toBe(200);
     expect(
       (
-        await owner.rooms.deleteRoom({
-          id: roomId,
-          deleteRoomRequest: { deleteAfter: false },
+        await waitForOperation(owner.operations, {
+          started: [roomDeleted.data.response!],
         })
-      ).status,
-    ).toBe(200);
-    expect((await waitForOperation(owner.operations)).error).toBe("");
+      ).error,
+    ).toBe("");
     expect((await owner.rooms.getRoomInfo({ id: roomId })).status).toBe(404);
     const afterRoom = await sendNext(
       owner,
@@ -572,6 +630,7 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
     const owner = apiSdk.forRole("owner");
     const roomId = await createOwnerPrivateRoom(apiSdk);
     const finished = await openSession(owner, roomId, { size: 20 });
+    expect(finished.status).toBe(200);
     const sent = await sendNext(
       owner,
       roomId,
@@ -580,6 +639,7 @@ test.describe("Upload sessions - the opener's session and who else may use it", 
     );
     expect(sent.status).toBe(201);
     const cancelled = await openSession(owner, roomId, { size: 20 });
+    expect(cancelled.status).toBe(200);
     expect(
       (
         await owner.operations.abortUploadSession({

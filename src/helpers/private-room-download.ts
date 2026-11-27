@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from "crypto";
 import { expect } from "@playwright/test";
 import { ApiSDK, UserType } from "../services/api-sdk";
-import { Api } from "./private-rooms";
+import { Api, okBody } from "./private-rooms";
 import { waitForOperation } from "./wait-for-operation";
 import { isZip, readZip, ZipEntry } from "./zip";
 
@@ -79,8 +79,12 @@ export async function addAccounts(
 ): Promise<Account[]> {
   const created = [];
   for (const spec of specs) {
-    const { data, userData } = await apiSdk.addMember("owner", spec.type);
-    expect(data.response?.id, `addMember ${spec.type}`).toBeDefined();
+    const { data, userData, status } = await apiSdk.addMember(
+      "owner",
+      spec.type,
+    );
+    expect(status, `addMember ${spec.type}`).toBe(200);
+    expect(data.response?.id, `addMember ${spec.type}: no id`).toBeDefined();
     created.push({ ...spec, id: data.response!.id as string, userData });
   }
   const accounts: Account[] = [];
@@ -93,6 +97,10 @@ export async function addAccounts(
   for (const c of created) {
     const api = await apiSdk.authenticateMember(c.userData, c.type);
     const token = apiSdk.tokenStore.getToken(roleOf[c.type]);
+    expect(token, `no token after authenticating ${c.type}`).not.toBe("");
+    // The client must act as the account that was created, not as a neighbour.
+    const self = okBody(await api.profiles.getSelfProfile(), "getSelfProfile");
+    expect(self.id, `the ${c.type} client acts as another user`).toBe(c.id);
     if (c.key) {
       const { status } = await api.privacyroom.setKeys({
         encryptionKeyRequestDto: {
@@ -196,7 +204,9 @@ export async function bulkDownload(
 ): Promise<Bulk> {
   const queued = await api.operations.bulkDownload({ downloadRequestDto });
   if (queued.status !== 200) return { status: queued.status };
-  const op = await waitForOperation(api.operations);
+  const op = await waitForOperation(api.operations, {
+    started: queued.data.response,
+  });
   if (!op.url) return { status: queued.status, error: op.error };
   const got = await fetchAs(op.url, token);
   const zip = isZip(got.bytes);

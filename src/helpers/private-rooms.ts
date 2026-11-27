@@ -8,6 +8,33 @@ export const ZERO_GUID = "00000000-0000-0000-0000-000000000000";
 
 export type Api = ReturnType<ApiSDK["forRole"]>;
 
+/**
+ * The body of a response that must have succeeded. The SDK never throws on an
+ * HTTP error, so an unchecked `data.response` of a 403/500 would read as "empty":
+ * this asserts the exact status first, then that a body is there.
+ */
+export function okBody<T>(
+  res: { status: number; data?: { response?: T | null } | null },
+  label: string,
+  status = 200,
+): T {
+  expect(res.status, `${label}: HTTP status`).toBe(status);
+  const body = res.data?.response;
+  expect(body, `${label}: the response carries no body`).toBeDefined();
+  expect(body, `${label}: the response body is null`).not.toBeNull();
+  return body as T;
+}
+
+/** A list response that must have succeeded: 200 and an actual array. */
+export function okList<T>(
+  res: { status: number; data?: { response?: T[] | null } | null },
+  label: string,
+): T[] {
+  const body = okBody<T[]>(res, label);
+  expect(Array.isArray(body), `${label}: the body is not a list`).toBe(true);
+  return body;
+}
+
 export type KeyedMember = {
   id: string;
   api: Api;
@@ -32,8 +59,9 @@ export async function addKeyedMembers(
 ): Promise<KeyedMember[]> {
   const created = [];
   for (let i = 0; i < count; i++) {
-    const { data, userData } = await apiSdk.addMember("owner", "User");
-    expect(data.response?.id).toBeDefined();
+    const { data, userData, status } = await apiSdk.addMember("owner", "User");
+    expect(status, "addMember User").toBe(200);
+    expect(data.response?.id, "addMember User: no id").toBeDefined();
     created.push({ id: data.response!.id as string, userData });
   }
 
@@ -41,6 +69,9 @@ export async function addKeyedMembers(
   for (const { id, userData } of created) {
     const api = await apiSdk.authenticateMember(userData, "User");
     const token = apiSdk.tokenStore.getToken("user");
+    expect(token, "no token after authenticating a member").not.toBe("");
+    const self = okBody(await api.profiles.getSelfProfile(), "getSelfProfile");
+    expect(self.id, "the client acts as another user").toBe(id);
     const publicKey = "member-pk-" + apiSdk.faker.generateString(12);
     const privateKeyEnc = "member-prv-" + apiSdk.faker.generateString(12);
     const { status } = await api.privacyroom.setKeys({
@@ -60,8 +91,13 @@ export async function createOwnerPrivateRoom(apiSdk: ApiSDK, title?: string) {
     title: title ?? "Autotest Private " + apiSdk.faker.generateString(6),
     roomType: RoomType.CustomRoom,
   });
-  expect(status).toBe(200);
-  return data.response!.id!;
+  expect(status, "creating the private room").toBe(200);
+  const room = data.response!;
+  expect(room.private, "the room is not private").toBe(true);
+  expect(room.roomType, "the room is not a Custom room").toBe(
+    RoomType.CustomRoom,
+  );
+  return room.id!;
 }
 
 /**
@@ -103,13 +139,12 @@ export async function createRoomFile(api: Api, roomId: number, title: string) {
     folderId: roomId,
     createFileRequest: { title },
   });
-  expect(status).toBe(200);
+  expect(status, "createFile").toBe(200);
   return data.response!.id!;
 }
 
 export async function getOwnerId(api: Api) {
-  const { data } = await api.profiles.getSelfProfile();
-  return data.response!.id!;
+  return okBody(await api.profiles.getSelfProfile(), "getSelfProfile").id!;
 }
 
 export function inviteToRoom(
@@ -155,13 +190,22 @@ export async function getFilePublicKeys(
     { method: "GET", headers },
   );
   const text = await response.text();
-  let body: { response?: PublicKeyEntry[]; count?: number } = {};
+  const status = response.status();
+  // An error answer may have an empty or non-JSON body; a success answer must
+  // be JSON with a list, otherwise "no entries" would hide a broken answer.
+  let body: { response?: PublicKeyEntry[]; count?: number } | undefined;
   try {
     body = JSON.parse(text);
   } catch {
-    // an empty or non-JSON error body
+    body = undefined;
   }
-  return { status: response.status(), entries: body.response ?? [], text };
+  if (status === 200) {
+    expect(
+      Array.isArray(body?.response),
+      `publickeys of ${fileId}: 200 without a list: ${text.slice(0, 200)}`,
+    ).toBe(true);
+  }
+  return { status, entries: body?.response ?? [], text };
 }
 
 /** The ids of the users who hold an entry in a room's access-key set. */
@@ -169,18 +213,24 @@ export async function roomKeyHolders(api: Api, roomId: number) {
   const { data, status } = await api.privacyroom.getUserKeysForRoom({
     roomId,
   });
-  expect(status).toBe(200);
+  expect(status, "getUserKeysForRoom").toBe(200);
+  expect(Array.isArray(data.response), "access-key list").toBe(true);
   return data.response!.map((k) => k.userId!);
 }
 
 /** The room's members as userId -> access level, read back from the portal. */
 export async function roomMemberAccess(api: Api, roomId: number) {
   const { data, status } = await api.rooms.getRoomSecurityInfo({ id: roomId });
-  expect(status).toBe(200);
-  return new Map(
-    (data.response ?? []).map((m) => [
-      (m.sharedTo as { id?: string }).id!,
-      m.access,
-    ]),
-  );
+  expect(status, "getRoomSecurityInfo").toBe(200);
+  expect(Array.isArray(data.response), "member list").toBe(true);
+  const raw = data.response!.map((m) => [
+    (m.sharedTo as { id?: string }).id!,
+    m.access,
+  ]);
+  const ids = raw.map((r) => r[0]);
+  expect(
+    ids.filter((id, i) => ids.indexOf(id) !== i),
+    "a subject is listed more than once",
+  ).toEqual([]);
+  return new Map(raw as [string, FileShare | undefined][]);
 }

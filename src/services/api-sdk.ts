@@ -464,6 +464,7 @@ export class ApiSDK {
         headers: {
           Authorization: `Bearer ${this.tokenStore.getToken(creatorRole)}`,
           Origin: `http://${this.tokenStore.newTenantDomain}`,
+          Cookie: "",
         },
         data: userData,
       },
@@ -496,7 +497,13 @@ export class ApiSDK {
         `Authentication failed for ${type}: ${authResponse.status()} - ${authBody.error || authBody.message}`,
       );
     }
-    this.tokenStore.setToken(credentialRole, authBody.response.token);
+    const token = authBody.response?.token;
+    if (typeof token !== "string" || token.length === 0) {
+      throw new Error(
+        `Authentication for ${type} answered ${authResponse.status()} without a token`,
+      );
+    }
+    this.tokenStore.setToken(credentialRole, token);
 
     return this.forRole(credentialRole);
   }
@@ -522,7 +529,13 @@ export class ApiSDK {
         `Authentication failed for owner: ${authResponse.status()} - ${authBody.error || authBody.message}`,
       );
     }
-    this.tokenStore.setToken("owner", authBody.response.token);
+    const token = authBody.response?.token;
+    if (typeof token !== "string" || token.length === 0) {
+      throw new Error(
+        `Authentication for the owner answered ${authResponse.status()} without a token`,
+      );
+    }
+    this.tokenStore.setToken("owner", token);
 
     return this.forRole("owner");
   }
@@ -545,6 +558,7 @@ export class ApiSDK {
         headers: {
           Authorization: `Bearer ${this.tokenStore.getToken(role)}`,
           Origin: `http://${this.tokenStore.newTenantDomain}`,
+          Cookie: "",
         },
         data: { enableQuota: true, defaultQuota: defaultQuotaBytes },
       },
@@ -566,6 +580,7 @@ export class ApiSDK {
       headers: {
         Authorization: `Bearer ${this.tokenStore.getToken(role)}`,
         Origin: `http://${this.tokenStore.newTenantDomain}`,
+        Cookie: "",
         "Content-Type": "application/octet-stream",
       },
       data: fileBuffer,
@@ -748,8 +763,11 @@ export class ApiSDK {
       url += `?${options.rawQuery}`;
     }
 
+    // An empty Cookie: an anonymous (role = null) request must be anonymous, and a
+    // Bearer request must not be overridden by the shared context's session.
     const headers: Record<string, string> = {
       Origin: `http://${this.tokenStore.newTenantDomain}`,
+      Cookie: "",
     };
     if (role) {
       headers["Authorization"] = `Bearer ${this.tokenStore.getToken(role)}`;
@@ -793,8 +811,11 @@ export class ApiSDK {
     path: string,
     options?: { body?: string; contentType?: string },
   ): Promise<{ status: number; text: string; data: any }> {
+    // An empty Cookie: an anonymous (role = null) request must be anonymous, and a
+    // Bearer request must not be overridden by the shared context's session.
     const headers: Record<string, string> = {
       Origin: `http://${this.tokenStore.newTenantDomain}`,
+      Cookie: "",
     };
     if (role) {
       headers["Authorization"] = `Bearer ${this.tokenStore.getToken(role)}`;

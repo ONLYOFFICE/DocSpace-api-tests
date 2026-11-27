@@ -3,7 +3,11 @@ import { test } from "@/src/fixtures/index";
 import { RoomType, SearchArea } from "@onlyoffice/docspace-api-sdk";
 import { ApiSDK } from "@/src/services/api-sdk";
 import { ensureEncryptionKeys } from "@/src/helpers/rooms";
-import { expectNoServerError } from "@/src/helpers/private-room-lifecycle";
+import {
+  expectRefused,
+  listRoomIds,
+} from "@/src/helpers/private-room-lifecycle";
+import { okBody } from "@/src/helpers/private-rooms";
 
 /**
  * Types that cannot be created even as an ordinary room by the test account, so no positive
@@ -36,19 +40,27 @@ const NO_CONTROL_TYPES = [
 
 const isOk = (status: number) => status >= 200 && status < 300;
 
-const attempt = async (apiSdk: ApiSDK, name: string, roomType: RoomType) => {
+/**
+ * `known` marks a type that currently gets a private room although it must not: the test is then
+ * an expected failure (test.fail) from the moment the setup (the control room, the lists before)
+ * has worked, right before the check of the violated requirement - so a broken setup is a real
+ * failure and never an "expected" one.
+ */
+const attempt = async (
+  apiSdk: ApiSDK,
+  name: string,
+  roomType: RoomType,
+  known = false,
+) => {
   const owner = apiSdk.forRole("owner");
-  const ownerId = (await owner.profiles.getSelfProfile()).data.response!.id!;
+  const ownerId = okBody(
+    await owner.profiles.getSelfProfile(),
+    "getSelfProfile",
+  ).id!;
   await ensureEncryptionKeys(apiSdk, "owner");
-  const roomIds = async (area?: SearchArea) =>
-    (
-      ((await owner.rooms.getRoomsFolder({ searchArea: area, count: 100 })).data
-        .response?.folders ?? []) as {
-        id?: number;
-      }[]
-    )
-      .map((f) => f.id)
-      .sort();
+  // Every page of the list; every request must succeed (an error answer is not "no rooms").
+  const roomIds = async (area: SearchArea) =>
+    (await listRoomIds(owner, area)).sort();
 
   // The control: an ordinary room of this type.
   const ordinary = await owner.rooms.createRoom({
@@ -67,8 +79,8 @@ const attempt = async (apiSdk: ApiSDK, name: string, roomType: RoomType) => {
     ).toBe(200);
   }
   expect(
-    (await owner.rooms.getRoomInfo({ id: ordinaryId! })).data.response
-      ?.roomType,
+    okBody(await owner.rooms.getRoomInfo({ id: ordinaryId! }), "control info")
+      .roomType,
   ).toBe(roomType);
 
   const before = {
@@ -86,8 +98,12 @@ const attempt = async (apiSdk: ApiSDK, name: string, roomType: RoomType) => {
   const created = isOk(res.status) && !!id;
 
   if (roomType === RoomType.CustomRoom) {
+    expect(res.status, "creating a private Custom room").toBe(200);
     expect(created, "a private Custom room is created").toBe(true);
-    const info = (await owner.rooms.getRoomInfo({ id: id! })).data.response!;
+    const info = okBody(
+      await owner.rooms.getRoomInfo({ id: id! }),
+      "private room info",
+    );
     expect(info.private).toBe(true);
     expect(info.roomType).toBe(RoomType.CustomRoom);
     expect(info.createdBy?.id).toBe(ownerId);
@@ -98,17 +114,19 @@ const attempt = async (apiSdk: ApiSDK, name: string, roomType: RoomType) => {
   const privateOnes = (await roomIds(SearchArea.PrivateRooms)).filter(
     (x) => !before.priv.includes(x),
   );
+  const anyNew = (await roomIds(SearchArea.Any)).filter(
+    (x) => !before.any.includes(x),
+  );
+  // Every read is done: only pure assertions follow the marker.
+  if (known) test.fail();
   expect(
     privateOnes,
     `a private ${name} room appeared in the private rooms list`,
   ).toEqual([]);
   expect(created, `a private ${name} room was created`).toBe(false);
-  expect(
-    (await roomIds(SearchArea.Any)).filter((x) => !before.any.includes(x)),
-    `a room appeared in the list`,
-  ).toEqual([]);
-  // The state first, then the answer: a crash is not a correct refusal.
-  expectNoServerError(res.status, `creating a private ${name} room`);
+  expect(anyNew, `a room appeared in the list`).toEqual([]);
+  // The state first, then the answer: a refusal is a 4xx (the exact status is not fixed), never a crash.
+  expectRefused(res.status, `creating a private ${name} room`);
 };
 
 /**
@@ -134,12 +152,11 @@ test.describe("POST /files/rooms - only a Custom room may be private", () => {
     RoomType,
   ][]) {
     if (KNOWN[name]) {
-      test.fail(
-        `BUG XXXXX: POST /files/rooms - A private ${name} room ${KNOWN[name]}`,
-        async ({ apiSdk }) => {
-          await attempt(apiSdk, name, roomType);
-        },
-      );
+      test(`BUG XXXXX: POST /files/rooms - A private ${name} room ${KNOWN[name]}`, async ({
+        apiSdk,
+      }) => {
+        await attempt(apiSdk, name, roomType, true);
+      });
       continue;
     }
     test(`POST /files/rooms - A private ${name} room is ${roomType === RoomType.CustomRoom ? "created with its private flag" : "refused and leaves no room behind"}`, async ({

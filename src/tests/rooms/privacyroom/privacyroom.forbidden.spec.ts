@@ -1,8 +1,13 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { FileShare, LinkType, RoomType } from "@onlyoffice/docspace-api-sdk";
+import {
+  FileShare,
+  LinkType,
+  RoomType,
+  SearchArea,
+} from "@onlyoffice/docspace-api-sdk";
 import { archiveRoomAndWait } from "@/src/helpers/archive-room";
-import { inviteToRoom } from "@/src/helpers/private-rooms";
+import { inviteToRoom, okBody, okList } from "@/src/helpers/private-rooms";
 import { addAccounts } from "@/src/helpers/private-room-download";
 import { KIT_ROLES } from "@/src/helpers/private-room-forbidden";
 import {
@@ -13,12 +18,12 @@ import {
 } from "@/src/helpers/private-room-roomkit";
 import { createPrivateRoom, ensureEncryptionKeys } from "@/src/helpers/rooms";
 import { unfinishedOperations } from "@/src/helpers/private-room-upload";
-import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { waitForRoomFromTemplate } from "@/src/helpers/wait-for-room-from-template";
 import { waitForRoomTemplate } from "@/src/helpers/wait-for-room-template";
 import {
   expectNoServerError,
   expectRefused,
+  listRoomIds,
 } from "@/src/helpers/private-room-lifecycle";
 
 /**
@@ -62,6 +67,11 @@ type RoomOp = {
   empty?: boolean;
   /** The operation queues a template and has to be waited for. */
   template?: boolean;
+  /**
+   * The request is synchronous and the guide takes it away outright: a 4xx is required (the exact
+   * status is not fixed). Queued operations (templates, duplicate) may be refused later, in the job.
+   */
+  sync?: boolean;
   run: (k: RoomKit, roomId: number) => Promise<Reply>;
 };
 
@@ -129,6 +139,7 @@ const OPS: RoomOp[] = [
   },
   {
     name: "setRoomLink (external, view)",
+    sync: true,
     run: (k, id) =>
       link(k, id, {
         linkType: LinkType.External,
@@ -138,6 +149,7 @@ const OPS: RoomOp[] = [
   },
   {
     name: "setRoomLink (external, edit)",
+    sync: true,
     run: (k, id) =>
       link(k, id, {
         linkType: LinkType.External,
@@ -147,6 +159,7 @@ const OPS: RoomOp[] = [
   },
   {
     name: "setRoomLink (external, password and expiry)",
+    sync: true,
     run: (k, id) =>
       link(k, id, {
         linkType: LinkType.External,
@@ -158,6 +171,7 @@ const OPS: RoomOp[] = [
   },
   {
     name: "setRoomLink (invitation, for members)",
+    sync: true,
     run: (k, id) =>
       link(k, id, {
         linkType: LinkType.Invitation,
@@ -168,6 +182,7 @@ const OPS: RoomOp[] = [
   },
   {
     name: "updateRoom (indexing on)",
+    sync: true,
     run: (k, id) =>
       k.actor.rooms.updateRoom({
         id,
@@ -206,7 +221,7 @@ test.describe("Rooms API - a private room refuses what the product guide takes a
 
         // The control: the same call works on the ordinary room for this caller.
         const control = await op.run(kit, plainTarget);
-        if (!ok(control)) {
+        if (control.status !== 200) {
           // No positive control: the row is listed, not silently skipped, and not counted as covered.
           uncontrolled.push(op.name);
           continue;
@@ -222,15 +237,28 @@ test.describe("Rooms API - a private room refuses what the product guide takes a
         };
         const refused = await op.run(kit, privTarget);
         // A job that was queued anyway has to finish before the end state is read.
+        // (No "an operation must be listed" wait here: a refused call legitimately queues nothing.)
         if (ok(refused) && op.template)
-          await waitForRoomTemplate(actor.rooms).catch(() => undefined);
-        if (ok(refused))
-          await waitForOperation(actor.operations).catch(() => undefined);
+          await expect
+            .poll(
+              async () => {
+                const st = await actor.rooms.getRoomTemplateCreatingStatus();
+                expect(
+                  st.status,
+                  "getRoomTemplateCreatingStatus: HTTP status",
+                ).toBe(200);
+                // No status record at all means nothing was queued.
+                return st.data.response?.isCompleted ?? true;
+              },
+              { message: `${op.name}: a template job did not finish` },
+            )
+            .toBe(true);
         await expect
           .poll(async () => (await unfinishedOperations(actor)).length)
           .toBe(0);
 
-        expectNoServerError(refused.status, `${op.name}: private room`);
+        if (op.sync) expectRefused(refused.status, `${op.name}: private room`);
+        else expectNoServerError(refused.status, `${op.name}: private room`);
         expect
           .soft(
             await roomState(admin, privTarget),
@@ -261,8 +289,10 @@ test.describe("Rooms API - a private room refuses what the product guide takes a
         updateRoomRequest: { title: "Renamed private room", tags: ["kept"] },
       });
       expect(allowed.status).toBe(200);
-      const after = (await admin.rooms.getRoomInfo({ id: kit.priv })).data
-        .response!;
+      const after = okBody(
+        await admin.rooms.getRoomInfo({ id: kit.priv }),
+        "getRoomInfo",
+      );
       expect(after.title).toBe("Renamed private room");
       expect(after.private).toBe(true);
       expect(after.roomType).toBe(RoomType.CustomRoom);
@@ -291,8 +321,10 @@ test.describe("Rooms API - a private room refuses what the product guide takes a
       });
 
       expect(edited.status, name).toBe(200);
-      const info = (await kit.admin.rooms.getRoomInfo({ id: privateRoom })).data
-        .response!;
+      const info = okBody(
+        await kit.admin.rooms.getRoomInfo({ id: privateRoom }),
+        "getRoomInfo",
+      );
       expect(info.title).toBe(`Edited ${name} private`);
       expect(info.tags).toEqual(["edit"]);
       // The type and the flag are not among the fields updateRoom defines; what it keeps is checked.
@@ -378,6 +410,12 @@ test.describe("Rooms API - a private room refuses what the product guide takes a
       (await owner.rooms.startRoomIndexExport({ id: vdrId })).status,
       "control: exporting an ordinary indexed virtual data room",
     ).toBe(200);
+    // The control's own export job is finished before the private room is tried.
+    await expect
+      .poll(async () => (await unfinishedOperations(owner)).length, {
+        message: "the control export did not finish",
+      })
+      .toBe(0);
 
     const priv = await createPrivateRoom(apiSdk, "owner", {
       title: "RoomOps private Custom",
@@ -432,9 +470,9 @@ test.describe("Rooms API - a private room refuses what the product guide takes a
     );
     expect(plainGroup.status, "control: group in an ordinary room").toBe(200);
     expect(
-      (
-        (await owner.rooms.getRoomSecurityInfo({ id: kit.plain })).data
-          .response ?? []
+      okList(
+        await owner.rooms.getRoomSecurityInfo({ id: kit.plain }),
+        "getRoomSecurityInfo",
       ).map((m) => (m.sharedTo as { id?: string }).id),
     ).toContain(groupId);
     const plainMail = await owner.rooms.setRoomSecurity({
@@ -446,10 +484,8 @@ test.describe("Rooms API - a private room refuses what the product guide takes a
         notify: false,
       },
     });
-    expectNoServerError(
-      plainMail.status,
-      "an address invited to an ordinary room",
-    );
+    // The control: an ordinary room takes the address too (without it the refusal below proves nothing).
+    expect(plainMail.status, "control: address in an ordinary room").toBe(200);
 
     const before = await roomState(owner, kit.priv);
     const byGroup = await inviteToRoom(
@@ -478,7 +514,10 @@ test.describe("Rooms API - a private room refuses what the product guide takes a
     // Nobody joined, no entry was added, nothing else changed.
     expect(await roomState(owner, kit.priv)).toEqual(before);
     expect(
-      (await owner.rooms.getRoomSecurityInfo({ id: kit.priv })).data.response,
+      okList(
+        await owner.rooms.getRoomSecurityInfo({ id: kit.priv }),
+        "getRoomSecurityInfo",
+      ),
     ).toHaveLength(before.members.length);
   });
 
@@ -608,11 +647,14 @@ test.describe("Rooms API - rooms created from templates and with indexing", () =
       });
       expect(started.status).toBe(200);
       const roomId = await waitForRoomFromTemplate(owner.rooms);
-      const info = (await owner.rooms.getRoomInfo({ id: roomId })).data
-        .response!;
-      const files = ((
-        await owner.folders.getFolderByFolderId({ folderId: roomId })
-      ).data.response?.files ?? []) as {
+      const info = okBody(
+        await owner.rooms.getRoomInfo({ id: roomId }),
+        "getRoomInfo",
+      );
+      const files = (okBody(
+        await owner.folders.getFolderByFolderId({ folderId: roomId }),
+        "getFolderByFolderId",
+      ).files ?? []) as {
         title?: string;
         encrypted?: boolean;
       }[];
@@ -645,9 +687,12 @@ test.describe("Rooms API - rooms created from templates and with indexing", () =
     });
     expect(ordinary.status).toBe(200);
     expect(
-      (await owner.rooms.getRoomInfo({ id: ordinary.data.response!.id! })).data
-        .response!.indexing,
+      okBody(
+        await owner.rooms.getRoomInfo({ id: ordinary.data.response!.id! }),
+        "indexed VDR info",
+      ).indexing,
     ).toBe(true);
+    const roomsBefore = await listRoomIds(owner, SearchArea.Any);
 
     // Only a Custom room may be private, so that is the only type tried (a private virtual data room is
     // a known defect pinned in types.spec.ts and is not used as a fixture here).
@@ -665,22 +710,18 @@ test.describe("Rooms API - rooms created from templates and with indexing", () =
       "creating a private room with indexing",
     );
     // A refusal may still leave a room behind (see the createRoom private flake), so the portal is read,
-    // not the answer: no room of that name may carry an index.
-    const rooms = (
-      (await owner.rooms.getRoomsFolder({ count: 100 })).data.response
-        ?.folders ?? []
-    ).filter((r) => r.title === title);
-    for (const room of rooms)
+    // not the answer: no room that appeared (all pages) may carry an index.
+    const appeared = (await listRoomIds(owner, SearchArea.Any)).filter(
+      (id) => !roomsBefore.includes(id),
+    );
+    for (const id of appeared)
       expect(
-        (
-          await owner.rooms.getRoomInfo({
-            id: (room as unknown as { id: number }).id,
-          })
-        ).data.response!.indexing,
+        okBody(await owner.rooms.getRoomInfo({ id }), "appeared room info")
+          .indexing,
         "a private room was created indexed",
       ).toBe(false);
     if (created.status === 200)
-      expect(rooms, "a 200 answer without a room").toHaveLength(1);
+      expect(appeared, "a 200 answer without a room").toHaveLength(1);
     else expectRefused(created.status, "creating a private room with indexing");
   });
 });

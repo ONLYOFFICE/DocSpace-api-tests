@@ -4,7 +4,13 @@ import { expect } from "@playwright/test";
 import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
 import { ApiSDK } from "../services/api-sdk";
 import { ensureEncryptionKeys } from "./rooms";
-import { Api, createOwnerPrivateRoom, inviteToRoom } from "./private-rooms";
+import {
+  Api,
+  createOwnerPrivateRoom,
+  getOwnerId,
+  inviteToRoom,
+  okBody,
+} from "./private-rooms";
 import {
   addAccounts,
   downloadVia,
@@ -107,7 +113,7 @@ const FORM = () =>
 export async function buildKit(apiSdk: ApiSDK, role: KitRole): Promise<Kit> {
   const ownerApi = apiSdk.forRole("owner");
   const ownerToken = apiSdk.tokenStore.getToken("owner");
-  const ownerId = (await ownerApi.profiles.getSelfProfile()).data.response!.id!;
+  const ownerId = await getOwnerId(ownerApi);
 
   const specs =
     role === "manager"
@@ -174,7 +180,11 @@ export async function buildKit(apiSdk: ApiSDK, role: KitRole): Promise<Kit> {
   });
   expect(created.status).toBe(200);
   const docxPlain = created.data.response!.id!;
-  const docxBytes = (await downloadVia(admin, adminToken, docxPlain)).bytes!;
+  const downloaded = await downloadVia(admin, adminToken, docxPlain);
+  expect(downloaded.issued, "presigned address of the template docx").toBe(200);
+  expect(downloaded.fetched, "fetching the template docx").toBe(200);
+  const docxBytes = downloaded.bytes!;
+  expect(docxBytes.length, "the template docx is empty").toBeGreaterThan(0);
   const docxPriv = await uploadEncrypted(author, privRoom, {
     ext: "docx",
     bytes: docxBytes,
@@ -238,8 +248,11 @@ export async function fileJson(api: Api, fileId: number) {
 
 /** The file keys the caller holds for a file, as one string. */
 export async function keysJson(api: Api, fileId: number) {
-  const { data } = await api.files.getEncryptionInfo({ fileId });
-  return JSON.stringify(data.response?.fileKeys ?? []);
+  const info = okBody(
+    await api.files.getEncryptionInfo({ fileId }),
+    `getEncryptionInfo(${fileId})`,
+  );
+  return JSON.stringify(info.fileKeys ?? []);
 }
 
 /** The ids of the files directly inside a room. */

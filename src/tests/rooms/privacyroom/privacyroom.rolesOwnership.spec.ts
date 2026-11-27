@@ -1,9 +1,11 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
+import { FileShare, RoomType, SearchArea } from "@onlyoffice/docspace-api-sdk";
 import {
   ZERO_GUID,
+  getOwnerId,
   inviteToRoom,
+  okBody,
   roomMemberAccess,
 } from "@/src/helpers/private-rooms";
 import {
@@ -11,6 +13,7 @@ import {
   MemberDef,
   buildArena,
   putFile,
+  putFileOrRefusal,
 } from "@/src/helpers/private-room-arena";
 import { addAccounts } from "@/src/helpers/private-room-download";
 import { rawRequest } from "@/src/helpers/private-room-upload";
@@ -18,6 +21,7 @@ import { randomUUID } from "crypto";
 import {
   expectNoServerError,
   expectRefused,
+  listRoomIds,
 } from "@/src/helpers/private-room-lifecycle";
 
 /**
@@ -40,8 +44,8 @@ test.describe("Ownership transfer - only the owner", () => {
     test.setTimeout(500_000);
     const a = await buildArena(apiSdk);
     const ownerOf = async (room: number) =>
-      (await a.admin.rooms.getRoomInfo({ id: room })).data.response!.createdBy
-        ?.id;
+      okBody(await a.admin.rooms.getRoomInfo({ id: room }), "getRoomInfo")
+        .createdBy?.id;
     const transfer = (who: Member, room: number, to: Member) =>
       who.api.sharing.changeFileOwner({
         changeOwnerRequestDto: { folderIds: [room] as never, userId: to.id },
@@ -62,12 +66,20 @@ test.describe("Ownership transfer - only the owner", () => {
         expectNoServerError(res.status, `transfer (${kind}) by ${who.key}`);
         if (changed)
           // Hand it back: the new owner returns the room to the account that built the scene.
-          await to.api.sharing.changeFileOwner({
-            changeOwnerRequestDto: {
-              folderIds: [room] as never,
-              userId: a.adminId,
-            },
-          });
+          expect(
+            (
+              await to.api.sharing.changeFileOwner({
+                changeOwnerRequestDto: {
+                  folderIds: [room] as never,
+                  userId: a.adminId,
+                },
+              })
+            ).status,
+            `${kind}: the room is handed back after ${who.key}`,
+          ).toBe(200);
+        // The guide's table: only the owner transfers a private room; the others are refused.
+        else if (kind === "priv" && who.key !== "owner")
+          expectRefused(res.status, `transfer (priv) by ${who.key}`);
         expect
           .soft(
             await ownerOf(room),
@@ -81,6 +93,10 @@ test.describe("Ownership transfer - only the owner", () => {
       outcome["owner"].priv,
       "the owner transfers (positive control)",
     ).toBe(true);
+    expect(
+      Object.keys(outcome).sort(),
+      "every member tried the transfer",
+    ).toEqual(a.members.map((m) => m.key).sort());
     for (const who of a.members.filter((m) => m.key !== "owner")) {
       // The guide's table: "Transfer the room to another member - Owner".
       expect
@@ -126,17 +142,15 @@ test.describe("Role changes - the next request already sees the new role", () =>
     const candidate = a.extras[0];
 
     const can = async () => {
-      const upload = !!(await putFile(u.api, "priv", a.priv));
-      const folder = isOk(
-        (
-          await u.api.folders.createFolder({
-            folderId: a.priv,
-            createFolderRequest: {
-              title: `rc-${Math.random().toString(36).slice(2, 8)}`,
-            },
-          })
-        ).status,
-      );
+      const upload = !!(await putFileOrRefusal(u.api, "priv", a.priv));
+      const made = await u.api.folders.createFolder({
+        folderId: a.priv,
+        createFolderRequest: {
+          title: `rc-${Math.random().toString(36).slice(2, 8)}`,
+        },
+      });
+      const folder = isOk(made.status);
+      if (!folder) expectRefused(made.status, "createFolder by the member");
       const inv = await u.api.rooms.setRoomSecurity({
         id: a.priv,
         roomInvitationRequest: {
@@ -148,8 +162,17 @@ test.describe("Role changes - the next request already sees the new role", () =>
         candidate.id,
       );
       if (invited)
-        await inviteToRoom(a.admin, a.priv, candidate.id, FileShare.None);
-      return { upload, folder, invite: invited && isOk(inv.status) };
+        expect(
+          (await inviteToRoom(a.admin, a.priv, candidate.id, FileShare.None))
+            .status,
+          "undo: removing the candidate",
+        ).toBe(200);
+      else expectRefused(inv.status, "invitation by the member");
+      // A member who was added must have been answered with a success, and vice versa.
+      expect(isOk(inv.status), "invitation: answer and state agree").toBe(
+        invited,
+      );
+      return { upload, folder, invite: invited };
     };
     const setRole = async (access: FileShare) => {
       expect((await inviteToRoom(a.admin, a.priv, u.id, access)).status).toBe(
@@ -215,7 +238,7 @@ test.describe("Creating a private room - global role and key", () => {
   }) => {
     test.setTimeout(500_000);
     const owner = apiSdk.forRole("owner");
-    const ownerId = (await owner.profiles.getSelfProfile()).data.response!.id!;
+    const ownerId = await getOwnerId(owner);
     // One account per global role walks through the three key states in turn (none -> has -> deleted), like the
     // Portal Owner below. Several accounts of one global role in a single test share one session slot of the
     // token store, which made a "DocSpaceAdmin (deleted)" account act with someone else's rights.
@@ -247,14 +270,9 @@ test.describe("Creating a private room - global role and key", () => {
           private: true,
         },
       });
-    const privateIds = async (api: typeof owner) =>
-      (
-        ((
-          await api.rooms.getRoomsFolder({
-            searchArea: "PrivateRooms" as never,
-          })
-        ).data.response?.folders ?? []) as { id?: number }[]
-      ).map((f) => f.id);
+    // The list request itself must succeed: an error answer is not "no private rooms".
+    const privateIds = (api: typeof owner) =>
+      listRoomIds(api, SearchArea.PrivateRooms);
 
     // Accounts that cannot create even an ordinary room: no positive control, so what they get for a
     // private room says nothing about privacy. Listed, never silently skipped.
@@ -263,6 +281,11 @@ test.describe("Creating a private room - global role and key", () => {
       const before = await privateIds(s.api);
       const res = await createPrivate(s.api, `Roles create ${s.label}`);
       const roomId = (res.data?.response as { id?: number } | undefined)?.id;
+      if (isOk(res.status))
+        expect(
+          roomId,
+          `${s.label}: a success answer carries no room id`,
+        ).toBeGreaterThan(0);
       const created = isOk(res.status) && !!roomId;
       const control = await s.api.rooms.createRoom({
         createRoomRequestDto: {
@@ -271,9 +294,12 @@ test.describe("Creating a private room - global role and key", () => {
         },
       });
       expectNoServerError(res.status, `${s.label}: private room`);
+      expectNoServerError(control.status, `${s.label}: ordinary room`);
       if (created) {
-        const info = (await s.api.rooms.getRoomInfo({ id: roomId! })).data
-          .response!;
+        const info = okBody(
+          await s.api.rooms.getRoomInfo({ id: roomId! }),
+          `${s.label}: getRoomInfo`,
+        );
         expect.soft(info.private, `${s.label}: the flag`).toBe(true);
         expect
           .soft(info.roomType, `${s.label}: the type`)
@@ -285,6 +311,7 @@ test.describe("Creating a private room - global role and key", () => {
           .soft(await privateIds(s.api), `${s.label}: listed for its creator`)
           .toContain(roomId);
       } else {
+        expectRefused(res.status, `${s.label}: private room`);
         expect
           .soft(
             await privateIds(s.api),
@@ -428,7 +455,7 @@ test.describe("Keys and rights are independent", () => {
     const a = await buildArena(apiSdk, { members: defs });
     const creator = a.by("creator");
     const reader = a.by("reader");
-    const file = (await putFile(a.admin, "priv", a.priv))!;
+    const file = await putFile(a.admin, "priv", a.priv);
     expect(file, "setup: a file").toBeTruthy();
     // The Read member holds a file key and an account key: neither is a right to write.
     expect(
@@ -445,15 +472,25 @@ test.describe("Keys and rights are independent", () => {
         })
       ).status,
     ).toBe(200);
-    const readerKeys = await reader.api.files.getEncryptionInfo({
-      fileId: file,
-    });
-    expect(readerKeys.data.response?.fileKeys).toHaveLength(1);
-    expect((await reader.api.privacyroom.getUserKeys()).data.count).toBe(1);
+    const readerKeys = okBody(
+      await reader.api.files.getEncryptionInfo({ fileId: file }),
+      "getEncryptionInfo by the reader",
+    );
+    expect(readerKeys.fileKeys).toHaveLength(1);
+    const readerAccountKeys = await reader.api.privacyroom.getUserKeys();
+    expect(readerAccountKeys.status, "getUserKeys by the reader").toBe(200);
+    expect(readerAccountKeys.data.count).toBe(1);
 
-    const folderBefore = (
-      await a.admin.folders.getFolderByFolderId({ folderId: a.priv })
-    ).data.response;
+    const listFolder = async () =>
+      okBody(
+        await a.admin.folders.getFolderByFolderId({ folderId: a.priv }),
+        "getFolderByFolderId(room)",
+      );
+    const folderBefore = await listFolder();
+    expect(
+      (folderBefore.files ?? []).length,
+      "setup: the room holds the file",
+    ).toBeGreaterThan(0);
     const sessionByReader =
       await reader.api.operations.createUploadSessionInFolder({
         folderId: a.priv,
@@ -485,21 +522,27 @@ test.describe("Keys and rights are independent", () => {
     expectRefused(writes.upload, "upload by a Read member holding keys");
     expectRefused(writes.folder, "createFolder by a Read member holding keys");
     expectRefused(writes.delete, "delete by a Read member holding keys");
-    const folderAfter = (
-      await a.admin.folders.getFolderByFolderId({ folderId: a.priv })
-    ).data.response;
-    expect((folderAfter?.files ?? []).length).toBe(
-      (folderBefore?.files ?? []).length,
-    );
-    expect((folderAfter?.folders ?? []).length).toBe(
-      (folderBefore?.folders ?? []).length,
-    );
+    const folderAfter = await listFolder();
+    const ids = (list?: unknown[] | null) =>
+      ((list ?? []) as { id?: number }[]).map((x) => x.id).sort();
+    expect(ids(folderAfter.files)).toEqual(ids(folderBefore.files));
+    expect(ids(folderAfter.folders)).toEqual(ids(folderBefore.folders));
+    expect(
+      (await a.admin.files.getFileInfo({ fileId: file })).status,
+      "the file survived the refused delete",
+    ).toBe(200);
 
     // A member whose account key is deleted keeps the room, the role and the file's stored key.
     expect(
       (await creator.api.privacyroom.deleteKeys({ id: ZERO_GUID })).status,
     ).toBe(204);
-    expect((await creator.api.privacyroom.getUserKeys()).data.count).toBe(0);
+    const creatorKeys = await creator.api.privacyroom.getUserKeys();
+    expect(creatorKeys.status, "getUserKeys by the creator").toBe(200);
+    expect(creatorKeys.data.count).toBe(0);
+    expect(
+      (await creator.api.rooms.getRoomInfo({ id: a.priv })).status,
+      "the member without an account key still reaches the room",
+    ).toBe(200);
     expect((await roomMemberAccess(a.admin, a.priv)).get(creator.id)).toBe(
       FileShare.ContentCreator,
     );
@@ -518,9 +561,7 @@ test.describe("Keys and rights are independent", () => {
         })
       ).status,
     ).toBe(201);
-    expect(
-      await putFile(creator.api, "priv", a.priv),
-      "upload after the key is back",
-    ).toBeDefined();
+    // putFile fails unless the upload is stored.
+    await putFile(creator.api, "priv", a.priv);
   });
 });

@@ -5,7 +5,8 @@ import { ApiSDK } from "@/src/services/api-sdk";
 import { archiveRoomAndWait } from "@/src/helpers/archive-room";
 import {
   createOwnerPrivateRoom,
-  inviteToRoom,
+  inviteToRoom as inviteRaw,
+  okBody,
   roomMemberAccess,
 } from "@/src/helpers/private-rooms";
 import {
@@ -36,6 +37,15 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
  * credentials never open the file, and a new address is never issued to them.
  */
 
+/** Invites a member and proves the invitation went through: every later refusal rests on it. */
+const inviteToRoom = async (
+  ...args: Parameters<typeof inviteRaw>
+): Promise<Awaited<ReturnType<typeof inviteRaw>>> => {
+  const res = await inviteRaw(...args);
+  expect(res.status, "inviting a member").toBe(200);
+  return res;
+};
+
 const room = async (apiSdk: ApiSDK, marker: string) => {
   const owner = apiSdk.forRole("owner");
   const ownerToken = apiSdk.tokenStore.getToken("owner");
@@ -46,8 +56,12 @@ const room = async (apiSdk: ApiSDK, marker: string) => {
   return { owner, ownerToken, roomId, file };
 };
 
-const addressOf = (res: { data: { response?: unknown } }) =>
-  res.data.response as unknown as string;
+/** The address a getPresignedUri answer carries; the answer must be a 200 with a string. */
+const addressOf = (res: { status: number; data: { response?: unknown } }) => {
+  expect(res.status, "getPresignedUri").toBe(200);
+  expect(typeof res.data.response, "the address").toBe("string");
+  return res.data.response as string;
+};
 
 test.describe("GET /files/file/:fileId/presigneduri - an issued address", () => {
   test("GET /files/file/:fileId/presigneduri - getPresignedUri and getPresignedFileUri both serve a member the file; the second adds a document-service token", async ({
@@ -137,9 +151,11 @@ test.describe("GET /files/file/:fileId/presigneduri - an issued address", () => 
     const old = addressOf(
       await member.api.files.getPresignedUri({ fileId: file.id }),
     );
-    const oldSigned = (
-      await member.api.files.getPresignedFileUri({ fileId: file.id })
-    ).data.response as unknown as { url: string };
+    const oldSigned = okBody(
+      await member.api.files.getPresignedFileUri({ fileId: file.id }),
+      "getPresignedFileUri",
+    ) as unknown as { url: string };
+    expect(typeof oldSigned.url, "the document-service address").toBe("string");
     expect(
       (await fetchAs(old, member.token)).status,
       "control: before removal",
@@ -209,15 +225,14 @@ test.describe("GET /files/file/:fileId/presigneduri - an issued address", () => 
       "control",
     ).toBe(true);
 
-    expect(
-      (
-        await owner.files.deleteFile({
-          fileId: file.id,
-          deleteFileRequest: { immediately: true },
-        })
-      ).status,
-    ).toBe(200);
-    const deletion = await waitForOperation(owner.operations);
+    const deleted = await owner.files.deleteFile({
+      fileId: file.id,
+      deleteFileRequest: { immediately: true },
+    });
+    expect(deleted.status, "deleteFile").toBe(200);
+    const deletion = await waitForOperation(owner.operations, {
+      started: deleted.data.response,
+    });
     expect(deletion.error).toBe("");
     expect((await owner.files.getFileInfo({ fileId: file.id })).status).toBe(
       404,
@@ -249,15 +264,14 @@ test.describe("GET /files/file/:fileId/presigneduri - an issued address", () => 
     ).toBe(true);
 
     await archiveRoomAndWait(apiSdk, roomId);
-    expect(
-      (
-        await owner.rooms.deleteRoom({
-          id: roomId,
-          deleteRoomRequest: { deleteAfter: false },
-        })
-      ).status,
-    ).toBe(200);
-    const deletion = await waitForOperation(owner.operations);
+    const deleted = await owner.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    expect(deleted.status, "deleteRoom").toBe(200);
+    const deletion = await waitForOperation(owner.operations, {
+      started: [deleted.data.response!],
+    });
     expect(deletion.error).toBe("");
     expect((await owner.rooms.getRoomInfo({ id: roomId })).status).toBe(404);
 
@@ -277,8 +291,10 @@ test.describe("GET /files/file/:fileId - the other addresses of a private file",
       { type: "User", key: true },
     ]);
     await inviteToRoom(owner, roomId, member.id, FileShare.Read);
-    const info = (await member.api.files.getFileInfo({ fileId: file.id })).data
-      .response as unknown as {
+    const info = okBody(
+      await member.api.files.getFileInfo({ fileId: file.id }),
+      "getFileInfo",
+    ) as unknown as {
       viewUrl?: string;
       webUrl?: string;
     };

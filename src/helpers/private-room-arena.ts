@@ -1,14 +1,15 @@
-import { randomUUID } from "crypto";
 import { expect } from "@playwright/test";
 import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
 import { ApiSDK, UserType } from "../services/api-sdk";
-import { Api, createOwnerPrivateRoom, inviteToRoom } from "./private-rooms";
 import {
-  addAccounts,
-  markedBytes,
-  uploadEncrypted,
-} from "./private-room-download";
-import { uploadPlain } from "./private-room-forbidden";
+  Api,
+  createOwnerPrivateRoom,
+  getOwnerId,
+  inviteToRoom,
+} from "./private-rooms";
+import { addAccounts, markedBytes } from "./private-room-download";
+import { openSession, sendNext, storedFileId } from "./private-room-upload";
+import { expectRefused } from "./private-room-lifecycle";
 import { ensureEncryptionKeys } from "./rooms";
 
 /**
@@ -114,7 +115,7 @@ export async function buildArena(
   const defs = opts.members ?? DEFAULT_MEMBERS;
   const ownerApi = apiSdk.forRole("owner");
   const ownerToken = apiSdk.tokenStore.getToken("owner");
-  const ownerId = (await ownerApi.profiles.getSelfProfile()).data.response!.id!;
+  const ownerId = await getOwnerId(ownerApi);
 
   const accountDefs = defs.filter((d) => d.global !== "Owner");
   const specs = [
@@ -212,24 +213,70 @@ export async function buildArena(
 
 export type Kind = "priv" | "plain";
 
-/** Puts a file into a room as `api`: an encrypted one into the private room, a plain one into the ordinary room. */
+/** The outcome of one upload attempt. A server error or a transport error is never an outcome: it throws. */
+export type Put =
+  | { stored: true; id: number }
+  | { stored: false; status: number; step: "open" | "send" };
+
+/**
+ * Tries to put a file into a room as `api`: an encrypted one into the private
+ * room, a plain one into the ordinary room. Returns the stored id, or the status
+ * and step at which the portal refused. A 5xx, a transport error or an answer
+ * with no session id is not a refusal and fails the test.
+ */
+export async function tryPut(
+  api: Api,
+  kind: Kind,
+  folderId: number,
+): Promise<Put> {
+  const bytes = markedBytes("ARENA");
+  const opened = await openSession(api, folderId, {
+    size: bytes.length,
+    ext: "docx",
+    encrypted: kind === "priv",
+  });
+  expect(
+    opened.status,
+    `opening a session in ${folderId}: server error`,
+  ).toBeLessThan(500);
+  if (opened.status !== 200)
+    return { stored: false, status: opened.status, step: "open" };
+  expect(opened.id, "a 200 session answer carries no session id").toBeTruthy();
+  const sent = await sendNext(api, folderId, opened.id!, bytes);
+  expect(sent.status, `uploading into ${folderId}: server error`).toBeLessThan(
+    500,
+  );
+  if (sent.status !== 201)
+    return { stored: false, status: sent.status, step: "send" };
+  const id = storedFileId(sent);
+  expect(id, "a 201 upload answer carries no file id").toBeGreaterThan(0);
+  return { stored: true, id };
+}
+
+/** The same upload where it must succeed (setup or a positive control): fails with the refusal status otherwise. */
 export async function putFile(
   api: Api,
   kind: Kind,
   folderId: number,
+): Promise<number> {
+  const put = await tryPut(api, kind, folderId);
+  expect(
+    put.stored,
+    put.stored
+      ? ""
+      : `upload into ${folderId} refused at ${put.step}: ${put.status}`,
+  ).toBe(true);
+  return (put as { id: number }).id;
+}
+
+/** The id of the uploaded file, or undefined when the portal refused with a 4xx (any other failure throws). */
+export async function putFileOrRefusal(
+  api: Api,
+  kind: Kind,
+  folderId: number,
 ): Promise<number | undefined> {
-  try {
-    if (kind === "priv")
-      return (
-        await uploadEncrypted(api, folderId, { bytes: markedBytes("ARENA") })
-      ).id;
-    return await uploadPlain(
-      api,
-      folderId,
-      `${randomUUID()}.docx`,
-      markedBytes("ARENA"),
-    );
-  } catch {
-    return undefined;
-  }
+  const put = await tryPut(api, kind, folderId);
+  if (put.stored) return put.id;
+  expectRefused(put.status, `upload into ${folderId} (${put.step})`);
+  return undefined;
 }

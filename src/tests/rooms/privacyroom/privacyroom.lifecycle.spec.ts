@@ -7,12 +7,14 @@ import { EmployeeStatus, FileShare } from "@onlyoffice/docspace-api-sdk";
 import {
   ZERO_GUID,
   createOwnerPrivateRoom,
+  getOwnerId,
   inviteToRoom,
+  okList,
 } from "@/src/helpers/private-rooms";
 import {
   Account,
   addAccounts,
-  downloadVia,
+  expectDownloads,
   markedBytes,
   uploadEncrypted,
 } from "@/src/helpers/private-room-download";
@@ -85,6 +87,9 @@ test.describe("Inviting an existing user", () => {
     const files = [scene.rootFile.id, scene.deepFile.id, authored.id];
     await issue(owner, files, reader.id, "life-reader");
     await issue(owner, files, author.id, "life-author");
+    // The control for every "[]" read below: members who were issued keys hold them.
+    expect(await keysOf(reader.api, scene.rootFile.id)).not.toBe("[]");
+    expect(await keysOf(author.api, authored.id)).not.toBe("[]");
 
     // An empty room: the invitation works and the invitee reaches it.
     expect((await invite(owner, empty, ce.id, FileShare.Read)).status).toBe(
@@ -123,10 +128,10 @@ test.describe("Inviting an existing user", () => {
       const got = await reach(who.api, scene);
       expect
         .soft(
-          got.room && got.content && got.nested && got.file,
-          `${role}: reaches the room`,
+          [got.room, got.content, got.nested, got.file],
+          `${role}: reaches the room (room, content, nested folder, file)`,
         )
-        .toBe(true);
+        .toEqual([200, 200, 200, 200]);
       expect.soft(got.inPrivateRooms, `${role}: listed`).toBe(true);
       // ...but membership gave them no file key: that is a separate step.
       expect(
@@ -143,27 +148,32 @@ test.describe("Inviting an existing user", () => {
         ...before.snap,
         members: undefined,
       });
-      expect(
-        (await downloadVia(owner, ownerToken, scene.deepFile.id)).bytes!.equals(
-          scene.deepFile.bytes,
-        ),
-      ).toBe(true);
-      expect(
-        (await downloadVia(owner, ownerToken, authored.id)).bytes!.equals(
-          authorBytes,
-        ),
-      ).toBe(true);
+      await expectDownloads(
+        owner,
+        ownerToken,
+        scene.deepFile,
+        `${role}: the deep file`,
+      );
+      await expectDownloads(
+        owner,
+        ownerToken,
+        { ...authored, bytes: authorBytes },
+        `${role}: the author's file`,
+      );
     }
 
     // The missing-key list names the new members' files, and is empty once the keys are written.
-    const missing = await owner.privacyroom.getRoomMissingFileKeys({ roomId });
-    const forC1 = (missing.data.response ?? []).find((e) => e.userId === c1.id);
+    const missing = okList(
+      await owner.privacyroom.getRoomMissingFileKeys({ roomId }),
+      "getRoomMissingFileKeys",
+    );
+    const forC1 = missing.find((e) => e.userId === c1.id);
     expect(forC1?.fileIds?.slice().sort()).toEqual(files.slice().sort());
     for (const [who] of roles)
       await issue(owner, files, who.id, `life-${who.id.slice(0, 4)}`);
-    const stillMissing = (
-      (await owner.privacyroom.getRoomMissingFileKeys({ roomId })).data
-        .response ?? []
+    const stillMissing = okList(
+      await owner.privacyroom.getRoomMissingFileKeys({ roomId }),
+      "getRoomMissingFileKeys (after issuing)",
     ).filter((e) => roles.some(([who]) => who.id === e.userId));
     expect(stillMissing, "members that were issued keys").toEqual([]);
     expect(await keysOf(c1.api, scene.rootFile.id)).not.toBe("[]");
@@ -206,8 +216,11 @@ test.describe("Inviting an existing user", () => {
         { type: "User", key: true },
         { type: "User", key: true },
       ]);
-    const keyCount = async (a: Account) =>
-      (await a.api.privacyroom.getUserKeys()).data.count;
+    const keyCount = async (a: Account) => {
+      const res = await a.api.privacyroom.getUserKeys();
+      expect(res.status, "getUserKeys").toBe(200);
+      return res.data.count;
+    };
     const state = async () => ({
       members: await memberIds(owner, roomId),
       snap: await snapshot(owner, scene),
@@ -299,13 +312,14 @@ test.describe("Inviting an existing user", () => {
     await join(never, "the retry after the key was created");
 
     // The key changes after the candidate list was read.
-    const listed = await owner.privacyroom.getRoomCandidateKeys({
-      roomId,
-      userIds: [raceReplace.id],
-    });
-    const firstKey = (listed.data.response ?? []).find(
-      (k) => k.userId === raceReplace.id,
-    )?.publicKey;
+    const listed = okList(
+      await owner.privacyroom.getRoomCandidateKeys({
+        roomId,
+        userIds: [raceReplace.id],
+      }),
+      "getRoomCandidateKeys",
+    );
+    const firstKey = listed.find((k) => k.userId === raceReplace.id)?.publicKey;
     expect(firstKey, "the candidate list shows the key").toBeDefined();
     expect(
       (
@@ -321,19 +335,26 @@ test.describe("Inviting an existing user", () => {
       raceReplace,
       "a key replaced between the list and the invitation",
     );
-    const relisted = await owner.privacyroom.getRoomCandidateKeys({
-      roomId,
-      userIds: [raceReplace.id],
-    });
-    expect(
-      (relisted.data.response ?? []).find((k) => k.userId === raceReplace.id)
-        ?.publicKey,
-    ).not.toBe(firstKey);
+    const relisted = okList(
+      await owner.privacyroom.getRoomCandidateKeys({
+        roomId,
+        userIds: [raceReplace.id],
+      }),
+      "getRoomCandidateKeys (after the replacement)",
+    );
+    const secondKey = relisted.find(
+      (k) => k.userId === raceReplace.id,
+    )?.publicKey;
+    expect(secondKey, "the candidate list still shows a key").toBeDefined();
+    expect(secondKey).not.toBe(firstKey);
     // The key is deleted after the list.
-    await owner.privacyroom.getRoomCandidateKeys({
-      roomId,
-      userIds: [raceDelete.id],
-    });
+    okList(
+      await owner.privacyroom.getRoomCandidateKeys({
+        roomId,
+        userIds: [raceDelete.id],
+      }),
+      "getRoomCandidateKeys (before the deletion)",
+    );
     expect(
       (await raceDelete.api.privacyroom.deleteKeys({ id: ZERO_GUID })).status,
     ).toBe(204);
@@ -350,7 +371,7 @@ test.describe("Recipients that cannot be invited, and batches", () => {
   }) => {
     test.setTimeout(400_000);
     const { owner, roomId } = await newScene(apiSdk, "Life batch");
-    const ownerId = (await owner.profiles.getSelfProfile()).data.response!.id!;
+    const ownerId = await getOwnerId(owner);
     const [a, b, c, d, keyless, guest, deactivated, retry] = await addAccounts(
       apiSdk,
       [
@@ -372,7 +393,10 @@ test.describe("Recipients that cannot be invited, and batches", () => {
     const reset = async (ids: string[]) => {
       for (const id of ids)
         if ((await accessOf(owner, roomId)).has(id))
-          await invite(owner, roomId, id, FileShare.None);
+          expect(
+            (await invite(owner, roomId, id, FileShare.None)).status,
+            "reset: removing a member",
+          ).toBe(200);
     };
     const invariant = async (label: string) => {
       const acc = await accessOf(owner, roomId);
@@ -390,6 +414,12 @@ test.describe("Recipients that cannot be invited, and batches", () => {
       );
     };
 
+    // Cases whose recipients are all valid: the guide's own client sends each of them as a success, and
+    // the removal spec fixes "two valid recipients in one request -> 200".
+    const valid = new Set([
+      "two keyed users",
+      "two users with different roles",
+    ]);
     const cases: [string, { id: string; access: FileShare }[], string[]][] = [
       [
         "two keyed users",
@@ -456,6 +486,14 @@ test.describe("Recipients that cannot be invited, and batches", () => {
       expectNoServerError(res.status, label);
       await memberIds(owner, roomId); // uniqueness on the raw list
       await invariant(label);
+      if (valid.has(label)) {
+        expect(res.status, `${label}: all recipients are valid`).toBe(200);
+        const acc = await accessOf(owner, roomId);
+        for (const inv of invs)
+          expect(acc.get(inv.id), `${label}: the role of ${inv.id}`).toBe(
+            inv.access,
+          );
+      }
       if (candidates.every((id) => !before.includes(id)) && res.status === 200)
         for (const id of candidates)
           expect(
@@ -465,10 +503,15 @@ test.describe("Recipients that cannot be invited, and batches", () => {
       await reset([a.id, b.id, c.id, d.id]);
     }
     // The same user twice: the last entry wins and there is one membership.
-    await send([
-      { id: a.id, access: FileShare.Read },
-      { id: a.id, access: FileShare.ContentCreator },
-    ]);
+    expectNoServerError(
+      (
+        await send([
+          { id: a.id, access: FileShare.Read },
+          { id: a.id, access: FileShare.ContentCreator },
+        ])
+      ).status,
+      "the same user twice",
+    );
     expect((await accessOf(owner, roomId)).get(a.id)).toBe(
       FileShare.ContentCreator,
     );
@@ -529,8 +572,7 @@ test.describe("Recipients that cannot be invited, and batches", () => {
     try {
       await other.setup();
       const sdkB = new ApiSDK(context, other.tokenStore);
-      const foreignId = (await sdkB.forRole("owner").profiles.getSelfProfile())
-        .data.response!.id!;
+      const foreignId = await getOwnerId(sdkB.forRole("owner"));
       const before = await memberIds(owner, roomId);
       const res = await invite(owner, roomId, foreignId, FileShare.Read);
       expectRefused(res.status, "a user of another portal");
@@ -578,29 +620,33 @@ test.describe("The assertions of this file detect what they are meant to", () =>
 });
 
 test.describe("Inviting the owner of the room", () => {
-  test.fail(
-    "BUG XXXXX: PUT /files/rooms/:id/share - Inviting the owner's own id adds a second record of the owner to the member list",
-    async ({ apiSdk }) => {
-      test.setTimeout(200_000);
-      const { owner, roomId } = await newScene(apiSdk, "Life owner invite");
-      const ownerId = (await owner.profiles.getSelfProfile()).data.response!
-        .id!;
-      const [other] = await addAccounts(apiSdk, [{ type: "User", key: true }]);
-      // The control: an ordinary invitation lists the member once.
-      expect(
-        (await invite(owner, roomId, other.id, FileShare.Read)).status,
-      ).toBe(200);
-      assertUniqueIds((await rawMembers(owner, roomId)).map((m) => m.id));
+  test("BUG XXXXX: PUT /files/rooms/:id/share - Inviting the owner's own id adds a second record of the owner to the member list", async ({
+    apiSdk,
+  }) => {
+    test.setTimeout(200_000);
+    const { owner, roomId } = await newScene(apiSdk, "Life owner invite");
+    const ownerId = await getOwnerId(owner);
+    const [other] = await addAccounts(apiSdk, [{ type: "User", key: true }]);
+    // The control: an ordinary invitation lists the member once.
+    expect((await invite(owner, roomId, other.id, FileShare.Read)).status).toBe(
+      200,
+    );
+    assertUniqueIds((await rawMembers(owner, roomId)).map((m) => m.id));
+    expect(
+      (await memberIds(owner, roomId)).includes(ownerId),
+      "setup: the owner is listed once before the invitation",
+    ).toBe(true);
 
-      const res = await invite(owner, roomId, ownerId, FileShare.Read);
-      expectNoServerError(res.status, "the owner invited as Read");
-      // State first: the owner stays the owner.
-      expect(await ownerOf(owner, roomId)).toBe(ownerId);
-      // The room must not list one subject twice, whatever the invitation answered.
-      assertUniqueIds(
-        (await rawMembers(owner, roomId)).map((m) => m.id),
-        "members after inviting the owner",
-      );
-    },
-  );
+    // The setup succeeded: from here a failure is the known violation (or a server error on this very call).
+    test.fail();
+    const res = await invite(owner, roomId, ownerId, FileShare.Read);
+    expectNoServerError(res.status, "the owner invited as Read");
+    // State first: the owner stays the owner.
+    expect(await ownerOf(owner, roomId)).toBe(ownerId);
+    // The room must not list one subject twice, whatever the invitation answered.
+    assertUniqueIds(
+      (await rawMembers(owner, roomId)).map((m) => m.id),
+      "members after inviting the owner",
+    );
+  });
 });

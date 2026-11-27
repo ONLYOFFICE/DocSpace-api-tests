@@ -1,3 +1,4 @@
+import { expect } from "@playwright/test";
 import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
 import { ApiSDK } from "../services/api-sdk";
 import { Role } from "../services/token-store";
@@ -12,15 +13,16 @@ export const roomAccesses = [
 ] as const;
 
 /**
- * Room types that support the `private: true` (encrypted) flag.
- * Public and FillingForms rooms are link-based and reject private creation.
+ * Room types that support the `private: true` (encrypted) flag. The developers
+ * confirmed that ONLY a Custom room can be private; every other type has its own
+ * negative test in privacyroom.types.spec.ts (the portal currently accepts some
+ * of them, which is a known defect, not a contract to build other tests on).
  */
 export const privateSupportedRoomTypes = [
   { label: "Custom", roomType: RoomType.CustomRoom },
-  { label: "Collaboration", roomType: RoomType.EditingRoom },
-  { label: "VDR", roomType: RoomType.VirtualDataRoom },
 ] as const;
 
+/** Types whose private creation is refused by the portal today (checked in rooms.spec.ts). */
 export const privateUnsupportedRoomTypes = [
   { label: "Public", roomType: RoomType.PublicRoom },
   { label: "FormFilling", roomType: RoomType.FillingFormsRoom },
@@ -31,14 +33,21 @@ export const privateUnsupportedRoomTypes = [
  * for creating private rooms. Idempotent: it only sets keys if none exist.
  */
 export async function ensureEncryptionKeys(apiSdk: ApiSDK, role: Role) {
-  const { data } = await apiSdk.forRole(role).privacyroom.getUserKeys();
-  if ((data.count ?? 0) > 0) return;
-  await apiSdk.forRole(role).privacyroom.setKeys({
+  const api = apiSdk.forRole(role).privacyroom;
+  const current = await api.getUserKeys();
+  expect(current.status, `getUserKeys of ${role}`).toBe(200);
+  expect(
+    typeof current.data.count,
+    `getUserKeys of ${role}: no count in the answer`,
+  ).toBe("number");
+  if (current.data.count! > 0) return;
+  const set = await api.setKeys({
     encryptionKeyRequestDto: {
       publicKey: "pk-" + apiSdk.faker.generateString(16),
       privateKeyEnc: "prv-" + apiSdk.faker.generateString(16),
     },
   });
+  expect(set.status, `setKeys of ${role}`).toBe(201);
 }
 
 /**

@@ -11,6 +11,7 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { waitForRoomTemplate } from "@/src/helpers/wait-for-room-template";
 import { waitForRoomFromTemplate } from "@/src/helpers/wait-for-room-from-template";
 import { roomAccesses, createPrivateRoom } from "@/src/helpers/rooms";
+import { listRoomIds } from "@/src/helpers/private-room-lifecycle";
 import type { ApiSDK } from "@/src/services/api-sdk";
 
 /**
@@ -174,12 +175,42 @@ test.describe("POST /files/rooms - private room access control", () => {
   });
 
   test("Guest cannot create a private room", async ({ apiSdk }) => {
-    await apiSdk.addAuthenticatedMember("owner", "Guest");
-    const { status } = await createPrivateRoom(apiSdk, "guest", {
-      title: "Autotest Private Room",
+    const owner = apiSdk.forRole("owner");
+    // The positive control: the owner (with keys) does create a private room.
+    const control = await createPrivateRoom(apiSdk, "owner", {
+      title: "Autotest Private Room Control",
       roomType: RoomType.CustomRoom,
     });
+    expect(control.status, "the owner creates a private room").toBe(200);
+    const before = await listRoomIds(owner, SearchArea.Any);
+
+    const { status: memberStatus } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    expect(memberStatus, "addAuthenticatedMember Guest").toBe(200);
+    // A Guest cannot even store an encryption key, so the key step is not a
+    // precondition here: the room request itself is what must be refused.
+    const guest = apiSdk.forRole("guest");
+    const keys = await guest.privacyroom.setKeys({
+      encryptionKeyRequestDto: {
+        publicKey: "pk-guest",
+        privateKeyEnc: "prv-guest",
+      },
+    });
+    expect(keys.status, "a Guest storing an encryption key").toBeLessThan(500);
+    const { status } = await guest.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Private Room",
+        roomType: RoomType.CustomRoom,
+        private: true,
+      },
+    });
     expect(status).toBe(403);
+    expect(
+      await listRoomIds(owner, SearchArea.Any),
+      "no room appeared after the refusal",
+    ).toEqual(before);
   });
 
   test("Unauthenticated request returns 401", async ({ apiSdk }) => {

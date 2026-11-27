@@ -53,9 +53,14 @@ test.describe("GET /api/2.0/privacyroom/keys - access control", () => {
   }) => {
     const owner = apiSdk.forRole("owner");
     const publicKey = "owner-" + apiSdk.faker.generateString(16);
-    await owner.privacyroom.setKeys({
-      encryptionKeyRequestDto: { publicKey, privateKeyEnc: "op" },
-    });
+    expect(
+      (
+        await owner.privacyroom.setKeys({
+          encryptionKeyRequestDto: { publicKey, privateKeyEnc: "op" },
+        })
+      ).status,
+      "setKeys (setup)",
+    ).toBe(201);
 
     const { data, status } = await owner.privacyroom.getUserKeys();
     expect(status).toBe(200);
@@ -65,12 +70,20 @@ test.describe("GET /api/2.0/privacyroom/keys - access control", () => {
   test("GET /api/2.0/privacyroom/keys - DocSpaceAdmin reads back their own key", async ({
     apiSdk,
   }) => {
-    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin")).status,
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const admin = apiSdk.forRole("docSpaceAdmin");
     const publicKey = "admin-" + apiSdk.faker.generateString(16);
-    await admin.privacyroom.setKeys({
-      encryptionKeyRequestDto: { publicKey, privateKeyEnc: "ap" },
-    });
+    expect(
+      (
+        await admin.privacyroom.setKeys({
+          encryptionKeyRequestDto: { publicKey, privateKeyEnc: "ap" },
+        })
+      ).status,
+      "setKeys (setup)",
+    ).toBe(201);
 
     const { data, status } = await admin.privacyroom.getUserKeys();
     expect(status).toBe(200);
@@ -81,12 +94,20 @@ test.describe("GET /api/2.0/privacyroom/keys - access control", () => {
   test("GET /api/2.0/privacyroom/keys - RoomAdmin reads back their own key", async ({
     apiSdk,
   }) => {
-    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "RoomAdmin")).status,
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const roomAdmin = apiSdk.forRole("roomAdmin");
     const publicKey = "roomadmin-" + apiSdk.faker.generateString(16);
-    await roomAdmin.privacyroom.setKeys({
-      encryptionKeyRequestDto: { publicKey, privateKeyEnc: "rp" },
-    });
+    expect(
+      (
+        await roomAdmin.privacyroom.setKeys({
+          encryptionKeyRequestDto: { publicKey, privateKeyEnc: "rp" },
+        })
+      ).status,
+      "setKeys (setup)",
+    ).toBe(201);
 
     const { data, status } = await roomAdmin.privacyroom.getUserKeys();
     expect(status).toBe(200);
@@ -96,12 +117,20 @@ test.describe("GET /api/2.0/privacyroom/keys - access control", () => {
   test("GET /api/2.0/privacyroom/keys - User reads back their own key", async ({
     apiSdk,
   }) => {
-    await apiSdk.addAuthenticatedMember("owner", "User");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "User")).status,
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const user = apiSdk.forRole("user");
     const publicKey = "user-" + apiSdk.faker.generateString(16);
-    await user.privacyroom.setKeys({
-      encryptionKeyRequestDto: { publicKey, privateKeyEnc: "up" },
-    });
+    expect(
+      (
+        await user.privacyroom.setKeys({
+          encryptionKeyRequestDto: { publicKey, privateKeyEnc: "up" },
+        })
+      ).status,
+      "setKeys (setup)",
+    ).toBe(201);
 
     const { data, status } = await user.privacyroom.getUserKeys();
     expect(status).toBe(200);
@@ -118,12 +147,21 @@ test.describe("GET /api/2.0/privacyroom/keys - access control", () => {
     // scoping and not a broken read.
     const owner = apiSdk.forRole("owner");
     const ownerPk = "owner-" + apiSdk.faker.generateString(16);
-    await owner.privacyroom.setKeys({
-      encryptionKeyRequestDto: { publicKey: ownerPk, privateKeyEnc: "op" },
-    });
+    expect(
+      (
+        await owner.privacyroom.setKeys({
+          encryptionKeyRequestDto: { publicKey: ownerPk, privateKeyEnc: "op" },
+        })
+      ).status,
+      "setKeys (setup)",
+    ).toBe(201);
     expect((await owner.privacyroom.getUserKeys()).data.count).toBe(1);
 
-    await apiSdk.addAuthenticatedMember("owner", "Guest");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "Guest")).status,
+
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const { data, status } = await apiSdk
       .forRole("guest")
       .privacyroom.getUserKeys();
@@ -156,7 +194,10 @@ test.describe("POST /api/2.0/privacyroom/keys - access control", () => {
   test("POST /api/2.0/privacyroom/keys - DocSpaceAdmin can set keys", async ({
     apiSdk,
   }) => {
-    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin")).status,
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const admin = apiSdk.forRole("docSpaceAdmin");
     const { status } = await admin.privacyroom.setKeys(dto(apiSdk));
     expect((await admin.privacyroom.getUserKeys()).data.count).toBe(1);
@@ -166,7 +207,10 @@ test.describe("POST /api/2.0/privacyroom/keys - access control", () => {
   test("POST /api/2.0/privacyroom/keys - RoomAdmin can set keys", async ({
     apiSdk,
   }) => {
-    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "RoomAdmin")).status,
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const roomAdmin = apiSdk.forRole("roomAdmin");
     const { status } = await roomAdmin.privacyroom.setKeys(dto(apiSdk));
     expect((await roomAdmin.privacyroom.getUserKeys()).data.count).toBe(1);
@@ -176,7 +220,10 @@ test.describe("POST /api/2.0/privacyroom/keys - access control", () => {
   test("POST /api/2.0/privacyroom/keys - User can set keys", async ({
     apiSdk,
   }) => {
-    await apiSdk.addAuthenticatedMember("owner", "User");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "User")).status,
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const user = apiSdk.forRole("user");
     const { status } = await user.privacyroom.setKeys(dto(apiSdk));
     expect((await user.privacyroom.getUserKeys()).data.count).toBe(1);
@@ -189,7 +236,10 @@ test.describe("POST /api/2.0/privacyroom/keys - access control", () => {
     // By design: a Guest may read the key surface but must not own key material,
     // so creating a key is refused with 403 "Access denied". Nothing is stored —
     // checked first, so a 403 that still wrote a key could not pass.
-    await apiSdk.addAuthenticatedMember("owner", "Guest");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "Guest")).status,
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const guest = apiSdk.forRole("guest");
     const { status, data } = await guest.privacyroom.setKeys(dto(apiSdk));
 
@@ -215,7 +265,10 @@ test.describe("PUT /api/2.0/privacyroom/keys - access control", () => {
     apiSdk,
   }) => {
     const owner = apiSdk.forRole("owner");
-    await owner.privacyroom.setKeys(dto(apiSdk));
+    expect(
+      (await owner.privacyroom.setKeys(dto(apiSdk))).status,
+      "setKeys (setup)",
+    ).toBe(201);
     const { status } = await owner.privacyroom.replaceKey(dto(apiSdk));
     expect(status).toBe(200);
   });
@@ -223,9 +276,15 @@ test.describe("PUT /api/2.0/privacyroom/keys - access control", () => {
   test("PUT /api/2.0/privacyroom/keys - DocSpaceAdmin can replace their key", async ({
     apiSdk,
   }) => {
-    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin")).status,
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const admin = apiSdk.forRole("docSpaceAdmin");
-    await admin.privacyroom.setKeys(dto(apiSdk));
+    expect(
+      (await admin.privacyroom.setKeys(dto(apiSdk))).status,
+      "setKeys (setup)",
+    ).toBe(201);
     const { status } = await admin.privacyroom.replaceKey(dto(apiSdk));
     expect(status).toBe(200);
   });
@@ -233,9 +292,15 @@ test.describe("PUT /api/2.0/privacyroom/keys - access control", () => {
   test("PUT /api/2.0/privacyroom/keys - RoomAdmin can replace their key", async ({
     apiSdk,
   }) => {
-    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "RoomAdmin")).status,
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const roomAdmin = apiSdk.forRole("roomAdmin");
-    await roomAdmin.privacyroom.setKeys(dto(apiSdk));
+    expect(
+      (await roomAdmin.privacyroom.setKeys(dto(apiSdk))).status,
+      "setKeys (setup)",
+    ).toBe(201);
     const { status } = await roomAdmin.privacyroom.replaceKey(dto(apiSdk));
     expect(status).toBe(200);
   });
@@ -243,9 +308,15 @@ test.describe("PUT /api/2.0/privacyroom/keys - access control", () => {
   test("PUT /api/2.0/privacyroom/keys - User can replace their key", async ({
     apiSdk,
   }) => {
-    await apiSdk.addAuthenticatedMember("owner", "User");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "User")).status,
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const user = apiSdk.forRole("user");
-    await user.privacyroom.setKeys(dto(apiSdk));
+    expect(
+      (await user.privacyroom.setKeys(dto(apiSdk))).status,
+      "setKeys (setup)",
+    ).toBe(201);
     const { status } = await user.privacyroom.replaceKey(dto(apiSdk));
     expect(status).toBe(200);
   });
@@ -257,7 +328,10 @@ test.describe("PUT /api/2.0/privacyroom/keys - access control", () => {
     // here for the same by-design reason as on POST: no key material for guests.
     // A Guest also never has a key to replace in the first place — the empty
     // read afterwards pins both halves of that.
-    await apiSdk.addAuthenticatedMember("owner", "Guest");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "Guest")).status,
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const guest = apiSdk.forRole("guest");
     const { status, data } = await guest.privacyroom.replaceKey(dto(apiSdk));
 
@@ -286,7 +360,10 @@ test.describe("DELETE /api/2.0/privacyroom/keys/{id} - access control", () => {
     apiSdk,
   }) => {
     const owner = apiSdk.forRole("owner");
-    await owner.privacyroom.setKeys(dto(apiSdk));
+    expect(
+      (await owner.privacyroom.setKeys(dto(apiSdk))).status,
+      "setKeys (setup)",
+    ).toBe(201);
     const { status } = await owner.privacyroom.deleteKeys({ id: ZERO_GUID });
     expect((await owner.privacyroom.getUserKeys()).data.count).toBe(0);
     expect(status).toBe(204);
@@ -295,9 +372,15 @@ test.describe("DELETE /api/2.0/privacyroom/keys/{id} - access control", () => {
   test("DELETE /api/2.0/privacyroom/keys/{id} - DocSpaceAdmin can delete their key", async ({
     apiSdk,
   }) => {
-    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin")).status,
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const admin = apiSdk.forRole("docSpaceAdmin");
-    await admin.privacyroom.setKeys(dto(apiSdk));
+    expect(
+      (await admin.privacyroom.setKeys(dto(apiSdk))).status,
+      "setKeys (setup)",
+    ).toBe(201);
     const { status } = await admin.privacyroom.deleteKeys({ id: ZERO_GUID });
     expect((await admin.privacyroom.getUserKeys()).data.count).toBe(0);
     expect(status).toBe(204);
@@ -306,9 +389,15 @@ test.describe("DELETE /api/2.0/privacyroom/keys/{id} - access control", () => {
   test("DELETE /api/2.0/privacyroom/keys/{id} - RoomAdmin can delete their key", async ({
     apiSdk,
   }) => {
-    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "RoomAdmin")).status,
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const roomAdmin = apiSdk.forRole("roomAdmin");
-    await roomAdmin.privacyroom.setKeys(dto(apiSdk));
+    expect(
+      (await roomAdmin.privacyroom.setKeys(dto(apiSdk))).status,
+      "setKeys (setup)",
+    ).toBe(201);
     const { status } = await roomAdmin.privacyroom.deleteKeys({
       id: ZERO_GUID,
     });
@@ -319,9 +408,15 @@ test.describe("DELETE /api/2.0/privacyroom/keys/{id} - access control", () => {
   test("DELETE /api/2.0/privacyroom/keys/{id} - User can delete their key", async ({
     apiSdk,
   }) => {
-    await apiSdk.addAuthenticatedMember("owner", "User");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "User")).status,
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const user = apiSdk.forRole("user");
-    await user.privacyroom.setKeys(dto(apiSdk));
+    expect(
+      (await user.privacyroom.setKeys(dto(apiSdk))).status,
+      "setKeys (setup)",
+    ).toBe(201);
     const { status } = await user.privacyroom.deleteKeys({ id: ZERO_GUID });
     expect((await user.privacyroom.getUserKeys()).data.count).toBe(0);
     expect(status).toBe(204);
@@ -335,7 +430,10 @@ test.describe("DELETE /api/2.0/privacyroom/keys/{id} - access control", () => {
     // they do not have: a 404 "not found" (the key surface is open to them),
     // whereas the Guest is stopped by role with 403 before any lookup.
     const owner = apiSdk.forRole("owner");
-    await apiSdk.addAuthenticatedMember("owner", "Guest");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "Guest")).status,
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const guest = apiSdk.forRole("guest");
 
     // Pin the premise this test rests on: the Guest really cannot create a key.
@@ -365,16 +463,23 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - access control", () =>
   const createPrivateRoomAsOwner = async (apiSdk: ApiSDK) => {
     const owner = apiSdk.forRole("owner");
     const ownerPk = "owner-" + apiSdk.faker.generateString(12);
-    await owner.privacyroom.setKeys({
-      encryptionKeyRequestDto: { publicKey: ownerPk, privateKeyEnc: "op" },
-    });
-    const { data: room } = await owner.rooms.createRoom({
+    expect(
+      (
+        await owner.privacyroom.setKeys({
+          encryptionKeyRequestDto: { publicKey: ownerPk, privateKeyEnc: "op" },
+        })
+      ).status,
+      "setKeys (setup)",
+    ).toBe(201);
+    const { data: room, status: roomStatus } = await owner.rooms.createRoom({
       createRoomRequestDto: {
         title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
         roomType: RoomType.CustomRoom,
         private: true,
       },
     });
+    expect(roomStatus, "creating the private room").toBe(200);
+    expect(room.response?.private, "the room is not private").toBe(true);
     return { roomId: room.response!.id! as number, ownerPk };
   };
 
@@ -383,14 +488,29 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - access control", () =>
   }) => {
     const { roomId } = await createPrivateRoomAsOwner(apiSdk);
 
-    await apiSdk.addAuthenticatedMember("owner", "User");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "User")).status,
+
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const user = apiSdk.forRole("user");
-    await user.privacyroom.setKeys({
-      encryptionKeyRequestDto: {
-        publicKey: "user-" + apiSdk.faker.generateString(12),
-        privateKeyEnc: "up",
-      },
-    });
+    expect(
+      (
+        await user.privacyroom.setKeys({
+          encryptionKeyRequestDto: {
+            publicKey: "user-" + apiSdk.faker.generateString(12),
+            privateKeyEnc: "up",
+          },
+        })
+      ).status,
+      "setKeys (setup)",
+    ).toBe(201);
+
+    // Positive control: the creator reads the same key set.
+    expect(
+      (await apiSdk.forRole("owner").privacyroom.getUserKeysForRoom({ roomId }))
+        .status,
+    ).toBe(200);
 
     // The user was never invited to the room.
     const { status } = await user.privacyroom.getUserKeysForRoom({ roomId });
@@ -406,15 +526,34 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - access control", () =>
     // fixed — verified on a live portal on 2026-08-04.
     const { roomId, ownerPk } = await createPrivateRoomAsOwner(apiSdk);
 
-    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin")).status,
+
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const admin = apiSdk.forRole("docSpaceAdmin");
-    await admin.privacyroom.setKeys({
-      encryptionKeyRequestDto: { publicKey: "admin-pk", privateKeyEnc: "ap" },
-    });
+    expect(
+      (
+        await admin.privacyroom.setKeys({
+          encryptionKeyRequestDto: {
+            publicKey: "admin-pk",
+            privateKeyEnc: "ap",
+          },
+        })
+      ).status,
+      "setKeys (setup)",
+    ).toBe(201);
 
     const { data, status } = await admin.privacyroom.getUserKeysForRoom({
       roomId,
     });
+
+    // Positive control: a member (the owner) reads exactly that key.
+    const control = await apiSdk
+      .forRole("owner")
+      .privacyroom.getUserKeysForRoom({ roomId });
+    expect(control.status).toBe(200);
+    expect(control.data.response?.map((k) => k.publicKey)).toContain(ownerPk);
 
     // Side-effect check first: the owner's key must NOT leak to a non-member.
     expect(data.response?.map((k) => k.publicKey) ?? []).not.toContain(ownerPk);
@@ -444,16 +583,27 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - access control", () =>
     }) => {
       const { roomId, ownerPk } = await createPrivateRoomAsOwner(apiSdk);
 
-      const { data: memberData, userData } = await apiSdk.addMember(
-        "owner",
-        "User",
-      );
+      const {
+        data: memberData,
+        userData,
+        status: addStatus,
+      } = await apiSdk.addMember("owner", "User");
+
+      expect(addStatus, "addMember (setup)").toBe(200);
       const userId = memberData.response!.id as string;
       const memberApi = await apiSdk.authenticateMember(userData, "User");
       const memberPk = "member-" + apiSdk.faker.generateString(12);
-      await memberApi.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey: memberPk, privateKeyEnc: "mp" },
-      });
+      expect(
+        (
+          await memberApi.privacyroom.setKeys({
+            encryptionKeyRequestDto: {
+              publicKey: memberPk,
+              privateKeyEnc: "mp",
+            },
+          })
+        ).status,
+        "setKeys (setup)",
+      ).toBe(201);
 
       // Pin the premise the whole test rests on: the invite really happened.
       const invite = await apiSdk.forRole("owner").rooms.setRoomSecurity({
@@ -482,16 +632,27 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - access control", () =>
     // RoomAdmin-type member can, and it grants the key set like any other level.
     const { roomId, ownerPk } = await createPrivateRoomAsOwner(apiSdk);
 
-    const { data: memberData, userData } = await apiSdk.addMember(
-      "owner",
-      "RoomAdmin",
-    );
+    const {
+      data: memberData,
+      userData,
+      status: addStatus,
+    } = await apiSdk.addMember("owner", "RoomAdmin");
+
+    expect(addStatus, "addMember (setup)").toBe(200);
     const roomAdminId = memberData.response!.id as string;
     const roomAdminApi = await apiSdk.authenticateMember(userData, "RoomAdmin");
     const roomAdminPk = "roomadmin-" + apiSdk.faker.generateString(12);
-    await roomAdminApi.privacyroom.setKeys({
-      encryptionKeyRequestDto: { publicKey: roomAdminPk, privateKeyEnc: "rp" },
-    });
+    expect(
+      (
+        await roomAdminApi.privacyroom.setKeys({
+          encryptionKeyRequestDto: {
+            publicKey: roomAdminPk,
+            privateKeyEnc: "rp",
+          },
+        })
+      ).status,
+      "setKeys (setup)",
+    ).toBe(201);
 
     const invite = await apiSdk.forRole("owner").rooms.setRoomSecurity({
       id: roomId,
@@ -518,16 +679,24 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - access control", () =>
     // role grants nothing by itself, but a normal invitation does.
     const { roomId, ownerPk } = await createPrivateRoomAsOwner(apiSdk);
 
-    const { data: memberData, userData } = await apiSdk.addMember(
-      "owner",
-      "DocSpaceAdmin",
-    );
+    const {
+      data: memberData,
+      userData,
+      status: addStatus,
+    } = await apiSdk.addMember("owner", "DocSpaceAdmin");
+
+    expect(addStatus, "addMember (setup)").toBe(200);
     const adminId = memberData.response!.id as string;
     const adminApi = await apiSdk.authenticateMember(userData, "DocSpaceAdmin");
     const adminPk = "admin-" + apiSdk.faker.generateString(12);
-    await adminApi.privacyroom.setKeys({
-      encryptionKeyRequestDto: { publicKey: adminPk, privateKeyEnc: "ap" },
-    });
+    expect(
+      (
+        await adminApi.privacyroom.setKeys({
+          encryptionKeyRequestDto: { publicKey: adminPk, privateKeyEnc: "ap" },
+        })
+      ).status,
+      "setKeys (setup)",
+    ).toBe(201);
 
     const denied = await adminApi.privacyroom.getUserKeysForRoom({ roomId });
     expect(denied.status).toBe(403);
@@ -560,15 +729,21 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - access control", () =>
     // room's key requirement and not about guests being uninvitable in general.
     const owner = apiSdk.forRole("owner");
     const { roomId } = await createPrivateRoomAsOwner(apiSdk);
-    const { data: plain } = await owner.rooms.createRoom({
+    const { data: plain, status: plainStatus } = await owner.rooms.createRoom({
       createRoomRequestDto: {
         title: "Autotest Plain Room " + apiSdk.faker.generateString(6),
         roomType: RoomType.CustomRoom,
       },
     });
+    expect(plainStatus, "creating the ordinary room").toBe(200);
     const plainRoomId = plain.response!.id!;
 
-    const { data: guestData } = await apiSdk.addMember("owner", "Guest");
+    const { data: guestData, status: addStatus } = await apiSdk.addMember(
+      "owner",
+      "Guest",
+    );
+
+    expect(addStatus, "addMember (setup)").toBe(200);
     const guestId = guestData.response!.id as string;
     const invitation = {
       invitations: [{ id: guestId, access: FileShare.Read }],
@@ -604,19 +779,27 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - access control", () =>
     // so an empty or broken read cannot pass this test.
     const { roomId } = await createPrivateRoomAsOwner(apiSdk);
 
-    const { data: memberData, userData } = await apiSdk.addMember(
-      "owner",
-      "User",
-    );
+    const {
+      data: memberData,
+      userData,
+      status: addStatus,
+    } = await apiSdk.addMember("owner", "User");
+
+    expect(addStatus, "addMember (setup)").toBe(200);
     const memberId = memberData.response!.id as string;
     const memberApi = await apiSdk.authenticateMember(userData, "User");
     const memberPrv = "member-prv-" + apiSdk.faker.generateString(12);
-    await memberApi.privacyroom.setKeys({
-      encryptionKeyRequestDto: {
-        publicKey: "member-" + apiSdk.faker.generateString(12),
-        privateKeyEnc: memberPrv,
-      },
-    });
+    expect(
+      (
+        await memberApi.privacyroom.setKeys({
+          encryptionKeyRequestDto: {
+            publicKey: "member-" + apiSdk.faker.generateString(12),
+            privateKeyEnc: memberPrv,
+          },
+        })
+      ).status,
+      "setKeys (setup)",
+    ).toBe(201);
     const invite = await apiSdk.forRole("owner").rooms.setRoomSecurity({
       id: roomId,
       roomInvitationRequest: {
@@ -650,27 +833,46 @@ test.describe("Cross-user E2E key isolation", () => {
   test("A user cannot replace another user's key", async ({ apiSdk }) => {
     const owner = apiSdk.forRole("owner");
     const ownerPk = "owner-" + apiSdk.faker.generateString(12);
-    await owner.privacyroom.setKeys({
-      encryptionKeyRequestDto: { publicKey: ownerPk, privateKeyEnc: "op" },
-    });
+    expect(
+      (
+        await owner.privacyroom.setKeys({
+          encryptionKeyRequestDto: { publicKey: ownerPk, privateKeyEnc: "op" },
+        })
+      ).status,
+      "setKeys (setup)",
+    ).toBe(201);
 
-    await apiSdk.addAuthenticatedMember("owner", "User");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "User")).status,
+
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const user = apiSdk.forRole("user");
-    await user.privacyroom.setKeys({
-      encryptionKeyRequestDto: {
-        publicKey: "user-" + apiSdk.faker.generateString(12),
-        privateKeyEnc: "up",
-      },
-    });
+    expect(
+      (
+        await user.privacyroom.setKeys({
+          encryptionKeyRequestDto: {
+            publicKey: "user-" + apiSdk.faker.generateString(12),
+            privateKeyEnc: "up",
+          },
+        })
+      ).status,
+      "setKeys (setup)",
+    ).toBe(201);
 
     // The user replaces THEIR OWN zero-GUID key; the owner's key (also zero-GUID
     // in its own namespace) must be untouched.
-    await user.privacyroom.replaceKey({
-      encryptionKeyRequestDto: {
-        publicKey: "user-new-" + apiSdk.faker.generateString(12),
-        privateKeyEnc: "up2",
-      },
-    });
+    expect(
+      (
+        await user.privacyroom.replaceKey({
+          encryptionKeyRequestDto: {
+            publicKey: "user-new-" + apiSdk.faker.generateString(12),
+            privateKeyEnc: "up2",
+          },
+        })
+      ).status,
+      "replaceKey (setup)",
+    ).toBe(200);
 
     const ownerKeys = await owner.privacyroom.getUserKeys();
     expect(ownerKeys.data.response?.map((k) => k.publicKey)).toEqual([ownerPk]);
@@ -679,20 +881,37 @@ test.describe("Cross-user E2E key isolation", () => {
   test("A user cannot delete another user's key", async ({ apiSdk }) => {
     const owner = apiSdk.forRole("owner");
     const ownerPk = "owner-" + apiSdk.faker.generateString(12);
-    await owner.privacyroom.setKeys({
-      encryptionKeyRequestDto: { publicKey: ownerPk, privateKeyEnc: "op" },
-    });
+    expect(
+      (
+        await owner.privacyroom.setKeys({
+          encryptionKeyRequestDto: { publicKey: ownerPk, privateKeyEnc: "op" },
+        })
+      ).status,
+      "setKeys (setup)",
+    ).toBe(201);
 
-    await apiSdk.addAuthenticatedMember("owner", "User");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "User")).status,
+
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const user = apiSdk.forRole("user");
-    await user.privacyroom.setKeys({
-      encryptionKeyRequestDto: {
-        publicKey: "user-" + apiSdk.faker.generateString(12),
-        privateKeyEnc: "up",
-      },
-    });
+    expect(
+      (
+        await user.privacyroom.setKeys({
+          encryptionKeyRequestDto: {
+            publicKey: "user-" + apiSdk.faker.generateString(12),
+            privateKeyEnc: "up",
+          },
+        })
+      ).status,
+      "setKeys (setup)",
+    ).toBe(201);
 
-    await user.privacyroom.deleteKeys({ id: ZERO_GUID });
+    expect(
+      (await user.privacyroom.deleteKeys({ id: ZERO_GUID })).status,
+      "deleteKeys (setup)",
+    ).toBe(204);
 
     const ownerKeys = await owner.privacyroom.getUserKeys();
     expect(ownerKeys.data.response?.map((k) => k.publicKey)).toEqual([ownerPk]);
@@ -703,21 +922,46 @@ test.describe("Cross-user E2E key isolation", () => {
   }) => {
     const owner = apiSdk.forRole("owner");
     const ownerPk = "owner-" + apiSdk.faker.generateString(12);
-    await owner.privacyroom.setKeys({
-      encryptionKeyRequestDto: { publicKey: ownerPk, privateKeyEnc: "op" },
-    });
+    expect(
+      (
+        await owner.privacyroom.setKeys({
+          encryptionKeyRequestDto: { publicKey: ownerPk, privateKeyEnc: "op" },
+        })
+      ).status,
+      "setKeys (setup)",
+    ).toBe(201);
 
-    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin")).status,
+
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const admin = apiSdk.forRole("docSpaceAdmin");
-    await admin.privacyroom.setKeys({
-      encryptionKeyRequestDto: { publicKey: "admin-pk", privateKeyEnc: "ap" },
-    });
+    expect(
+      (
+        await admin.privacyroom.setKeys({
+          encryptionKeyRequestDto: {
+            publicKey: "admin-pk",
+            privateKeyEnc: "ap",
+          },
+        })
+      ).status,
+      "setKeys (setup)",
+    ).toBe(201);
 
     // Admin role grants no cross-user key access: this replaces the admin's own
     // key, not the owner's.
-    await admin.privacyroom.replaceKey({
-      encryptionKeyRequestDto: { publicKey: "admin-new", privateKeyEnc: "ap2" },
-    });
+    expect(
+      (
+        await admin.privacyroom.replaceKey({
+          encryptionKeyRequestDto: {
+            publicKey: "admin-new",
+            privateKeyEnc: "ap2",
+          },
+        })
+      ).status,
+      "replaceKey (setup)",
+    ).toBe(200);
 
     const ownerKeys = await owner.privacyroom.getUserKeys();
     expect(ownerKeys.data.response?.map((k) => k.publicKey)).toEqual([ownerPk]);
@@ -728,17 +972,37 @@ test.describe("Cross-user E2E key isolation", () => {
   }) => {
     const owner = apiSdk.forRole("owner");
     const ownerPk = "owner-" + apiSdk.faker.generateString(12);
-    await owner.privacyroom.setKeys({
-      encryptionKeyRequestDto: { publicKey: ownerPk, privateKeyEnc: "op" },
-    });
+    expect(
+      (
+        await owner.privacyroom.setKeys({
+          encryptionKeyRequestDto: { publicKey: ownerPk, privateKeyEnc: "op" },
+        })
+      ).status,
+      "setKeys (setup)",
+    ).toBe(201);
 
-    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin")).status,
+
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const admin = apiSdk.forRole("docSpaceAdmin");
-    await admin.privacyroom.setKeys({
-      encryptionKeyRequestDto: { publicKey: "admin-pk", privateKeyEnc: "ap" },
-    });
+    expect(
+      (
+        await admin.privacyroom.setKeys({
+          encryptionKeyRequestDto: {
+            publicKey: "admin-pk",
+            privateKeyEnc: "ap",
+          },
+        })
+      ).status,
+      "setKeys (setup)",
+    ).toBe(201);
 
-    await admin.privacyroom.deleteKeys({ id: ZERO_GUID });
+    expect(
+      (await admin.privacyroom.deleteKeys({ id: ZERO_GUID })).status,
+      "deleteKeys (setup)",
+    ).toBe(204);
 
     const ownerKeys = await owner.privacyroom.getUserKeys();
     expect(ownerKeys.data.response?.map((k) => k.publicKey)).toEqual([ownerPk]);
@@ -754,25 +1018,39 @@ test.describe("Cross-user E2E key isolation", () => {
     const owner = apiSdk.forRole("owner");
     const ownerId = "0a0a0a0a-0000-0000-0000-00000000000a";
     const ownerPk = "owner-" + apiSdk.faker.generateString(12);
-    await owner.privacyroom.setKeys({
-      encryptionKeyRequestDto: {
-        id: ownerId,
-        publicKey: ownerPk,
-        privateKeyEnc: "op",
-      },
-    });
+    expect(
+      (
+        await owner.privacyroom.setKeys({
+          encryptionKeyRequestDto: {
+            id: ownerId,
+            publicKey: ownerPk,
+            privateKeyEnc: "op",
+          },
+        })
+      ).status,
+      "setKeys (setup)",
+    ).toBe(201);
 
-    await apiSdk.addAuthenticatedMember("owner", "User");
+    expect(
+      (await apiSdk.addAuthenticatedMember("owner", "User")).status,
+
+      "addAuthenticatedMember (setup)",
+    ).toBe(200);
     const user = apiSdk.forRole("user");
     const userId = "0b0b0b0b-0000-0000-0000-00000000000b";
     const userPk = "user-" + apiSdk.faker.generateString(12);
-    await user.privacyroom.setKeys({
-      encryptionKeyRequestDto: {
-        id: userId,
-        publicKey: userPk,
-        privateKeyEnc: "up",
-      },
-    });
+    expect(
+      (
+        await user.privacyroom.setKeys({
+          encryptionKeyRequestDto: {
+            id: userId,
+            publicKey: userPk,
+            privateKeyEnc: "up",
+          },
+        })
+      ).status,
+      "setKeys (setup)",
+    ).toBe(201);
 
     const userKeys = await user.privacyroom.getUserKeys();
     expect(userKeys.status).toBe(200);
@@ -871,10 +1149,13 @@ test.describe("GET /files/rooms - private room visibility", () => {
     const owner = apiSdk.forRole("owner");
     const roomId = await createPrivate(owner, apiSdk, "owner");
 
-    const { data: adminData, userData } = await apiSdk.addMember(
-      "owner",
-      "DocSpaceAdmin",
-    );
+    const {
+      data: adminData,
+      userData,
+      status: addStatus,
+    } = await apiSdk.addMember("owner", "DocSpaceAdmin");
+
+    expect(addStatus, "addMember (setup)").toBe(200);
     expect(adminData.response?.id).toBeDefined();
     const admin = await apiSdk.authenticateMember(userData, "DocSpaceAdmin");
     await setOwnKeys(admin, apiSdk, "admin");
@@ -913,7 +1194,12 @@ test.describe("GET /files/rooms - private room visibility", () => {
     await setOwnKeys(owner, apiSdk, "owner");
     const ownerPlainId = await createPlain(owner, apiSdk, "owner");
 
-    const { userData } = await apiSdk.addMember("owner", "RoomAdmin");
+    const { userData, status: addStatus } = await apiSdk.addMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    expect(addStatus, "addMember (setup)").toBe(200);
     const roomAdmin = await apiSdk.authenticateMember(userData, "RoomAdmin");
     const roomId = await createPrivate(roomAdmin, apiSdk, "roomAdmin");
 

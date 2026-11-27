@@ -10,6 +10,7 @@ import {
   uploadPrivateRoomFile,
   getOwnerId,
   inviteToRoom,
+  okBody,
 } from "@/src/helpers/private-rooms";
 
 /**
@@ -23,10 +24,14 @@ import {
  * decrypt a file.
  */
 
+// The read must succeed: an error answer is not "no file keys".
 const readFileKeys = async (api: Api, fileId: number) => {
-  const { data, status } = await api.files.getEncryptionInfo({ fileId });
-  expect(status).toBe(200);
-  return data.response?.fileKeys ?? [];
+  const info = okBody(
+    await api.files.getEncryptionInfo({ fileId }),
+    `getEncryptionInfo(${fileId})`,
+  );
+  expect(Array.isArray(info.fileKeys), "fileKeys is not a list").toBe(true);
+  return info.fileKeys!;
 };
 
 const issue = (
@@ -40,6 +45,34 @@ const issue = (
     accessRequestKeyDto: [{ userId, publicKeyId: ZERO_GUID, privateKeyEnc }],
   });
 
+// A key issue that is a precondition: the exact 200 is asserted.
+const seed = async (
+  api: Api,
+  fileId: number,
+  userId: string,
+  privateKeyEnc: string,
+) => {
+  const res = await issue(api, fileId, userId, privateKeyEnc);
+  expect(res.status, `seed ${privateKeyEnc}: ${JSON.stringify(res.data)}`).toBe(
+    200,
+  );
+  expect(res.data.response?.skippedUserIds, `${privateKeyEnc} skipped`).toEqual(
+    [],
+  );
+};
+
+// A membership change the test rests on: the exact 200 is asserted.
+const setAccess = async (
+  owner: Api,
+  roomId: number,
+  userId: string,
+  access: FileShare,
+) =>
+  expect(
+    (await inviteToRoom(owner, roomId, userId, access)).status,
+    `setting access ${access} for ${userId}`,
+  ).toBe(200);
+
 test.describe("GET/PUT /files/{fileId}/access - membership", () => {
   test("GET /files/{fileId}/access - A removed member can neither read nor issue file keys", async ({
     apiSdk,
@@ -48,13 +81,13 @@ test.describe("GET/PUT /files/{fileId}/access - membership", () => {
     const [m1] = await addKeyedMembers(apiSdk, 1);
     const roomId = await createOwnerPrivateRoom(apiSdk);
     const fileId = await uploadPrivateRoomFile(owner, roomId);
-    await inviteToRoom(owner, roomId, m1.id, FileShare.ContentCreator);
-    expect((await issue(owner, fileId, m1.id, "fk-for-m1")).status).toBe(200);
+    await setAccess(owner, roomId, m1.id, FileShare.ContentCreator);
+    await seed(owner, fileId, m1.id, "fk-for-m1");
     expect(
       (await readFileKeys(m1.api, fileId)).map((k) => k.privateKeyEnc),
     ).toEqual(["fk-for-m1"]);
 
-    await inviteToRoom(owner, roomId, m1.id, FileShare.None);
+    await setAccess(owner, roomId, m1.id, FileShare.None);
 
     expect((await m1.api.files.getEncryptionInfo({ fileId })).status).toBe(403);
     expect(
@@ -71,7 +104,7 @@ test.describe("GET/PUT /files/{fileId}/access - membership", () => {
     const [m1] = await addKeyedMembers(apiSdk, 1);
     const roomId = await createOwnerPrivateRoom(apiSdk);
     const fileId = await uploadPrivateRoomFile(owner, roomId);
-    await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
+    await setAccess(owner, roomId, m1.id, FileShare.Read);
 
     await test.step("Read: refused, nothing stored", async () => {
       expect((await issue(m1.api, fileId, m1.id, "from-read")).status).toBe(
@@ -81,7 +114,7 @@ test.describe("GET/PUT /files/{fileId}/access - membership", () => {
     });
 
     await test.step("ContentCreator: accepted and stored", async () => {
-      await inviteToRoom(owner, roomId, m1.id, FileShare.ContentCreator);
+      await setAccess(owner, roomId, m1.id, FileShare.ContentCreator);
       expect((await issue(m1.api, fileId, m1.id, "from-creator")).status).toBe(
         200,
       );
@@ -91,7 +124,7 @@ test.describe("GET/PUT /files/{fileId}/access - membership", () => {
     });
 
     await test.step("back to Read: refused again, stored key untouched", async () => {
-      await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
+      await setAccess(owner, roomId, m1.id, FileShare.Read);
       expect(
         (await issue(m1.api, fileId, m1.id, "from-read-again")).status,
       ).toBe(403);
@@ -109,9 +142,9 @@ test.describe("GET/PUT /files/{fileId}/access - membership", () => {
     const ownerId = await getOwnerId(owner);
     const roomId = await createOwnerPrivateRoom(apiSdk);
     const fileId = await uploadPrivateRoomFile(owner, roomId);
-    await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
-    await issue(owner, fileId, ownerId, "fk-owner");
-    await issue(owner, fileId, m1.id, "fk-m1");
+    await setAccess(owner, roomId, m1.id, FileShare.Read);
+    await seed(owner, fileId, ownerId, "fk-owner");
+    await seed(owner, fileId, m1.id, "fk-m1");
 
     const { data, status } = await m1.api.files.getEncryptionInfo({ fileId });
 
@@ -136,9 +169,14 @@ test.describe("GET/PUT /files/{fileId}/access - membership", () => {
     const [m1] = await addKeyedMembers(apiSdk, 1);
     const roomId = await createOwnerPrivateRoom(apiSdk);
     const fileId = await uploadPrivateRoomFile(owner, roomId);
-    await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
-    const before = await m1.api.files.getEncryptionInfo({ fileId });
-    expect(before.data.response!.userKeys).toHaveLength(1);
+    await setAccess(owner, roomId, m1.id, FileShare.Read);
+    const before = okBody(
+      await m1.api.files.getEncryptionInfo({ fileId }),
+      "getEncryptionInfo before deleting the key",
+    );
+    expect(before.userKeys).toHaveLength(1);
+    // Positive control: the member's key pair is visible before it is deleted.
+    expect(JSON.stringify(before)).toContain(m1.privateKeyEnc);
 
     expect(
       (await m1.api.privacyroom.deleteKeys({ id: ZERO_GUID })).status,
@@ -157,15 +195,16 @@ test.describe("GET/PUT /files/{fileId}/access - membership", () => {
     const [m1] = await addKeyedMembers(apiSdk, 1);
     const roomId = await createOwnerPrivateRoom(apiSdk);
     const fileId = await uploadPrivateRoomFile(owner, roomId);
-    await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
-    await issue(owner, fileId, m1.id, "fk-issued");
+    await setAccess(owner, roomId, m1.id, FileShare.Read);
+    await seed(owner, fileId, m1.id, "fk-issued");
 
-    await m1.api.privacyroom.replaceKey({
+    const rotated = await m1.api.privacyroom.replaceKey({
       encryptionKeyRequestDto: {
         publicKey: "member-pk-rot-" + apiSdk.faker.generateString(10),
         privateKeyEnc: "prv-rot",
       },
     });
+    expect(rotated.status, "replaceKey").toBe(200);
 
     // Re-wrapping for the new key is the client's job; the portal keeps the
     // stored row as it was issued.
@@ -182,7 +221,7 @@ test.describe("GET/PUT /files/{fileId}/access - membership", () => {
     const ownerId = await getOwnerId(owner);
     const roomId = await createOwnerPrivateRoom(apiSdk);
     const fileId = await uploadPrivateRoomFile(owner, roomId);
-    await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
+    await setAccess(owner, roomId, m1.id, FileShare.Read);
     const send = (suffix: string) =>
       owner.files.setEncryptionInfo({
         fileId,
@@ -222,10 +261,10 @@ test.describe("GET/PUT /files/{fileId}/access - isolation between private rooms"
     const roomB = await createOwnerPrivateRoom(apiSdk);
     const fileA = await uploadPrivateRoomFile(owner, roomA);
     const fileB = await uploadPrivateRoomFile(owner, roomB);
-    await inviteToRoom(owner, roomA, m1.id, FileShare.ContentCreator);
+    await setAccess(owner, roomA, m1.id, FileShare.ContentCreator);
 
     // Positive control: m1 works in the room they belong to.
-    expect((await issue(m1.api, fileA, m1.id, "fk-a")).status).toBe(200);
+    await seed(m1.api, fileA, m1.id, "fk-a");
 
     expect(
       (await m1.api.files.getEncryptionInfo({ fileId: fileB })).status,
@@ -233,7 +272,7 @@ test.describe("GET/PUT /files/{fileId}/access - isolation between private rooms"
     expect((await issue(m1.api, fileB, m1.id, "fk-b")).status).toBe(403);
 
     // Nothing was stored for B: once m1 is let into it, their view is empty.
-    await inviteToRoom(owner, roomB, m1.id, FileShare.Read);
+    await setAccess(owner, roomB, m1.id, FileShare.Read);
     expect(await readFileKeys(m1.api, fileB)).toEqual([]);
   });
 
@@ -248,13 +287,13 @@ test.describe("GET/PUT /files/{fileId}/access - isolation between private rooms"
     const roomA = await createOwnerPrivateRoom(apiSdk);
     const roomB = await createOwnerPrivateRoom(apiSdk);
     const fileB = await uploadPrivateRoomFile(owner, roomB);
-    await inviteToRoom(owner, roomA, m1.id, FileShare.Read);
+    await setAccess(owner, roomA, m1.id, FileShare.Read);
 
     const { data, status } = await issue(owner, fileB, m1.id, "fk-leak");
     expect(status).toBe(200);
     expect(data.response?.skippedUserIds).toEqual([m1.id]);
 
-    await inviteToRoom(owner, roomB, m1.id, FileShare.Read);
+    await setAccess(owner, roomB, m1.id, FileShare.Read);
     expect(await readFileKeys(m1.api, fileB)).toEqual([]);
   });
 });
@@ -267,7 +306,7 @@ test.describe("GET/PUT /files/{fileId}/access - archived room", () => {
     const ownerId = await getOwnerId(owner);
     const roomId = await createOwnerPrivateRoom(apiSdk);
     const fileId = await uploadPrivateRoomFile(owner, roomId);
-    expect((await issue(owner, fileId, ownerId, "fk-before")).status).toBe(200);
+    await seed(owner, fileId, ownerId, "fk-before");
 
     await archiveRoomAndWait(apiSdk, roomId);
 

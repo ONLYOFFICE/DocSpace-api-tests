@@ -138,7 +138,10 @@ test.describe("GET /files/rooms - privacyFilter", () => {
     expect(rooms[0].private).toBe(true);
 
     // And the invitation can be taken back.
-    await inviteToRoom(owner, roomId, m1.id, FileShare.None);
+    expect(
+      (await inviteToRoom(owner, roomId, m1.id, FileShare.None)).status,
+      "inviteToRoom (setup)",
+    ).toBe(200);
     expect(await listRooms(m1.api, RoomPrivacyFilter.Private)).toEqual([]);
   });
 });

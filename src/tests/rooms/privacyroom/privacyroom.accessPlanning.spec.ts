@@ -42,7 +42,11 @@ test.describe("GET /privacyroom/:roomId/access/candidates - Public keys of room 
   }) => {
     const owner = apiSdk.forRole("owner");
     const [keyed] = await addKeyedMembers(apiSdk, 1);
-    const { data: plain } = await apiSdk.addMember("owner", "User");
+    const { data: plain, status: plainStatus } = await apiSdk.addMember(
+      "owner",
+      "User",
+    );
+    expect(plainStatus, "addMember keyless User").toBe(200);
     const keyless = plain.response!.id as string;
     const roomId = await createOwnerPrivateRoom(apiSdk);
 
@@ -75,6 +79,8 @@ test.describe("GET /privacyroom/:roomId/access/candidates - Public keys of room 
       await owner.privacyroom.getRoomCandidateKeys({ roomId });
     expect(noneStatus).toBe(200);
     expect(none.response ?? []).toEqual([]);
+    // Positive control: the same call with an id does answer a key.
+    expect(twice.response).toHaveLength(1);
   });
 
   test("GET /privacyroom/:roomId/access/candidates - A member who cannot change the room's access is refused", async ({
@@ -100,12 +106,14 @@ test.describe("GET /privacyroom/:roomId/access/candidates - Public keys of room 
   }) => {
     const owner = apiSdk.forRole("owner");
     const [m1] = await addKeyedMembers(apiSdk, 1);
-    const { data: plainRoom } = await owner.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `Autotest plain ${apiSdk.faker.generateString(6)}`,
-        roomType: RoomType.CustomRoom,
-      },
-    });
+    const { data: plainRoom, status: plainStatus } =
+      await owner.rooms.createRoom({
+        createRoomRequestDto: {
+          title: `Autotest plain ${apiSdk.faker.generateString(6)}`,
+          roomType: RoomType.CustomRoom,
+        },
+      });
+    expect(plainStatus, "creating the ordinary room").toBe(200);
 
     const { status: notPrivate } = await owner.privacyroom.getRoomCandidateKeys(
       {
@@ -158,10 +166,11 @@ test.describe("GET /privacyroom/:roomId/access/missing - Missing file keys of a 
       expect(issued).toBe(200);
     }
 
-    const { data: after } = await owner.privacyroom.getRoomMissingFileKeys({
-      roomId,
-    });
-    expect(after.response ?? []).toEqual([]);
+    const { data: after, status: afterStatus } =
+      await owner.privacyroom.getRoomMissingFileKeys({ roomId });
+    expect(afterStatus).toBe(200);
+    expect(Array.isArray(after.response), "a list answer").toBe(true);
+    expect(after.response).toEqual([]);
   });
 
   test("GET /privacyroom/:roomId/access/missing - userIds checks people who are not members of the room", async ({
@@ -218,7 +227,14 @@ test.describe("GET /privacyroom/:roomId/access/missing - Missing file keys of a 
     const [m1] = await addKeyedMembers(apiSdk, 1);
     const roomId = await createOwnerPrivateRoom(apiSdk);
     await uploadPrivateRoomFile(owner, roomId);
-    await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
+    expect(
+      (await inviteToRoom(owner, roomId, m1.id, FileShare.Read)).status,
+    ).toBe(200);
+
+    // Positive control: the owner reads the same list.
+    expect(
+      (await owner.privacyroom.getRoomMissingFileKeys({ roomId })).status,
+    ).toBe(200);
 
     const { status } = await m1.api.privacyroom.getRoomMissingFileKeys({
       roomId,
@@ -231,12 +247,14 @@ test.describe("GET /privacyroom/:roomId/access/missing - Missing file keys of a 
     apiSdk,
   }) => {
     const owner = apiSdk.forRole("owner");
-    const { data: plainRoom } = await owner.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `Autotest plain ${apiSdk.faker.generateString(6)}`,
-        roomType: RoomType.CustomRoom,
-      },
-    });
+    const { data: plainRoom, status: plainStatus } =
+      await owner.rooms.createRoom({
+        createRoomRequestDto: {
+          title: `Autotest plain ${apiSdk.faker.generateString(6)}`,
+          roomType: RoomType.CustomRoom,
+        },
+      });
+    expect(plainStatus, "creating the ordinary room").toBe(200);
 
     const { status: notPrivate } =
       await owner.privacyroom.getRoomMissingFileKeys({

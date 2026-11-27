@@ -20,6 +20,8 @@ import {
   unfinishedOperations,
   uploadPlain,
 } from "@/src/helpers/private-room-forbidden";
+import { okBody, okList } from "@/src/helpers/private-rooms";
+import { expectRefused } from "@/src/helpers/private-room-lifecycle";
 import {
   filesIn,
   openSession,
@@ -159,11 +161,25 @@ const OPS: Op[] = [
   },
 ];
 
-const linksOf = async (k: Kit, fileId: number) => {
-  const { data, status } = await k.admin.files.getFileLinks({ id: fileId });
-  expect(status).toBe(200);
-  return (data.response ?? []).length;
+const linksOf = async (k: Kit, fileId: number) =>
+  okList(
+    await k.admin.files.getFileLinks({ id: fileId }),
+    `getFileLinks(${fileId})`,
+  ).length;
+
+// The ids of the files a folder answer lists. An error answer is NOT "no files":
+// the status is asserted first and the list must be an actual array.
+const idsOf = (res: { status: number; data?: unknown }, label: string) => {
+  const body = okBody(
+    res as { status: number; data?: { response?: { files?: unknown[] } } },
+    label,
+  );
+  expect(Array.isArray(body.files), `${label}: files is not a list`).toBe(true);
+  return body.files!.map((f) => (f as { id?: number }).id);
 };
+
+const infoOf = async (api: Kit["admin"], fileId: number) =>
+  okBody(await api.files.getFileInfo({ fileId }), `getFileInfo(${fileId})`);
 
 test.describe("Forbidden operations - a private file is refused them, whoever manages the room", () => {
   for (const { role, label } of KIT_ROLES) {
@@ -174,22 +190,42 @@ test.describe("Forbidden operations - a private file is refused them, whoever ma
       const kit = await buildKit(apiSdk, role);
 
       for (const op of OPS) {
-        if (op.notForRoles?.includes(role)) continue;
         const pair = op.pair(kit);
         // The control: the same call on the ordinary file works for this caller.
         const control = await op.run(kit, pair.plain);
-        // A control that does not work is a failed setup, not a skipped check: the test goes red.
-        expect
-          .soft(
-            control.status >= 200 && control.status < 300,
-            `${role}: ${op.name}: the control on the ordinary file answered ${control.status}`,
-          )
-          .toBe(true);
-        if (control.status < 200 || control.status >= 300) continue;
-        if (op.links)
+        if (op.notForRoles?.includes(role)) {
+          // No working control for this role (refused on an ordinary file too): the premise
+          // is asserted, not skipped. If the role becomes allowed, this goes red and the
+          // exemption must be removed. The private attempt still runs below and must leave
+          // no trace (state comparison), but its refusal proves nothing about privacy.
+          expectRefused(
+            control.status,
+            `${role}: ${op.name}: the exempt role's control on the ordinary file`,
+          );
+          if (op.links)
+            expect
+              .soft(
+                await linksOf(kit, pair.plain),
+                `${op.name}: no link on the ordinary file either`,
+              )
+              .toBe(0);
+          observe(
+            `${role}: ${op.name}: refused on an ordinary file too (${control.status}); no control for privacy`,
+          );
+        } else {
+          // A control that does not work is a failed setup, not a skipped check: the test goes red.
           expect
-            .soft(await linksOf(kit, pair.plain), `${op.name}: control link`)
-            .toBeGreaterThan(0);
+            .soft(
+              control.status >= 200 && control.status < 300,
+              `${role}: ${op.name}: the control on the ordinary file answered ${control.status}`,
+            )
+            .toBe(true);
+          if (control.status < 200 || control.status >= 300) continue;
+          if (op.links)
+            expect
+              .soft(await linksOf(kit, pair.plain), `${op.name}: control link`)
+              .toBeGreaterThan(0);
+        }
         await settle(kit.actor);
 
         const before = {
@@ -202,6 +238,9 @@ test.describe("Forbidden operations - a private file is refused them, whoever ma
 
         const refused = await op.run(kit, pair.priv);
         await settle(kit.actor);
+        observe(
+          `${role}: ${op.name} on the private file answered ${refused.status}`,
+        );
 
         // A server error is never an acceptable answer; the prohibition itself is read back below.
         expect
@@ -269,14 +308,9 @@ test.describe("Forbidden operations - a private file is refused them, whoever ma
       const kit = await buildKit(apiSdk, role);
       const { actor } = kit;
       const favorites = async () =>
-        (
-          (await actor.folders.getFavoritesFolder({})).data.response?.files ??
-          []
-        ).map((f) => (f as { id?: number }).id);
+        idsOf(await actor.folders.getFavoritesFolder({}), "getFavoritesFolder");
       const recent = async () =>
-        (
-          (await actor.folders.getRecentFolder({})).data.response?.files ?? []
-        ).map((f) => (f as { id?: number }).id);
+        idsOf(await actor.folders.getRecentFolder({}), "getRecentFolder");
       const before = await fileJson(kit.admin, kit.docx.priv);
 
       // Documented: the answer only echoes the value, an encrypted file of a private room is never marked.
@@ -344,84 +378,81 @@ test.describe("Forbidden operations - a private file is refused them, whoever ma
       expect(await fileJson(kit.admin, kit.docx.priv)).toEqual(before);
     });
 
-    test.fail(
-      `BUG XXXXX: POST /files/file/:id/saveaspdf - ${label[0].toUpperCase()}${label.slice(1)} saves a PDF made from a file of a private room into an ordinary room`,
-      async ({ apiSdk }) => {
-        test.setTimeout(240_000);
-        const kit = await buildKit(apiSdk, role);
-        const { actor, docx } = kit;
-        // The control: the same call makes a PDF of the ordinary file in the destination.
-        const control = await actor.files.saveFileAsPdf({
-          id: docx.plain,
-          saveAsPdfRequest: {
-            folderId: kit.otherRoom,
-            title: "saved-control.pdf",
-          },
-        });
-        expect(control.status).toBe(200);
-        await settle(actor);
-        const destBefore = await roomFileIds(kit.admin, kit.otherRoom);
-        expect(
-          destBefore,
-          "control: the PDF is in the destination",
-        ).toHaveLength(1);
-        const fileBefore = await fileJson(kit.admin, docx.priv);
+    test(`BUG XXXXX: POST /files/file/:id/saveaspdf - ${label[0].toUpperCase()}${label.slice(1)} saves a PDF made from a file of a private room into an ordinary room`, async ({
+      apiSdk,
+    }) => {
+      test.setTimeout(240_000);
+      const kit = await buildKit(apiSdk, role);
+      const { actor, docx } = kit;
+      // The control: the same call makes a PDF of the ordinary file in the destination.
+      const control = await actor.files.saveFileAsPdf({
+        id: docx.plain,
+        saveAsPdfRequest: {
+          folderId: kit.otherRoom,
+          title: "saved-control.pdf",
+        },
+      });
+      expect(control.status).toBe(200);
+      await settle(actor);
+      const destBefore = await roomFileIds(kit.admin, kit.otherRoom);
+      expect(destBefore, "control: the PDF is in the destination").toHaveLength(
+        1,
+      );
+      const fileBefore = await fileJson(kit.admin, docx.priv);
 
-        const attempt = await actor.files.saveFileAsPdf({
-          id: docx.priv,
-          saveAsPdfRequest: {
-            folderId: kit.otherRoom,
-            title: "saved-private.pdf",
-          },
-        });
-        await settle(actor);
-        const dest = await filesIn(kit.admin, kit.otherRoom);
-        const made = dest.filter((f) => !destBefore.includes(f.id));
-        expect(attempt.status, "a server error is not a refusal").toBeLessThan(
-          500,
-        );
-        // What must hold either way: the private file itself is untouched.
-        expect(await fileJson(kit.admin, docx.priv)).toEqual(fileBefore);
-        // The portal does not convert a file of a private room (docs.convertFile and copyFileAs refuse it),
-        // so nothing may come out of it in an ordinary room.
-        expect(made.map((f) => f.title)).toEqual([]);
-      },
-    );
+      const attempt = await actor.files.saveFileAsPdf({
+        id: docx.priv,
+        saveAsPdfRequest: {
+          folderId: kit.otherRoom,
+          title: "saved-private.pdf",
+        },
+      });
+      await settle(actor);
+      const dest = await filesIn(kit.admin, kit.otherRoom);
+      const made = dest.filter((f) => !destBefore.includes(f.id));
+      // What must hold either way (a failure here is a different defect, never the expected one).
+      expect(attempt.status, "a server error is not a refusal").toBeLessThan(
+        500,
+      );
+      expect(await fileJson(kit.admin, docx.priv)).toEqual(fileBefore);
+      // Known violation (setup and control succeeded): the portal does not convert a file of a
+      // private room (docs.convertFile and copyFileAs refuse it), yet saveaspdf writes a PDF
+      // of it into the ordinary room.
+      test.fail();
+      expect(made.map((f) => f.title)).toEqual([]);
+    });
 
-    test.fail(
-      `BUG XXXXX: PUT /files/file/:fileId - ${label[0].toUpperCase()}${label.slice(1)} renames a file of a private room, replacing its server name`,
-      async ({ apiSdk }) => {
-        const kit = await buildKit(apiSdk, role);
-        const { actor, docx } = kit;
-        // The control: the same call renames the ordinary file.
-        const renamedPlain = await actor.files.updateFile({
-          fileId: docx.plain,
-          updateFileRequest: { title: "Renamed.docx" },
-        });
-        expect(renamedPlain.status).toBe(200);
-        expect(
-          (await kit.admin.files.getFileInfo({ fileId: docx.plain })).data
-            .response?.title,
-        ).toBe("Renamed.docx");
-        const keys = await keysJson(kit.admin, docx.priv);
+    test(`BUG XXXXX: PUT /files/file/:fileId - ${label[0].toUpperCase()}${label.slice(1)} renames a file of a private room, replacing its server name`, async ({
+      apiSdk,
+    }) => {
+      const kit = await buildKit(apiSdk, role);
+      const { actor, docx } = kit;
+      // The control: the same call renames the ordinary file.
+      const renamedPlain = await actor.files.updateFile({
+        fileId: docx.plain,
+        updateFileRequest: { title: "Renamed.docx" },
+      });
+      expect(renamedPlain.status).toBe(200);
+      expect((await infoOf(kit.admin, docx.plain)).title).toBe("Renamed.docx");
+      const keys = await keysJson(kit.admin, docx.priv);
 
-        const attempt = await actor.files.updateFile({
-          fileId: docx.priv,
-          updateFileRequest: { title: "Readable-Name.docx" },
-        });
-        const after = (await kit.admin.files.getFileInfo({ fileId: docx.priv }))
-          .data.response!;
+      const attempt = await actor.files.updateFile({
+        fileId: docx.priv,
+        updateFileRequest: { title: "Readable-Name.docx" },
+      });
+      const after = await infoOf(kit.admin, docx.priv);
 
-        // What may not change either way: the content, the flag, the keys.
-        expect(after.encrypted).toBe(true);
-        expect(await keysJson(kit.admin, docx.priv)).toEqual(keys);
-        expect(attempt.status, "a server error is not a refusal").toBeLessThan(
-          500,
-        );
-        // The server name is the one the client generated; a rename must not replace it with a readable one.
-        expect(after.title).toBe(docx.privTitle);
-      },
-    );
+      // What may not change either way: the content, the flag, the keys.
+      expect(after.encrypted).toBe(true);
+      expect(await keysJson(kit.admin, docx.priv)).toEqual(keys);
+      expect(attempt.status, "a server error is not a refusal").toBeLessThan(
+        500,
+      );
+      // Known violation (setup and control succeeded): the rename is applied.
+      test.fail();
+      // The server name is the one the client generated; a rename must not replace it with a readable one.
+      expect(after.title).toBe(docx.privTitle);
+    });
   }
 });
 
@@ -438,8 +469,7 @@ test.describe("Forbidden operations - renaming and versions of a private file", 
         fileId: id,
         updateFileRequest: { title: "other.pdf" },
       });
-      const info = (await kit.admin.files.getFileInfo({ fileId: id })).data
-        .response!;
+      const info = await infoOf(kit.admin, id);
       // JSDoc: a rename keeps the stored extension whatever the new title says.
       if (name === "ordinary")
         expect(res.status, "control: the rename works").toBe(200);
@@ -460,8 +490,7 @@ test.describe("Forbidden operations - renaming and versions of a private file", 
     const kit = await buildKit(apiSdk, "owner");
     const { actor, docx } = kit;
     const state = async (id: number) => {
-      const f = (await kit.admin.files.getFileInfo({ fileId: id })).data
-        .response!;
+      const f = await infoOf(kit.admin, id);
       return JSON.stringify([
         f.title,
         f.version,
@@ -528,6 +557,9 @@ test.describe("Forbidden operations - renaming and versions of a private file", 
     expect(second.status, "opening the session: a server error").toBeLessThan(
       500,
     );
+    observe(
+      `a second version through an upload session: opening answered ${second.status}`,
+    );
     if (second.id) {
       const sent = await sendNext(actor, kit.privRoom, second.id, bytes);
       expect(sent.status, "sending the bytes: a server error").toBeLessThan(
@@ -557,9 +589,7 @@ test.describe("Forbidden operations - delete, restore and batches", () => {
     const kit = await buildKit(apiSdk, "owner");
     const { actor } = kit;
     const trash = async () =>
-      ((await actor.folders.getTrashFolder({})).data.response?.files ?? []).map(
-        (f) => (f as { id?: number }).id,
-      );
+      idsOf(await actor.folders.getTrashFolder({}), "getTrashFolder");
     const removed = async (fileId: number) => {
       const res = await actor.files.deleteFile({
         fileId,
@@ -634,9 +664,7 @@ test.describe("Forbidden operations - delete, restore and batches", () => {
     expect(res.status).toBe(200);
     await settle(actor);
     const trashIds = async () =>
-      ((await actor.folders.getTrashFolder({})).data.response?.files ?? []).map(
-        (f) => (f as { id?: number }).id,
-      );
+      idsOf(await actor.folders.getTrashFolder({}), "getTrashFolder");
     await expect.poll(trashIds).toContain(kit.rtf.plain);
     const trash = await trashIds();
     expect(trash).not.toContain(kit.rtf.priv);
@@ -721,10 +749,7 @@ test.describe("Forbidden operations - delete, restore and batches", () => {
         ).toEqual([]);
         // The ordinary file is still where it was unless the batch really moved it; the private ones are intact.
         for (const id of ids.filter((x) => x !== kit.docx.plain))
-          expect(
-            (await kit.admin.files.getFileInfo({ fileId: id })).data.response
-              ?.encrypted,
-          ).toBe(true);
+          expect((await infoOf(kit.admin, id)).encrypted).toBe(true);
       }
     }
   });

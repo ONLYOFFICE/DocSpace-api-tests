@@ -2,7 +2,7 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
 import { createPrivateRoom } from "@/src/helpers/rooms";
-import { uploadPrivateRoomFile } from "@/src/helpers/private-rooms";
+import { okBody, uploadPrivateRoomFile } from "@/src/helpers/private-rooms";
 
 const ZERO_GUID = "00000000-0000-0000-0000-000000000000";
 
@@ -74,21 +74,28 @@ test.describe("File encryption - permissions", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await createPrivateRoom(apiSdk, "owner", {
-        title: "Autotest File Encryption Permissions Room",
-        roomType: RoomType.CustomRoom,
-      });
-      const roomId = roomData.response!.id!;
+      const room = okBody(
+        await createPrivateRoom(apiSdk, "owner", {
+          title: "Autotest File Encryption Permissions Room",
+          roomType: RoomType.CustomRoom,
+        }),
+        "createPrivateRoom",
+      );
+      expect(room.private, "the room is not private").toBe(true);
+      const roomId = room.id!;
       const fileId = await uploadPrivateRoomFile(ownerApi, roomId);
 
-      const { api, data: memberData } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        type,
-      );
+      const {
+        api,
+        data: memberData,
+        status: addStatus,
+      } = await apiSdk.addAuthenticatedMember("owner", type);
+      expect(addStatus, "addAuthenticatedMember").toBe(200);
       const memberId = memberData.response!.id!;
-      await api.privacyroom.setKeys({
+      const { status: keysStatus } = await api.privacyroom.setKeys({
         encryptionKeyRequestDto: { publicKey: "mpk", privateKeyEnc: "mprv" },
       });
+      expect(keysStatus, "member setKeys").toBe(201);
       if (access !== null) {
         const { status: inviteStatus } = await ownerApi.rooms.setRoomSecurity({
           id: roomId,
@@ -131,9 +138,15 @@ test.describe("File encryption - permissions", () => {
           });
 
           expect(status).toBe(canSet ? 200 : 403);
+          // A member who may read sees the stored state; for a caller who may
+          // not read, the portal offers no read-back (the owner only sees the
+          // owner's own keys), so the refusal itself is all that can be checked.
           if (canRead) {
-            const { data } = await api.files.getEncryptionInfo({ fileId });
-            expect(data.response?.fileKeys).toHaveLength(canSet ? 1 : 0);
+            const info = okBody(
+              await api.files.getEncryptionInfo({ fileId }),
+              "getEncryptionInfo after setEncryptionInfo",
+            );
+            expect(info.fileKeys).toHaveLength(canSet ? 1 : 0);
           }
         });
     });
@@ -143,15 +156,18 @@ test.describe("File encryption - permissions", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data: me } = await ownerApi.profiles.getSelfProfile();
-    const { data: roomData } = await createPrivateRoom(apiSdk, "owner", {
-      title: "Autotest File Encryption Anonymous Room",
-      roomType: RoomType.CustomRoom,
-    });
-    const fileId = await uploadPrivateRoomFile(
-      ownerApi,
-      roomData.response!.id!,
+    const me = okBody(
+      await ownerApi.profiles.getSelfProfile(),
+      "getSelfProfile",
     );
+    const room = okBody(
+      await createPrivateRoom(apiSdk, "owner", {
+        title: "Autotest File Encryption Anonymous Room",
+        roomType: RoomType.CustomRoom,
+      }),
+      "createPrivateRoom",
+    );
+    const fileId = await uploadPrivateRoomFile(ownerApi, room.id!);
     const anonymousApi = apiSdk.forAnonymous();
 
     const { status: getStatus } = await anonymousApi.files.getEncryptionInfo({
@@ -161,7 +177,7 @@ test.describe("File encryption - permissions", () => {
       fileId,
       accessRequestKeyDto: [
         {
-          userId: me.response!.id!,
+          userId: me.id!,
           publicKeyId: ZERO_GUID,
           privateKeyEnc: "k",
         },
@@ -170,7 +186,13 @@ test.describe("File encryption - permissions", () => {
 
     expect(getStatus).toBe(401);
     expect(setStatus).toBe(401);
-    const { data } = await ownerApi.files.getEncryptionInfo({ fileId });
-    expect(data.response?.fileKeys).toEqual([]);
+    // Positive control: the owner reads the file (200) and the key the anonymous
+    // caller tried to store for the owner is not there.
+    const info = okBody(
+      await ownerApi.files.getEncryptionInfo({ fileId }),
+      "getEncryptionInfo",
+    );
+    expect(info.userKeys).toHaveLength(1);
+    expect(info.fileKeys).toEqual([]);
   });
 });

@@ -8,7 +8,8 @@ import {
   ZERO_GUID,
   createOwnerPrivateRoom,
   getOwnerId,
-  inviteToRoom,
+  inviteToRoom as inviteRaw,
+  okBody,
   roomMemberAccess,
 } from "@/src/helpers/private-rooms";
 import {
@@ -46,6 +47,15 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
  * the reach of an already issued address after removal (SPEC-018, see
  * fileEncryption.presigned.spec.ts). Those rows stay SPEC GAP in the audit.
  */
+
+/** Invites a member and proves the invitation went through: every later refusal rests on it. */
+const inviteToRoom = async (
+  ...args: Parameters<typeof inviteRaw>
+): Promise<Awaited<ReturnType<typeof inviteRaw>>> => {
+  const res = await inviteRaw(...args);
+  expect(res.status, "inviting a member").toBe(200);
+  return res;
+};
 
 const issueFileKey = async (
   owner: Api,
@@ -99,9 +109,13 @@ test.describe("GET /files/file/:fileId/presigneduri - private room download", ()
     expect(got.fetched).toBe(200);
     expect(got.bytes!.equals(file.bytes)).toBe(true);
     // The file is what the room says it is: an encrypted one under the server name.
-    const { data } = await owner.files.getFileInfo({ fileId: file.id });
-    expect(data.response?.encrypted).toBe(true);
-    expect(data.response?.title).toBe(file.serverName);
+    const info = okBody(
+      await owner.files.getFileInfo({ fileId: file.id }),
+      "getFileInfo",
+    );
+    expect(info.encrypted).toBe(true);
+    expect(info.title).toBe(file.serverName);
+    expect(info.pureContentLength).toBe(file.bytes.length);
   });
 
   for (const { label, type, access } of MEMBER_ROLES) {
@@ -130,15 +144,21 @@ test.describe("GET /files/file/:fileId/presigneduri - private room download", ()
     apiSdk,
   }) => {
     const { owner, ownerToken, roomId } = await roomWithFile(apiSdk, "DL-NEST");
-    const { data: outer } = await owner.folders.createFolder({
-      folderId: roomId,
-      createFolderRequest: { title: "outer" },
-    });
-    const { data: inner } = await owner.folders.createFolder({
-      folderId: outer.response!.id!,
-      createFolderRequest: { title: "inner" },
-    });
-    const file = await uploadEncrypted(owner, inner.response!.id!, {
+    const outer = okBody(
+      await owner.folders.createFolder({
+        folderId: roomId,
+        createFolderRequest: { title: "outer" },
+      }),
+      "createFolder outer",
+    );
+    const inner = okBody(
+      await owner.folders.createFolder({
+        folderId: outer.id!,
+        createFolderRequest: { title: "inner" },
+      }),
+      "createFolder inner",
+    );
+    const file = await uploadEncrypted(owner, inner.id!, {
       bytes: markedBytes("DL-NESTED-FILE"),
     });
 
@@ -160,8 +180,12 @@ test.describe("GET /files/file/:fileId/presigneduri - private room download", ()
 
       await expectDownloads(owner, ownerToken, file, ext);
       expect(file.serverName.endsWith(`.${ext}`)).toBe(true);
-      const { data } = await owner.files.getFileInfo({ fileId: file.id });
-      expect(data.response?.title).toBe(file.serverName);
+      const info = okBody(
+        await owner.files.getFileInfo({ fileId: file.id }),
+        "getFileInfo",
+      );
+      expect(info.title).toBe(file.serverName);
+      expect(info.fileExst).toBe(`.${ext}`);
     });
   }
 
@@ -171,17 +195,24 @@ test.describe("GET /files/file/:fileId/presigneduri - private room download", ()
     const { owner, ownerToken, file } = await roomWithFile(apiSdk, "DL-REPEAT");
     const ownerId = await getOwnerId(owner);
     await issueFileKey(owner, file.id, ownerId, "dl-fk-owner");
+    // Both reads must succeed: two failed reads would be "identical" too.
     const read = async () => {
-      const { data } = await owner.files.getFileInfo({ fileId: file.id });
-      const keys = await owner.files.getEncryptionInfo({ fileId: file.id });
+      const info = okBody(
+        await owner.files.getFileInfo({ fileId: file.id }),
+        "getFileInfo",
+      );
+      const keys = okBody(
+        await owner.files.getEncryptionInfo({ fileId: file.id }),
+        "getEncryptionInfo",
+      );
       return {
-        version: data.response?.version,
-        versionGroup: data.response?.versionGroup,
-        encrypted: data.response?.encrypted,
-        title: data.response?.title,
-        contentLength: data.response?.contentLength,
-        updated: data.response?.updated,
-        fileKeys: keys.data.response?.fileKeys?.map((k) => k.privateKeyEnc),
+        version: info.version,
+        versionGroup: info.versionGroup,
+        encrypted: info.encrypted,
+        title: info.title,
+        contentLength: info.contentLength,
+        updated: info.updated,
+        fileKeys: keys.fileKeys?.map((k) => k.privateKeyEnc),
       };
     };
     const before = await read();
@@ -189,6 +220,10 @@ test.describe("GET /files/file/:fileId/presigneduri - private room download", ()
     const first = await downloadVia(owner, ownerToken, file.id);
     const second = await downloadVia(owner, ownerToken, file.id);
 
+    expect(first.issued, "first presigneduri").toBe(200);
+    expect(first.fetched, "first fetch").toBe(200);
+    expect(second.issued, "second presigneduri").toBe(200);
+    expect(second.fetched, "second fetch").toBe(200);
     expect(first.bytes!.equals(file.bytes)).toBe(true);
     expect(second.bytes!.equals(first.bytes!)).toBe(true);
     expect(await read()).toEqual(before);
@@ -210,6 +245,9 @@ test.describe("GET /files/file/:fileId/presigneduri - private room download", ()
     const a = await downloadVia(owner, ownerToken, file.id);
     const b = await downloadVia(owner, ownerToken, other.id);
 
+    expect(a.fetched, "fetching the first file").toBe(200);
+    expect(b.fetched, "fetching the second file").toBe(200);
+
     expect(a.bytes!.equals(file.bytes)).toBe(true);
     expect(b.bytes!.equals(other.bytes)).toBe(true);
     expect(containsMarker(a.bytes!, "DL-OMEGA")).toBe(false);
@@ -223,8 +261,10 @@ test.describe("GET /files/file/:fileId/presigneduri - private room download", ()
     const file = await uploadEncrypted(owner, roomId, {
       bytes: markedBytes("DL-NAME-FILE"),
     });
-    const url = (await owner.files.getPresignedUri({ fileId: file.id })).data
-      .response as unknown as string;
+    const url = okBody(
+      await owner.files.getPresignedUri({ fileId: file.id }),
+      "getPresignedUri",
+    ) as unknown as string;
 
     const got = await fetchAs(url, ownerToken);
 
@@ -233,10 +273,11 @@ test.describe("GET /files/file/:fileId/presigneduri - private room download", ()
       file.serverName,
     );
     // The address and the listing name the file by its server name too.
-    const { data: folder } = await owner.folders.getFolderByFolderId({
-      folderId: roomId,
-    });
-    const titles = folder.response?.files?.map((f) => f.title) ?? [];
+    const folder = okBody(
+      await owner.folders.getFolderByFolderId({ folderId: roomId }),
+      "getFolderByFolderId",
+    );
+    const titles = folder.files?.map((f) => f.title) ?? [];
     expect(titles).toContain(file.serverName);
   });
 
@@ -397,6 +438,14 @@ test.describe("GET /files/file/:fileId/presigneduri - private room isolation", (
       "own room",
     );
 
+    // The premise: a member of the other room only, not of this one.
+    expect((await roomMemberAccess(owner, roomId)).has(neighbour.id)).toBe(
+      false,
+    );
+    expect((await roomMemberAccess(owner, otherRoom)).get(neighbour.id)).toBe(
+      FileShare.Editing,
+    );
+
     await expectRefused(
       apiSdk,
       neighbour,
@@ -459,11 +508,25 @@ test.describe("GET /files/file/:fileId/presigneduri - membership is independent 
     situation: string,
   ) => {
     const got = await downloadVia(who.api, who.token, file.id);
-    expect(got.issued, `${situation}: presigneduri`).toBeLessThan(500);
+    // Either the address is issued, or the call is refused with a client error:
+    // never a server error, never an unexplained 2xx/3xx.
+    const issuedOrRefused = (s: number) => s === 200 || (s >= 400 && s < 500);
+    expect(
+      issuedOrRefused(got.issued),
+      `${situation}: presigneduri answered ${got.issued}`,
+    ).toBe(true);
     if (got.issued === 200) {
-      expect(got.fetched, `${situation}: address fetch`).toBeLessThan(500);
+      expect(
+        issuedOrRefused(got.fetched!),
+        `${situation}: address fetch answered ${got.fetched}`,
+      ).toBe(true);
       if (got.fetched === 200)
         expect(got.bytes!.equals(file.bytes), `${situation}: bytes`).toBe(true);
+      else
+        expect(
+          containsMarker(got.bytes!, "DL-"),
+          `${situation}: a refused fetch carries bytes`,
+        ).toBe(false);
     } else {
       expect(
         got.bytes,
@@ -628,11 +691,13 @@ test.describe("PUT /files/fileops/bulkdownload - private room archives", () => {
       apiSdk,
       "DL-BULK-ROOTFILE",
     );
-    const { data } = await owner.folders.createFolder({
-      folderId: roomId,
-      createFolderRequest: { title: "pack" },
-    });
-    const folderId = data.response!.id!;
+    const folderId = okBody(
+      await owner.folders.createFolder({
+        folderId: roomId,
+        createFolderRequest: { title: "pack" },
+      }),
+      "createFolder",
+    ).id!;
     const inFolder = await uploadEncrypted(owner, folderId, {
       bytes: markedBytes("DL-IN-FOLDER"),
     });
@@ -659,11 +724,14 @@ test.describe("PUT /files/fileops/bulkdownload - private room archives", () => {
       apiSdk,
       "DL-BULK-ROOM",
     );
-    const { data } = await owner.folders.createFolder({
-      folderId: roomId,
-      createFolderRequest: { title: "docs" },
-    });
-    const nested = await uploadEncrypted(owner, data.response!.id!, {
+    const docs = okBody(
+      await owner.folders.createFolder({
+        folderId: roomId,
+        createFolderRequest: { title: "docs" },
+      }),
+      "createFolder",
+    );
+    const nested = await uploadEncrypted(owner, docs.id!, {
       ext: "xlsx",
       bytes: markedBytes("DL-BULK-NESTED"),
     });
@@ -745,49 +813,72 @@ test.describe("PUT /files/fileops/bulkdownload - private room archives", () => {
     expect(mixed.entries?.map((e) => e.name) ?? []).not.toContain(
       secret.serverName,
     );
+    // When the call was answered with an archive, it is the readable file that is in it.
+    if (mixed.status === 200) {
+      expect(mixed.downloadStatus, "fetching the archive").toBe(200);
+      const carried = mixed.isZip
+        ? mixed.entries!.find((e) => e.name === open.serverName)?.bytes
+        : mixed.bytes;
+      expect(carried?.equals(open.bytes), "the readable file's bytes").toBe(
+        true,
+      );
+    }
   });
 
-  test.fail(
-    "BUG XXXXX: PUT /files/fileops/bulkdownload - A request mixing a readable and an unreadable file answers 200 and skips the unreadable one instead of 403",
-    async ({ apiSdk }) => {
-      // JSDoc of bulkDownload: "an item the caller may not read fails the whole call with 403".
-      // Reproduced with ordinary rooms, so it is not specific to private rooms: the call
-      // answers 200 and packs only the readable file.
-      const owner = apiSdk.forRole("owner");
-      const [member] = await addAccounts(apiSdk, [
-        { type: "User", key: false },
-      ]);
-      const mkRoom = async (title: string) =>
-        (
-          await owner.rooms.createRoom({
-            createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
-          })
-        ).data.response!.id!;
-      const mkFile = async (roomId: number, title: string) =>
-        (
-          await owner.files.createFile({
-            folderId: roomId,
-            createFileRequest: { title },
-          })
-        ).data.response!.id!;
-      const openRoom = await mkRoom("Autotest Ordinary Mixed");
-      const hiddenRoom = await mkRoom("Autotest Ordinary Hidden");
-      const readable = await mkFile(openRoom, "readable.docx");
-      const unreadable = await mkFile(hiddenRoom, "unreadable.docx");
-      await inviteToRoom(owner, openRoom, member.id, FileShare.Read);
-      // Control: the member can fetch the readable file alone.
-      expect(
-        (await bulkDownload(member.api, member.token, { fileIds: [readable] }))
-          .status,
-      ).toBe(200);
+  test("BUG XXXXX: PUT /files/fileops/bulkdownload - A request mixing a readable and an unreadable file answers 200 and skips the unreadable one instead of 403", async ({
+    apiSdk,
+  }) => {
+    // JSDoc of bulkDownload: "an item the caller may not read fails the whole call with 403".
+    // Reproduced with ordinary rooms, so it is not specific to private rooms: the call
+    // answers 200 and packs only the readable file.
+    const owner = apiSdk.forRole("owner");
+    const [member] = await addAccounts(apiSdk, [{ type: "User", key: false }]);
+    const mkRoom = async (title: string) =>
+      okBody(
+        await owner.rooms.createRoom({
+          createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+        }),
+        `createRoom ${title}`,
+      ).id!;
+    const mkFile = async (roomId: number, title: string) =>
+      okBody(
+        await owner.files.createFile({
+          folderId: roomId,
+          createFileRequest: { title },
+        }),
+        `createFile ${title}`,
+      ).id!;
+    const openRoom = await mkRoom("Autotest Ordinary Mixed");
+    const hiddenRoom = await mkRoom("Autotest Ordinary Hidden");
+    const readable = await mkFile(openRoom, "readable.docx");
+    const unreadable = await mkFile(hiddenRoom, "unreadable.docx");
+    await inviteToRoom(owner, openRoom, member.id, FileShare.Read);
+    // The premises: the member reads the first file and is refused the second.
+    expect((await roomMemberAccess(owner, hiddenRoom)).has(member.id)).toBe(
+      false,
+    );
+    expect(
+      (await member.api.files.getFileInfo({ fileId: readable })).status,
+      "the member reads the readable file",
+    ).toBe(200);
+    expect(
+      (await member.api.files.getFileInfo({ fileId: unreadable })).status,
+      "the member is refused the unreadable file",
+    ).toBe(403);
+    // Control: the member can fetch the readable file alone.
+    expect(
+      (await bulkDownload(member.api, member.token, { fileIds: [readable] }))
+        .status,
+    ).toBe(200);
 
-      const mixed = await bulkDownload(member.api, member.token, {
-        fileIds: [readable, unreadable],
-      });
+    const mixed = await bulkDownload(member.api, member.token, {
+      fileIds: [readable, unreadable],
+    });
 
-      expect(mixed.status).toBe(403);
-    },
-  );
+    // Known defect: the answer is 200 (the unreadable item is skipped) instead of 403.
+    test.fail();
+    expect(mixed.status).toBe(403);
+  });
 
   test("PUT /files/fileops/bulkdownload - A single file comes back as itself", async ({
     apiSdk,
@@ -830,8 +921,10 @@ test.describe("GET /files/file/:fileId/presigneduri - missing and malformed file
       apiSdk,
       "DL-DELETED",
     );
-    const knownUrl = (await owner.files.getPresignedUri({ fileId: file.id }))
-      .data.response as unknown as string;
+    const knownUrl = okBody(
+      await owner.files.getPresignedUri({ fileId: file.id }),
+      "getPresignedUri",
+    ) as unknown as string;
     await expectDownloads(owner, ownerToken, file, "before deletion");
 
     const del = await owner.files.deleteFile({
@@ -839,7 +932,9 @@ test.describe("GET /files/file/:fileId/presigneduri - missing and malformed file
       deleteFileRequest: { immediately: true },
     });
     expect(del.status).toBe(200);
-    const op = await waitForOperation(owner.operations);
+    const op = await waitForOperation(owner.operations, {
+      started: del.data.response,
+    });
     expect(op.error).toBe("");
 
     expect(

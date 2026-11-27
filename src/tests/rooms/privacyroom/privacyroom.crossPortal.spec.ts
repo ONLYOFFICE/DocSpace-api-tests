@@ -49,6 +49,10 @@ test.describe("Two portals - a private room of one portal is unreachable from th
       const sceneB = await buildScene(ownerB, tokenB, roomB, titleB);
       const sessionB = await openSession(ownerB, roomB, { size: 20 });
       expect(sessionB.status).toBe(200);
+      expect(
+        sessionB.id,
+        "the second portal's session has no id",
+      ).toBeDefined();
       // The first portal has a room of its own, so its owner's calls are not broken ones.
       const roomA = await createOwnerPrivateRoom(apiSdk);
       expect((await ownerA.rooms.getRoomInfo({ id: roomA })).status).toBe(200);
@@ -102,6 +106,23 @@ test.describe("Two portals - a private room of one portal is unreachable from th
 
       // The first portal's credentials on the second portal's host.
       const hostB = sdkB.tokenStore.portalBaseUrl;
+      // The control of the raw requests: the second portal's own token, sent the same way, is answered.
+      for (const path of [`rooms/${roomB}`, `file/${sceneB.rootFile.id}`]) {
+        const own = await apiSdk.request.fetch(
+          `${hostB}/api/2.0/files/${path}`,
+          {
+            headers: {
+              Authorization: `Bearer ${tokenB}`,
+              Origin: `http://${sdkB.tokenStore.newTenantDomain}`,
+              Cookie: "",
+            },
+          },
+        );
+        expect(
+          own.status(),
+          `control: ${path} with the second portal's own token`,
+        ).toBe(200);
+      }
       for (const [name, path] of [
         ["room", `rooms/${roomB}`],
         ["folder", `folder/${sceneB.innerId}`],
@@ -136,6 +157,8 @@ test.describe("Two portals - a private room of one portal is unreachable from th
       // Nothing changed over there: the same state, the bytes, and the session still usable by its owner.
       expect(await snapshot(ownerB, sceneB)).toEqual(before);
       const got = await downloadVia(ownerB, tokenB, sceneB.rootFile.id);
+      expect(got.issued, "download address of the second portal").toBe(200);
+      expect(got.fetched, "download of the second portal's file").toBe(200);
       expect(got.bytes!.equals(sceneB.rootFile.bytes)).toBe(true);
       expect(
         (

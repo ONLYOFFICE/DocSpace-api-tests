@@ -9,6 +9,44 @@ import {
   downloadFile,
   getDownloadUrl,
 } from "@/src/helpers/download";
+import { okBody } from "@/src/helpers/private-rooms";
+import { ApiSDK } from "@/src/services/api-sdk";
+
+type OwnerApi = ReturnType<ApiSDK["forRole"]>;
+
+// Setup calls: the exact status is asserted, an error answer never reads as an id.
+const makeRoom = async (api: OwnerApi, title: string, roomType: RoomType) =>
+  okBody(
+    await api.rooms.createRoom({ createRoomRequestDto: { title, roomType } }),
+    `createRoom ${title}`,
+  ).id!;
+
+const makeHtml = async (
+  api: OwnerApi,
+  folderId: number,
+  title: string,
+  content: string,
+) =>
+  okBody(
+    await api.files.createHtmlFile({
+      folderId,
+      createTextOrHtmlFileRequest: { title, content },
+    }),
+    `createHtmlFile ${title}`,
+  ).id!;
+
+const makeMyDocsHtml = async (
+  api: OwnerApi,
+  title: string,
+  content: string,
+  createNewIfExist?: boolean,
+) =>
+  okBody(
+    await api.files.createHtmlFileInMyDocuments({
+      createTextOrHtmlFileRequest: { title, content, createNewIfExist },
+    }),
+    `createHtmlFileInMyDocuments ${title}`,
+  );
 
 const roomTypes = [
   { label: "Custom", roomType: RoomType.CustomRoom },
@@ -25,26 +63,24 @@ test.describe("GET /files/file/:fileId/presigneduri - download address", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: `Autotest Presigned ${label} Room`,
-          roomType,
-        },
-      });
-      const { data: fileData } = await ownerApi.files.createHtmlFile({
-        folderId: roomData.response!.id!,
-        createTextOrHtmlFileRequest: {
-          title: "Autotest Presigned",
-          content: MARKUP,
-        },
-      });
-      const fileId = fileData.response!.id!;
+      const roomId = await makeRoom(
+        ownerApi,
+        `Autotest Presigned ${label} Room`,
+        roomType,
+      );
+      const fileId = await makeHtml(
+        ownerApi,
+        roomId,
+        "Autotest Presigned",
+        MARKUP,
+      );
 
       const { data, status } = await ownerApi.files.getPresignedUri({
         fileId,
       });
 
       expect(status).toBe(200);
+      expect(typeof data.response).toBe("string");
       const url = new URL(data.response as unknown as string);
       expect(url.searchParams.get("fileid")).toBe(String(fileId));
       expect(url.searchParams.get("version")).toBe("1");
@@ -64,21 +100,23 @@ test.describe("GET /files/file/:fileId/presigneduri - download address", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest Presigned Forms Room",
-        roomType: RoomType.FillingFormsRoom,
-      },
-    });
+    const formsRoomId = await makeRoom(
+      ownerApi,
+      "Autotest Presigned Forms Room",
+      RoomType.FillingFormsRoom,
+    );
     const original = readFileSync(
       path.join(__dirname, "../../../assets/oo-form-empty.pdf"),
     );
-    const { data: insertData } = await apiSdk.insertBinaryFile(
-      "owner",
-      roomData.response!.id!,
-      original,
-      "oo-form-empty.pdf",
-    );
+    const { data: insertData, status: insertStatus } =
+      await apiSdk.insertBinaryFile(
+        "owner",
+        formsRoomId,
+        original,
+        "oo-form-empty.pdf",
+      );
+    expect(insertStatus, JSON.stringify(insertData)).toBe(200);
+    expect(original.length).toBeGreaterThan(0);
 
     const download = await downloadFile(
       apiSdk,
@@ -94,20 +132,9 @@ test.describe("GET /files/file/:fileId/presigneduri - download address", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data: fileData } = await ownerApi.files.createHtmlFileInMyDocuments(
-      {
-        createTextOrHtmlFileRequest: {
-          title: "Autotest Presigned",
-          content: MARKUP,
-        },
-      },
-    );
+    const file = await makeMyDocsHtml(ownerApi, "Autotest Presigned", MARKUP);
 
-    const download = await downloadFile(
-      apiSdk,
-      "owner",
-      fileData.response!.id!,
-    );
+    const download = await downloadFile(apiSdk, "owner", file.id!);
 
     expect(download.status).toBe(200);
     expect(download.bytes.toString("utf8")).toBe(MARKUP);
@@ -119,34 +146,32 @@ test.describe("GET /files/file/:fileId/presigneduri - download address", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data: created } = await ownerApi.files.createHtmlFileInMyDocuments({
-      createTextOrHtmlFileRequest: {
-        title: "Autotest Presigned Version",
-        content: "<p>v1</p>",
-      },
-    });
-    const fileId = created.response!.id!;
+    const created = await makeMyDocsHtml(
+      ownerApi,
+      "Autotest Presigned Version",
+      "<p>v1</p>",
+    );
+    const fileId = created.id!;
     const oldUrl = await getDownloadUrl(ownerApi, fileId);
 
-    const { data: updated } = await ownerApi.files.createHtmlFileInMyDocuments({
-      createTextOrHtmlFileRequest: {
-        title: "Autotest Presigned Version",
-        content: "<p>v2</p>",
-        createNewIfExist: true,
-      },
-    });
-    expect(updated.response!.id).toBe(fileId);
-    expect(updated.response!.version).toBe(2);
+    const updated = await makeMyDocsHtml(
+      ownerApi,
+      "Autotest Presigned Version",
+      "<p>v2</p>",
+      true,
+    );
+    expect(updated.id).toBe(fileId);
+    expect(updated.version).toBe(2);
     const newUrl = await getDownloadUrl(ownerApi, fileId);
 
     expect(new URL(oldUrl).searchParams.get("version")).toBe("1");
     expect(new URL(newUrl).searchParams.get("version")).toBe("2");
-    expect((await downloadAs(apiSdk, "owner", oldUrl)).bytes.toString()).toBe(
-      "<p>v1</p>",
-    );
-    expect((await downloadAs(apiSdk, "owner", newUrl)).bytes.toString()).toBe(
-      "<p>v2</p>",
-    );
+    const oldDownload = await downloadAs(apiSdk, "owner", oldUrl);
+    expect(oldDownload.status).toBe(200);
+    expect(oldDownload.bytes.toString()).toBe("<p>v1</p>");
+    const newDownload = await downloadAs(apiSdk, "owner", newUrl);
+    expect(newDownload.status).toBe(200);
+    expect(newDownload.bytes.toString()).toBe("<p>v2</p>");
   });
 
   // Documented: "every call mints a new key".
@@ -154,18 +179,15 @@ test.describe("GET /files/file/:fileId/presigneduri - download address", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data: fileData } = await ownerApi.files.createHtmlFileInMyDocuments(
-      {
-        createTextOrHtmlFileRequest: {
-          title: "Autotest Presigned Key",
-          content: MARKUP,
-        },
-      },
-    );
-    const fileId = fileData.response!.id!;
+    const fileId = (
+      await makeMyDocsHtml(ownerApi, "Autotest Presigned Key", MARKUP)
+    ).id!;
 
     const first = new URL(await getDownloadUrl(ownerApi, fileId));
     const second = new URL(await getDownloadUrl(ownerApi, fileId));
+
+    expect(first.searchParams.get("stream_auth"), "first key").toBeTruthy();
+    expect(second.searchParams.get("stream_auth"), "second key").toBeTruthy();
 
     expect(second.searchParams.get("fileid")).toBe(
       first.searchParams.get("fileid"),
@@ -182,39 +204,47 @@ test.describe("GET /files/file/:fileId/presigneduri - download address", () => {
   // to the portal itself". Today the address answers 403 without a session, and
   // with a session the key makes no difference (a wrong or missing key still
   // downloads). Needs confirmation that the key is meant to work stand-alone.
-  test.fail(
-    "BUG XXXXX: GET /files/file/:fileId/presigneduri - Address downloads without a portal session",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: fileData } =
-        await ownerApi.files.createHtmlFileInMyDocuments({
-          createTextOrHtmlFileRequest: {
-            title: "Autotest Presigned Anonymous",
-            content: MARKUP,
-          },
-        });
-      const url = await getDownloadUrl(ownerApi, fileData.response!.id!);
+  test("BUG XXXXX: GET /files/file/:fileId/presigneduri - Address downloads without a portal session", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const file = await makeMyDocsHtml(
+      ownerApi,
+      "Autotest Presigned Anonymous",
+      MARKUP,
+    );
+    const url = await getDownloadUrl(ownerApi, file.id!);
+    // Setup control: the same address works with a session.
+    const withSession = await downloadAs(apiSdk, "owner", url);
+    expect(withSession.status, "setup: the address with a session").toBe(200);
+    expect(withSession.bytes.toString("utf8")).toBe(MARKUP);
 
-      const response = await fetch(url);
+    const response = await fetch(url);
+    const status = response.status;
+    const text = await response.text();
 
-      expect(response.status).toBe(200);
-      expect(await response.text()).toBe(MARKUP);
-    },
-  );
+    // Known violation (setup succeeded): the stand-alone key address answers 403.
+    test.fail();
+    expect(status).toBe(200);
+    expect(text).toBe(MARKUP);
+  });
 
   test("GET /files/file/:fileId/presigneduri - Address without a key and without a session is refused", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data: fileData } = await ownerApi.files.createHtmlFileInMyDocuments(
-      {
-        createTextOrHtmlFileRequest: {
-          title: "Autotest Presigned No Key",
-          content: MARKUP,
-        },
-      },
+    const file = await makeMyDocsHtml(
+      ownerApi,
+      "Autotest Presigned No Key",
+      MARKUP,
     );
-    const url = new URL(await getDownloadUrl(ownerApi, fileData.response!.id!));
+    const full = await getDownloadUrl(ownerApi, file.id!);
+    // Positive control: the complete address downloads the content with a session.
+    const control = await downloadAs(apiSdk, "owner", full);
+    expect(control.status, "control: the complete address").toBe(200);
+    expect(control.bytes.toString("utf8")).toBe(MARKUP);
+    const url = new URL(full);
+    expect(url.searchParams.get("stream_auth")).toBeTruthy();
     url.searchParams.delete("stream_auth");
 
     const response = await fetch(url);
@@ -230,20 +260,17 @@ test.describe("GET /files/file/:fileId/presigned - signed download address", () 
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: `Autotest Presigned Token ${label} Room`,
-          roomType,
-        },
-      });
-      const { data: fileData } = await ownerApi.files.createHtmlFile({
-        folderId: roomData.response!.id!,
-        createTextOrHtmlFileRequest: {
-          title: "Autotest Signed",
-          content: MARKUP,
-        },
-      });
-      const fileId = fileData.response!.id!;
+      const roomId = await makeRoom(
+        ownerApi,
+        `Autotest Presigned Token ${label} Room`,
+        roomType,
+      );
+      const fileId = await makeHtml(
+        ownerApi,
+        roomId,
+        "Autotest Signed",
+        MARKUP,
+      );
 
       const { data, status } = await ownerApi.files.getPresignedFileUri({
         fileId,
@@ -263,21 +290,17 @@ test.describe("GET /files/file/:fileId/presigned - signed download address", () 
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data: fileData } = await ownerApi.files.createHtmlFileInMyDocuments(
-      {
-        createTextOrHtmlFileRequest: {
-          title: "Autotest Signed Fresh",
-          content: MARKUP,
-        },
-      },
-    );
-    const fileId = fileData.response!.id!;
+    const fileId = (
+      await makeMyDocsHtml(ownerApi, "Autotest Signed Fresh", MARKUP)
+    ).id!;
 
     const first = await ownerApi.files.getPresignedFileUri({ fileId });
     const second = await ownerApi.files.getPresignedFileUri({ fileId });
 
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
+    expect(first.data.response?.token, "first token").toBeTruthy();
+    expect(second.data.response?.token, "second token").toBeTruthy();
     expect(second.data.response?.token).not.toBe(first.data.response?.token);
     expect(decodeJwtPayload(second.data.response!.token!).url).not.toBe(
       decodeJwtPayload(first.data.response!.token!).url,

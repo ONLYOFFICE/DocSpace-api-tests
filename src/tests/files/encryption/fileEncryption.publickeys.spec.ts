@@ -11,6 +11,8 @@ import {
   getFilePublicKeys,
   getOwnerId,
   inviteToRoom,
+  okBody,
+  okList,
   uploadPrivateRoomFile,
 } from "@/src/helpers/private-rooms";
 
@@ -32,6 +34,31 @@ import {
 const ownEntry = (entries: PublicKeyEntry[], userId: string) =>
   entries.filter((e) => e.userId === userId);
 
+// A membership change the test rests on: the exact 200 is asserted.
+const setAccess = async (
+  owner: Parameters<typeof inviteToRoom>[0],
+  roomId: number,
+  userId: string,
+  access: FileShare,
+) =>
+  expect(
+    (await inviteToRoom(owner, roomId, userId, access)).status,
+    `setting access ${access} for ${userId}`,
+  ).toBe(200);
+
+// The entries of a call that must have succeeded: an error answer is not "no entries".
+const entriesOf = async (
+  apiSdk: Parameters<typeof getFilePublicKeys>[0],
+  token: string,
+  fileId: number,
+) => {
+  const res = await getFilePublicKeys(apiSdk, token, fileId);
+  expect(res.status, `publickeys of ${fileId}: ${res.text.slice(0, 200)}`).toBe(
+    200,
+  );
+  return res.entries;
+};
+
 test.describe("GET /files/file/{fileId}/publickeys", () => {
   test("GET /files/file/{fileId}/publickeys - The owner reads every member's public key and only their own private half", async ({
     apiSdk,
@@ -41,7 +68,7 @@ test.describe("GET /files/file/{fileId}/publickeys", () => {
     const ownerId = await getOwnerId(owner);
     const roomId = await createOwnerPrivateRoom(apiSdk);
     const fileId = await uploadPrivateRoomFile(owner, roomId);
-    await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
+    await setAccess(owner, roomId, m1.id, FileShare.Read);
 
     const { status, entries } = await getFilePublicKeys(
       apiSdk,
@@ -59,10 +86,13 @@ test.describe("GET /files/file/{fileId}/publickeys", () => {
     expect(ownEntry(entries, m1.id)[0].privateKeyEnc ?? null).toBeNull();
 
     // The same set the room-level endpoint reports.
-    const room = await owner.privacyroom.getUserKeysForRoom({ roomId });
-    expect(
-      room.data.response!.map((k) => `${k.userId}:${k.publicKey}`).sort(),
-    ).toEqual(entries.map((e) => `${e.userId}:${e.publicKey}`).sort());
+    const room = okList(
+      await owner.privacyroom.getUserKeysForRoom({ roomId }),
+      "getUserKeysForRoom",
+    );
+    expect(room.map((k) => `${k.userId}:${k.publicKey}`).sort()).toEqual(
+      entries.map((e) => `${e.userId}:${e.publicKey}`).sort(),
+    );
   });
 
   test("GET /files/file/{fileId}/publickeys - A Read member gets their own private half and not the owner's", async ({
@@ -73,7 +103,7 @@ test.describe("GET /files/file/{fileId}/publickeys", () => {
     const ownerId = await getOwnerId(owner);
     const roomId = await createOwnerPrivateRoom(apiSdk);
     const fileId = await uploadPrivateRoomFile(owner, roomId);
-    await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
+    await setAccess(owner, roomId, m1.id, FileShare.Read);
 
     const { status, entries } = await getFilePublicKeys(
       apiSdk,
@@ -95,12 +125,12 @@ test.describe("GET /files/file/{fileId}/publickeys", () => {
     const [m1, outsider] = await addKeyedMembers(apiSdk, 2);
     const roomId = await createOwnerPrivateRoom(apiSdk);
     const fileId = await uploadPrivateRoomFile(owner, roomId);
-    await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
+    await setAccess(owner, roomId, m1.id, FileShare.Read);
 
-    // Positive control: a member reads the same file.
-    expect((await getFilePublicKeys(apiSdk, m1.token, fileId)).status).toBe(
-      200,
-    );
+    // Positive control: a member reads the same file, and the key the outsider must not see is in it.
+    const control = await getFilePublicKeys(apiSdk, m1.token, fileId);
+    expect(control.status).toBe(200);
+    expect(control.text).toContain(m1.publicKey);
 
     const denied = await getFilePublicKeys(apiSdk, outsider.token, fileId);
     expect(denied.status).toBe(403);
@@ -116,10 +146,12 @@ test.describe("GET /files/file/{fileId}/publickeys", () => {
     const roomA = await createOwnerPrivateRoom(apiSdk);
     const roomB = await createOwnerPrivateRoom(apiSdk);
     const fileA = await uploadPrivateRoomFile(owner, roomA);
-    await inviteToRoom(owner, roomA, m1.id, FileShare.Read);
-    await inviteToRoom(owner, roomB, m3.id, FileShare.Read);
+    await setAccess(owner, roomA, m1.id, FileShare.Read);
+    await setAccess(owner, roomB, m3.id, FileShare.Read);
 
-    expect((await getFilePublicKeys(apiSdk, m1.token, fileA)).status).toBe(200);
+    const control = await getFilePublicKeys(apiSdk, m1.token, fileA);
+    expect(control.status).toBe(200);
+    expect(control.text).toContain(m1.publicKey);
 
     const denied = await getFilePublicKeys(apiSdk, m3.token, fileA);
     expect(denied.status).toBe(403);
@@ -138,9 +170,14 @@ test.describe("GET /files/file/{fileId}/publickeys", () => {
       const roomId = await createOwnerPrivateRoom(apiSdk);
       const fileId = await uploadPrivateRoomFile(owner, roomId);
       const ownerToken = apiSdk.tokenStore.getToken("owner");
-      const { userData } = await apiSdk.addMember("owner", type);
+      const { userData, status: addStatus } = await apiSdk.addMember(
+        "owner",
+        type,
+      );
+      expect(addStatus, `addMember ${type}`).toBe(200);
       await apiSdk.authenticateMember(userData, type);
       const token = apiSdk.tokenStore.getToken(role);
+      expect(token, `no token for ${role}`).not.toBe("");
 
       const denied = await getFilePublicKeys(apiSdk, token, fileId);
       expect(denied.status).toBe(403);
@@ -213,21 +250,19 @@ test.describe("GET /files/file/{fileId}/publickeys", () => {
     const fileId = await uploadPrivateRoomFile(owner, roomId);
     const ownerToken = apiSdk.tokenStore.getToken("owner");
     const holders = async () =>
-      (await getFilePublicKeys(apiSdk, ownerToken, fileId)).entries.map(
-        (e) => e.userId,
-      );
+      (await entriesOf(apiSdk, ownerToken, fileId)).map((e) => e.userId);
 
-    await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
+    await setAccess(owner, roomId, m1.id, FileShare.Read);
     expect(await holders()).toContain(m1.id);
 
-    await inviteToRoom(owner, roomId, m1.id, FileShare.None);
+    await setAccess(owner, roomId, m1.id, FileShare.None);
     expect(await holders()).not.toContain(m1.id);
     // The removed member is refused outright.
     expect((await getFilePublicKeys(apiSdk, m1.token, fileId)).status).toBe(
       403,
     );
 
-    await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
+    await setAccess(owner, roomId, m1.id, FileShare.Read);
     expect((await holders()).filter((id) => id === m1.id)).toHaveLength(1);
   });
 
@@ -239,7 +274,7 @@ test.describe("GET /files/file/{fileId}/publickeys", () => {
     const roomId = await createOwnerPrivateRoom(apiSdk);
     const fileId = await uploadPrivateRoomFile(owner, roomId);
     const ownerToken = apiSdk.tokenStore.getToken("owner");
-    await inviteToRoom(owner, roomId, m1.id, FileShare.Read);
+    await setAccess(owner, roomId, m1.id, FileShare.Read);
 
     const rotated = "member-pk-rot-" + apiSdk.faker.generateString(10);
     expect(
@@ -252,13 +287,13 @@ test.describe("GET /files/file/{fileId}/publickeys", () => {
         })
       ).status,
     ).toBe(200);
-    let entries = (await getFilePublicKeys(apiSdk, ownerToken, fileId)).entries;
+    let entries = await entriesOf(apiSdk, ownerToken, fileId);
     expect(ownEntry(entries, m1.id).map((e) => e.publicKey)).toEqual([rotated]);
 
     expect(
       (await m1.api.privacyroom.deleteKeys({ id: ZERO_GUID })).status,
     ).toBe(204);
-    entries = (await getFilePublicKeys(apiSdk, ownerToken, fileId)).entries;
+    entries = await entriesOf(apiSdk, ownerToken, fileId);
     expect(ownEntry(entries, m1.id)).toEqual([]);
     expect(entries).toHaveLength(1);
   });
@@ -270,17 +305,16 @@ test.describe("GET /files/file/{fileId}/publickeys", () => {
     apiSdk,
   }) => {
     const owner = apiSdk.forRole("owner");
-    const { data } = await owner.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest plain " + apiSdk.faker.generateString(6),
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const fileId = await createRoomFile(
-      owner,
-      data.response!.id!,
-      "plain.docx",
+    const room = okBody(
+      await owner.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest plain " + apiSdk.faker.generateString(6),
+          roomType: RoomType.CustomRoom,
+        },
+      }),
+      "createRoom",
     );
+    const fileId = await createRoomFile(owner, room.id!, "plain.docx");
 
     const { status } = await getFilePublicKeys(
       apiSdk,

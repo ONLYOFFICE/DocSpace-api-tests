@@ -10,6 +10,8 @@ import {
   createOwnerPrivateRoom,
   createRoomFile,
   getOwnerId,
+  okBody,
+  okList,
   uploadPrivateRoomFile,
 } from "@/src/helpers/private-rooms";
 
@@ -97,15 +99,15 @@ const scenarios: {
 ];
 
 const listIds = async (api: Api, folderId: number) => {
-  const { data, status } = await api.folders.getFolderByFolderId({ folderId });
-  expect(status).toBe(200);
+  const folder = okBody(
+    await api.folders.getFolderByFolderId({ folderId }),
+    `getFolderByFolderId(${folderId})`,
+  );
+  expect(Array.isArray(folder.files), "files is not a list").toBe(true);
+  expect(Array.isArray(folder.folders), "folders is not a list").toBe(true);
   return {
-    files: ((data.response!.files ?? []) as { id: number }[])
-      .map((f) => f.id)
-      .sort(),
-    folders: ((data.response!.folders ?? []) as { id: number }[])
-      .map((f) => f.id)
-      .sort(),
+    files: (folder.files as { id: number }[]).map((f) => f.id).sort(),
+    folders: (folder.folders as { id: number }[]).map((f) => f.id).sort(),
   };
 };
 
@@ -121,29 +123,34 @@ test.describe("PUT /files/fileops/{copy,move} - private rooms", () => {
         const ownerId = await getOwnerId(owner);
         const roomA = await createOwnerPrivateRoom(apiSdk);
         const roomB = await createOwnerPrivateRoom(apiSdk);
-        const { data: plainRoom } = await owner.rooms.createRoom({
-          createRoomRequestDto: {
-            title: "Autotest plain " + apiSdk.faker.generateString(6),
-            roomType: RoomType.CustomRoom,
-          },
-        });
-        const myDocs = (
+        const plainRoom = okBody(
+          await owner.rooms.createRoom({
+            createRoomRequestDto: {
+              title: "Autotest plain " + apiSdk.faker.generateString(6),
+              roomType: RoomType.CustomRoom,
+            },
+          }),
+          "createRoom",
+        );
+        const myDocs = okBody(
           await owner.folders.createFolder({
-            folderId: (await owner.folders.getMyFolder()).data.response!
+            folderId: okBody(await owner.folders.getMyFolder(), "getMyFolder")
               .current!.id!,
             createFolderRequest: { title: "Autotest my docs" },
-          })
-        ).data.response!.id!;
-        const sub = (
+          }),
+          "createFolder in My documents",
+        ).id!;
+        const sub = okBody(
           await owner.folders.createFolder({
             folderId: roomA,
             createFolderRequest: { title: "Autotest sub" },
-          })
-        ).data.response!.id!;
+          }),
+          "createFolder sub",
+        ).id!;
         const places: Record<Place, number> = {
           privateA: roomA,
           privateB: roomB,
-          plain: plainRoom.response!.id!,
+          plain: plainRoom.id!,
           myDocs,
           subOfA: sub,
         };
@@ -163,12 +170,13 @@ test.describe("PUT /files/fileops/{copy,move} - private rooms", () => {
             "Autotest item " + apiSdk.faker.generateString(5) + ".docx",
           );
         } else {
-          folderId = (
+          folderId = okBody(
             await owner.folders.createFolder({
               folderId: places[from],
               createFolderRequest: { title: "Autotest dir" },
-            })
-          ).data.response!.id!;
+            }),
+            "createFolder dir",
+          ).id!;
           fileId = await addFile(folderId, "inside.docx");
         }
         if (keyed) {
@@ -182,7 +190,8 @@ test.describe("PUT /files/fileops/{copy,move} - private rooms", () => {
               },
             ],
           });
-          expect(set.status).toBe(200);
+          expect(set.status, JSON.stringify(set.data)).toBe(200);
+          expect(set.data.response?.skippedUserIds).toEqual([]);
         }
 
         const sourceBefore = await listIds(owner, places[from]);
@@ -208,16 +217,69 @@ test.describe("PUT /files/fileops/{copy,move} - private rooms", () => {
         expect(await listIds(owner, places[from])).toEqual(sourceBefore);
         expect(await listIds(owner, places[to])).toEqual(destBefore);
         if (keyed) {
-          const { data } = await owner.files.getEncryptionInfo({ fileId });
-          expect(data.response!.fileKeys!.map((k) => k.privateKeyEnc)).toEqual([
+          const info = okBody(
+            await owner.files.getEncryptionInfo({ fileId }),
+            "getEncryptionInfo",
+          );
+          expect(info.fileKeys!.map((k) => k.privateKeyEnc)).toEqual([
             "fk-issued",
           ]);
         }
         // No job was queued behind the refusal.
-        const ops = await owner.operations.getOperationStatuses();
-        expect(ops.data.response ?? []).toEqual([]);
+        expect(
+          okList(
+            await owner.operations.getOperationStatuses(),
+            "getOperationStatuses",
+          ),
+        ).toEqual([]);
       });
     }
+  }
+});
+
+test.describe("PUT /files/fileops/{copy,move} - control", () => {
+  // Positive control for the 403 matrix above: the same batch calls work between
+  // two ordinary rooms for the same caller, so the refusals are about privacy.
+  for (const op of ["copy", "move"] as const) {
+    test(`PUT /files/fileops/${op} - ${op === "copy" ? "Copying" : "Moving"} a file between two ordinary rooms works`, async ({
+      apiSdk,
+    }) => {
+      const owner = apiSdk.forRole("owner");
+      const mk = async (title: string) =>
+        okBody(
+          await owner.rooms.createRoom({
+            createRoomRequestDto: {
+              title: `${title} ${apiSdk.faker.generateString(6)}`,
+              roomType: RoomType.CustomRoom,
+            },
+          }),
+          "createRoom",
+        ).id!;
+      const src = await mk("Autotest control src");
+      const dst = await mk("Autotest control dst");
+      const fileId = await createRoomFile(owner, src, "Autotest control.docx");
+
+      const batchRequestDto = {
+        fileIds: [fileId],
+        destFolderId: dst,
+        deleteAfter: op === "move",
+        conflictResolveType: FileConflictResolveType.Duplicate,
+      };
+      const { status } =
+        op === "copy"
+          ? await owner.operations.copyBatchItems({ batchRequestDto })
+          : await owner.operations.moveBatchItems({ batchRequestDto });
+      expect(status).toBe(200);
+
+      await expect
+        .poll(async () => (await listIds(owner, dst)).files.length, {
+          timeout: 30_000,
+        })
+        .toBe(1);
+      const left = (await listIds(owner, src)).files;
+      if (op === "move") expect(left).toEqual([]);
+      else expect(left).toEqual([fileId]);
+    });
   }
 });
 
@@ -228,12 +290,13 @@ test.describe("PUT /files/fileops/move - within one private room", () => {
     const owner = apiSdk.forRole("owner");
     const ownerId = await getOwnerId(owner);
     const roomId = await createOwnerPrivateRoom(apiSdk);
-    const sub = (
+    const sub = okBody(
       await owner.folders.createFolder({
         folderId: roomId,
         createFolderRequest: { title: "Autotest sub" },
-      })
-    ).data.response!.id!;
+      }),
+      "createFolder sub",
+    ).id!;
     const fileId = await uploadPrivateRoomFile(owner, roomId);
     const set = await owner.files.setEncryptionInfo({
       fileId,
@@ -241,7 +304,8 @@ test.describe("PUT /files/fileops/move - within one private room", () => {
         { userId: ownerId, publicKeyId: ZERO_GUID, privateKeyEnc: "fk-issued" },
       ],
     });
-    expect(set.status).toBe(200);
+    expect(set.status, JSON.stringify(set.data)).toBe(200);
+    expect(set.data.response?.skippedUserIds).toEqual([]);
 
     const { status } = await owner.operations.moveBatchItems({
       batchRequestDto: {
@@ -262,9 +326,10 @@ test.describe("PUT /files/fileops/move - within one private room", () => {
     // room root, and the key issued for it is untouched.
     expect((await listIds(owner, sub)).files).toEqual([fileId]);
     expect((await listIds(owner, roomId)).files).toEqual([]);
-    const { data } = await owner.files.getEncryptionInfo({ fileId });
-    expect(data.response!.fileKeys!.map((k) => k.privateKeyEnc)).toEqual([
-      "fk-issued",
-    ]);
+    const info = okBody(
+      await owner.files.getEncryptionInfo({ fileId }),
+      "getEncryptionInfo",
+    );
+    expect(info.fileKeys!.map((k) => k.privateKeyEnc)).toEqual(["fk-issued"]);
   });
 });

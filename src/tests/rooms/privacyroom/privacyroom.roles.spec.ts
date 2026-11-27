@@ -4,12 +4,14 @@ import { test } from "@/src/fixtures/index";
 import {
   assertUniqueIds,
   expectNoServerError,
+  expectRefused,
   rawMembers,
 } from "@/src/helpers/private-room-lifecycle";
 import { FileShare, FolderType } from "@onlyoffice/docspace-api-sdk";
 import {
   ZERO_GUID,
   inviteToRoom,
+  okBody,
   roomMemberAccess,
 } from "@/src/helpers/private-rooms";
 import {
@@ -20,6 +22,8 @@ import {
   MemberDef,
   buildArena,
   putFile,
+  putFileOrRefusal,
+  tryPut,
 } from "@/src/helpers/private-room-arena";
 import { settle } from "@/src/helpers/private-room-forbidden";
 
@@ -61,17 +65,23 @@ const canCreate = (m: Member) =>
 
 type Cell = { status: number; applied: boolean; other?: boolean };
 
-/** After an accepted request the effect may lag (a queued job); a refusal is read once. */
+/**
+ * After an accepted request the effect may lag (a queued job); a refusal is read once.
+ * Returns whether the effect showed up within the window. An error thrown by `check`
+ * itself (a failed read, a server error) is NOT "not applied": it propagates and fails the test.
+ */
 const effect = async (accepted: boolean, check: () => Promise<boolean>) => {
   if (!accepted) return check();
-  try {
-    await expect
-      .poll(check, { timeout: 20_000, intervals: [300, 600, 1000, 2000] })
-      .toBe(true);
-    return true;
-  } catch {
-    return false;
+  const deadline = Date.now() + 20_000;
+  for (const wait of [300, 600, 1000]) {
+    if (await check()) return true;
+    await new Promise((resolve) => setTimeout(resolve, wait));
   }
+  while (Date.now() < deadline) {
+    if (await check()) return true;
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+  return check();
 };
 
 const roomOf = (a: Arena, k: Kind) => (k === "priv" ? a.priv : a.plain);
@@ -79,20 +89,62 @@ const subOf = (a: Arena, k: Kind) => (k === "priv" ? a.subPriv : a.subPlain);
 
 const folderTitles = async (a: Arena, folderId: number) =>
   (
-    ((await a.admin.folders.getFolderByFolderId({ folderId })).data.response
-      ?.folders ?? []) as { title?: string }[]
+    (okBody(
+      await a.admin.folders.getFolderByFolderId({ folderId }),
+      `getFolderByFolderId(${folderId})`,
+    ).folders ?? []) as { title?: string }[]
   ).map((f) => f.title);
-const fileGone = async (a: Arena, id: number) =>
-  (await a.admin.files.getFileInfo({ fileId: id })).status === 404;
-const folderGone = async (a: Arena, id: number) =>
-  (await a.admin.folders.getFolderInfo({ folderId: id })).status === 404;
+/** Gone means 404; still there means 200; any other answer is an error, not "still there". */
+const fileGone = async (a: Arena, id: number) => {
+  const { status } = await a.admin.files.getFileInfo({ fileId: id });
+  expect([200, 404], `getFileInfo(${id}) by the room owner`).toContain(status);
+  return status === 404;
+};
+const folderGone = async (a: Arena, id: number) => {
+  const { status } = await a.admin.folders.getFolderInfo({ folderId: id });
+  expect([200, 404], `getFolderInfo(${id}) by the room owner`).toContain(
+    status,
+  );
+  return status === 404;
+};
+const folderInfo = async (a: Arena, folderId: number) =>
+  okBody(
+    await a.admin.folders.getFolderInfo({ folderId }),
+    `getFolderInfo(${folderId})`,
+  );
+const fileInfo = async (a: Arena, fileId: number) =>
+  okBody(await a.admin.files.getFileInfo({ fileId }), `getFileInfo(${fileId})`);
+/** The caller makes a folder: its id, or undefined after a 4xx refusal (a 5xx or an answer with no id fails the test). */
+const makeFolder = async (who: Member, parent: number, prefix: string) => {
+  const made = await who.api.folders.createFolder({
+    folderId: parent,
+    createFolderRequest: { title: `${prefix}-${randomUUID().slice(0, 8)}` },
+  });
+  if (isOk(made.status)) {
+    const id = made.data.response?.id;
+    expect(id, `${who.key}: createFolder carries no id`).toBeGreaterThan(0);
+    return id!;
+  }
+  expectRefused(made.status, `${who.key}: createFolder in ${parent}`);
+  return undefined;
+};
+const inviteOk = async (
+  api: Arena["admin"],
+  room: number,
+  id: string,
+  access: FileShare,
+  label: string,
+) =>
+  expect(
+    (await inviteToRoom(api, room, id, access)).status,
+    `${label}: the owner's own invitation`,
+  ).toBe(200);
 const adminFolder = async (a: Arena, parent: number) => {
   const r = await a.admin.folders.createFolder({
     folderId: parent,
     createFolderRequest: { title: `f-${randomUUID().slice(0, 8)}` },
   });
-  expect(r.status, "setup: a folder").toBe(200);
-  return r.data.response!.id!;
+  return okBody(r, "setup: a folder").id!;
 };
 
 type FileOp = {
@@ -102,8 +154,9 @@ type FileOp = {
   run: (a: Arena, who: Member, k: Kind) => Promise<Cell | undefined>;
 };
 
+/** The id of the caller's own upload, or undefined after a 4xx refusal (anything else fails the test). */
 const own = async (who: Member, k: Kind, folder: number) =>
-  putFile(who.api, k, folder);
+  putFileOrRefusal(who.api, k, folder);
 
 const move = async (
   a: Arena,
@@ -176,8 +229,11 @@ const FILE_OPS: Record<string, FileOp> = {
     name: "upload a file",
     allowed: canCreate,
     run: async (a, who, k) => {
-      const id = await own(who, k, roomOf(a, k));
-      return { status: id ? 201 : 0, applied: !!id };
+      const put = await tryPut(who.api, k, roomOf(a, k));
+      return {
+        status: put.stored ? 201 : put.status,
+        applied: put.stored,
+      };
     },
   },
   renameOthers: {
@@ -194,9 +250,7 @@ const FILE_OPS: Record<string, FileOp> = {
         status: r.status,
         applied: await effect(
           isOk(r.status),
-          async () =>
-            (await a.admin.folders.getFolderInfo({ folderId })).data.response
-              ?.title === title,
+          async () => (await folderInfo(a, folderId)).title === title,
         ),
       };
     },
@@ -205,12 +259,8 @@ const FILE_OPS: Record<string, FileOp> = {
     name: "rename a folder the caller made",
     allowed: canCreate,
     run: async (a, who, k) => {
-      const made = await who.api.folders.createFolder({
-        folderId: roomOf(a, k),
-        createFolderRequest: { title: `o-${randomUUID().slice(0, 8)}` },
-      });
-      if (!isOk(made.status)) return undefined;
-      const folderId = made.data.response!.id!;
+      const folderId = await makeFolder(who, roomOf(a, k), "o");
+      if (!folderId) return undefined;
       const title = `r-${randomUUID().slice(0, 8)}`;
       const r = await who.api.folders.renameFolder({
         folderId,
@@ -220,9 +270,7 @@ const FILE_OPS: Record<string, FileOp> = {
         status: r.status,
         applied: await effect(
           isOk(r.status),
-          async () =>
-            (await a.admin.folders.getFolderInfo({ folderId })).data.response
-              ?.title === title,
+          async () => (await folderInfo(a, folderId)).title === title,
         ),
       };
     },
@@ -231,15 +279,13 @@ const FILE_OPS: Record<string, FileOp> = {
     name: "move a file made by someone else into a subfolder",
     allowed: isManager,
     run: async (a, who, k) => {
-      const id = (await putFile(a.admin, k, roomOf(a, k)))!;
+      const id = await putFile(a.admin, k, roomOf(a, k));
       const status = await move(a, who, k, [id], [], subOf(a, k));
       return {
         status,
         applied: await effect(
           isOk(status),
-          async () =>
-            (await a.admin.files.getFileInfo({ fileId: id })).data.response
-              ?.folderId === subOf(a, k),
+          async () => (await fileInfo(a, id)).folderId === subOf(a, k),
         ),
       };
     },
@@ -257,9 +303,7 @@ const FILE_OPS: Record<string, FileOp> = {
         status,
         applied: await effect(
           isOk(status),
-          async () =>
-            (await a.admin.files.getFileInfo({ fileId: id })).data.response
-              ?.folderId === subOf(a, k),
+          async () => (await fileInfo(a, id)).folderId === subOf(a, k),
         ),
       };
     },
@@ -274,9 +318,7 @@ const FILE_OPS: Record<string, FileOp> = {
         status,
         applied: await effect(
           isOk(status),
-          async () =>
-            (await a.admin.folders.getFolderInfo({ folderId })).data.response
-              ?.parentId === subOf(a, k),
+          async () => (await folderInfo(a, folderId)).parentId === subOf(a, k),
         ),
       };
     },
@@ -285,20 +327,14 @@ const FILE_OPS: Record<string, FileOp> = {
     name: "move a folder the caller made into a subfolder",
     allowed: canCreate,
     run: async (a, who, k) => {
-      const made = await who.api.folders.createFolder({
-        folderId: roomOf(a, k),
-        createFolderRequest: { title: `m-${randomUUID().slice(0, 8)}` },
-      });
-      if (!isOk(made.status)) return undefined;
-      const folderId = made.data.response!.id!;
+      const folderId = await makeFolder(who, roomOf(a, k), "m");
+      if (!folderId) return undefined;
       const status = await move(a, who, k, [], [folderId], subOf(a, k));
       return {
         status,
         applied: await effect(
           isOk(status),
-          async () =>
-            (await a.admin.folders.getFolderInfo({ folderId })).data.response
-              ?.parentId === subOf(a, k),
+          async () => (await folderInfo(a, folderId)).parentId === subOf(a, k),
         ),
       };
     },
@@ -306,7 +342,7 @@ const FILE_OPS: Record<string, FileOp> = {
   deleteOthersFile: {
     name: "delete a file made by someone else",
     run: async (a, who, k) => {
-      const id = (await putFile(a.admin, k, roomOf(a, k)))!;
+      const id = await putFile(a.admin, k, roomOf(a, k));
       const status = await remove(who, [id], []);
       return {
         status,
@@ -342,12 +378,8 @@ const FILE_OPS: Record<string, FileOp> = {
     name: "delete a folder the caller made",
     allowed: canCreate,
     run: async (a, who, k) => {
-      const made = await who.api.folders.createFolder({
-        folderId: roomOf(a, k),
-        createFolderRequest: { title: `d-${randomUUID().slice(0, 8)}` },
-      });
-      if (!isOk(made.status)) return undefined;
-      const folderId = made.data.response!.id!;
+      const folderId = await makeFolder(who, roomOf(a, k), "d");
+      if (!folderId) return undefined;
       const status = await remove(who, [], [folderId]);
       return {
         status,
@@ -359,7 +391,7 @@ const FILE_OPS: Record<string, FileOp> = {
     name: "delete a folder holding files of other authors",
     run: async (a, who, k) => {
       const folderId = await adminFolder(a, roomOf(a, k));
-      const fileId = (await putFile(a.admin, k, folderId))!;
+      const fileId = await putFile(a.admin, k, folderId);
       const status = await remove(who, [], [folderId]);
       return {
         status,
@@ -373,7 +405,7 @@ const FILE_OPS: Record<string, FileOp> = {
     run: async (a, who, k) => {
       const mine = await own(who, k, roomOf(a, k));
       if (!mine) return undefined;
-      const theirs = (await putFile(a.admin, k, roomOf(a, k)))!;
+      const theirs = await putFile(a.admin, k, roomOf(a, k));
       const status = await remove(who, [mine, theirs], []);
       return {
         status,
@@ -406,7 +438,8 @@ const runOps = async (
       const priv = await op.run(a, who, "priv");
       const plain = await op.run(a, who, "plain");
       table[op.name][who.key] = { priv, plain };
-      await settle(a.admin).catch(() => undefined);
+      // A stuck file operation of the admin is a failure: the next cell would read a half-done state.
+      await settle(a.admin);
     }
   }
   return table;
@@ -569,7 +602,8 @@ test.describe("Role matrix - members, keys and settings of a private room", () =
         (out.invite[m.key] ??= { priv: false, plain: false })[k] = invited;
         expectNoServerError(inv.status, `invite (${k}) by ${m.key}`);
         if (invited)
-          await inviteToRoom(a.admin, room, candidate.id, FileShare.None);
+          await inviteOk(a.admin, room, candidate.id, FileShare.None, "undo");
+        else expectRefused(inv.status, `invite (${k}) by ${m.key}`);
         // change the role of a member
         const ch = await set(m, room, target.id, FileShare.Editing);
         const changed =
@@ -578,14 +612,16 @@ test.describe("Role matrix - members, keys and settings of a private room", () =
         (out.changeRole[m.key] ??= { priv: false, plain: false })[k] = changed;
         expectNoServerError(ch.status, `change role (${k}) by ${m.key}`);
         if (changed)
-          await inviteToRoom(a.admin, room, target.id, FileShare.Read);
+          await inviteOk(a.admin, room, target.id, FileShare.Read, "undo");
+        else expectRefused(ch.status, `change role (${k}) by ${m.key}`);
         // remove a member
         const rm = await set(m, room, target.id, FileShare.None);
         const removed = !(await memberIds(a, room)).includes(target.id);
         (out.remove[m.key] ??= { priv: false, plain: false })[k] = removed;
         expectNoServerError(rm.status, `remove member (${k}) by ${m.key}`);
         if (removed)
-          await inviteToRoom(a.admin, room, target.id, FileShare.Read);
+          await inviteOk(a.admin, room, target.id, FileShare.Read, "undo");
+        else expectRefused(rm.status, `remove member (${k}) by ${m.key}`);
       }
     }
     // leave: a member below manager drops themselves with removeSecurityInfo; the owner re-invites them afterwards.
@@ -615,11 +651,12 @@ test.describe("Role matrix - members, keys and settings of a private room", () =
             .toBe(left ? before - 1 : before);
         for (const other of actors.filter((x) => !isOwner(x)))
           if (!(await memberIds(a, room)).includes(other.id))
-            await inviteToRoom(
+            await inviteOk(
               a.admin,
               room,
               other.id,
               other.local as FileShare,
+              "restore",
             );
       }
     }
@@ -644,7 +681,7 @@ test.describe("Role matrix - members, keys and settings of a private room", () =
       ).toEqual([a.by("owner").id]);
       for (const m of actors.filter((x) => !isOwner(x)))
         if (!(await memberIds(a, room)).includes(m.id))
-          await inviteToRoom(a.admin, room, m.id, m.local as FileShare);
+          await inviteOk(a.admin, room, m.id, m.local as FileShare, "restore");
     }
     for (const m of actors.filter((x) => !isOwner(x) && !isManager(x))) {
       expect
@@ -724,10 +761,13 @@ test.describe("Role matrix - members, keys and settings of a private room", () =
           .toBeLessThan(500);
       }
     }
-    for (const [g, p] of INDEPENDENCE)
+    for (const [g, p] of INDEPENDENCE) {
+      expect(results[g], `candidates: ${g} answered`).toBeDefined();
+      expect(results[p], `candidates: ${p} answered`).toBeDefined();
       expect
         .soft(results[g] === 200, `candidates: ${g} versus ${p}`)
         .toBe(results[p] === 200);
+    }
   });
 
   test("PUT /files/:fileId/access - Who may issue file keys: the uploader for their own file, a manager for any, a reader never", async ({
@@ -745,8 +785,8 @@ test.describe("Role matrix - members, keys and settings of a private room", () =
     ];
     const a = await buildArena(apiSdk, { members: defs });
     const target = a.by("target");
-    const authorFile = (await putFile(a.by("ccAuthor").api, "priv", a.priv))!;
-    const ownerFile = (await putFile(a.admin, "priv", a.priv))!;
+    const authorFile = await putFile(a.by("ccAuthor").api, "priv", a.priv);
+    const ownerFile = await putFile(a.admin, "priv", a.priv);
     expect(authorFile && ownerFile, "setup: two files").toBeTruthy();
     const issue = async (m: Member, fileId: number) => {
       const marker = `rk-${m.key}-${fileId}`;
@@ -756,8 +796,11 @@ test.describe("Role matrix - members, keys and settings of a private room", () =
           { userId: target.id, publicKeyId: ZERO_GUID, privateKeyEnc: marker },
         ],
       });
-      const seen = await target.api.files.getEncryptionInfo({ fileId });
-      const applied = (seen.data.response?.fileKeys ?? []).some(
+      const seen = okBody(
+        await target.api.files.getEncryptionInfo({ fileId }),
+        `getEncryptionInfo(${fileId}) by the target`,
+      );
+      const applied = (seen.fileKeys ?? []).some(
         (k) => k.privateKeyEnc === marker,
       );
       return { status: r.status, applied };
@@ -832,7 +875,10 @@ test.describe("Role matrix - members, keys and settings of a private room", () =
     test.setTimeout(600_000);
     const a = await buildArena(apiSdk);
     const state = async (room: number) => {
-      const i = (await a.admin.rooms.getRoomInfo({ id: room })).data.response!;
+      const i = okBody(
+        await a.admin.rooms.getRoomInfo({ id: room }),
+        `getRoomInfo(${room})`,
+      );
       return { title: i.title, root: i.rootFolderType };
     };
     const updated: Record<string, { priv: boolean; plain: boolean }> = {};
@@ -868,8 +914,7 @@ test.describe("Role matrix - members, keys and settings of a private room", () =
     }
     // Archive and restore: the manager's rights, tried by every role; the owner restores after each success.
     const inArchive = async (room: number) =>
-      (await a.admin.rooms.getRoomInfo({ id: room })).data.response!
-        .rootFolderType === FolderType.Archive;
+      (await state(room)).root === FolderType.Archive;
     for (const m of a.members) {
       const outcome: Record<string, boolean> = {};
       const answers: Record<string, string> = {};
@@ -927,65 +972,79 @@ const manageProbe = async (a: Arena, m: Member) => {
       id: room,
       roomInvitationRequest: { invitations: [{ id, access }], notify: false },
     });
-  await set(cand.id, FileShare.Read);
+  const tried = (res: { status: number }, what: string) =>
+    expectNoServerError(res.status, `${what} by ${m.key}`);
+  tried(await set(cand.id, FileShare.Read), "probe: invite");
   out.invite = (await memberIds(a, room)).includes(cand.id);
-  if (out.invite) await inviteToRoom(a.admin, room, cand.id, FileShare.None);
+  if (out.invite)
+    await inviteOk(a.admin, room, cand.id, FileShare.None, "probe undo");
 
-  await set(target.id, FileShare.Editing);
+  tried(await set(target.id, FileShare.Editing), "probe: change role");
   out.changeRole =
     (await roomMemberAccess(a.admin, room)).get(target.id) ===
     FileShare.Editing;
   if (out.changeRole)
-    await inviteToRoom(a.admin, room, target.id, FileShare.Read);
+    await inviteOk(a.admin, room, target.id, FileShare.Read, "probe undo");
 
-  await set(target.id, FileShare.None);
+  tried(await set(target.id, FileShare.None), "probe: remove");
   out.remove = !(await memberIds(a, room)).includes(target.id);
-  if (out.remove) await inviteToRoom(a.admin, room, target.id, FileShare.Read);
+  if (out.remove)
+    await inviteOk(a.admin, room, target.id, FileShare.Read, "probe undo");
 
   const title = `po-${m.key}-${Math.random().toString(36).slice(2, 7)}`;
-  await m.api.rooms.updateRoom({ id: room, updateRoomRequest: { title } });
+  tried(
+    await m.api.rooms.updateRoom({ id: room, updateRoomRequest: { title } }),
+    "probe: updateRoom",
+  );
   out.updateRoom =
-    (await a.admin.rooms.getRoomInfo({ id: room })).data.response?.title ===
-    title;
+    okBody(await a.admin.rooms.getRoomInfo({ id: room }), "getRoomInfo")
+      .title === title;
 
-  await m.api.rooms.archiveRoom({
+  const archiveRes = await m.api.rooms.archiveRoom({
     id: room,
     archiveRoomRequest: { deleteAfter: false },
   });
+  tried(archiveRes, "probe: archiveRoom");
   const archived = async () =>
-    (await a.admin.rooms.getRoomInfo({ id: room })).data.response!
+    okBody(await a.admin.rooms.getRoomInfo({ id: room }), "getRoomInfo")
       .rootFolderType === FolderType.Archive;
-  out.archive = await effect(true, archived);
+  out.archive = await effect(isOk(archiveRes.status), archived);
   if (out.archive) {
     await a.admin.rooms.unarchiveRoom({
       id: room,
       archiveRoomRequest: { deleteAfter: false },
     });
     await expect.poll(archived, { timeout: 30_000 }).toBe(false);
-    await settle(a.admin).catch(() => undefined);
+    await settle(a.admin);
   }
 
   if (m.key !== "mgr") {
     // The guide: the owner first gives the candidate the keys of every encrypted file, then transfers.
     for (const folder of [room, a.subPriv]) {
-      const files = ((
-        await a.admin.folders.getFolderByFolderId({ folderId: folder })
-      ).data.response?.files ?? []) as { id?: number }[];
+      const files = (okBody(
+        await a.admin.folders.getFolderByFolderId({ folderId: folder }),
+        `getFolderByFolderId(${folder})`,
+      ).files ?? []) as { id?: number }[];
       for (const f of files)
-        await a.admin.files.setEncryptionInfo({
-          fileId: f.id!,
-          accessRequestKeyDto: [
-            {
-              userId: mgr.id,
-              publicKeyId: ZERO_GUID,
-              privateKeyEnc: `grant-${f.id}`,
-            },
-          ],
-        });
+        expect(
+          (
+            await a.admin.files.setEncryptionInfo({
+              fileId: f.id!,
+              accessRequestKeyDto: [
+                {
+                  userId: mgr.id,
+                  publicKeyId: ZERO_GUID,
+                  privateKeyEnc: `grant-${f.id}`,
+                },
+              ],
+            })
+          ).status,
+          `setup: the owner grants the keys of file ${f.id}`,
+        ).toBe(200);
     }
     const ownerOf = async () =>
-      (await a.admin.rooms.getRoomInfo({ id: room })).data.response!.createdBy
-        ?.id;
+      okBody(await a.admin.rooms.getRoomInfo({ id: room }), "getRoomInfo")
+        .createdBy?.id;
     const before = await ownerOf();
     const moved = await m.api.sharing.changeFileOwner({
       changeOwnerRequestDto: { folderIds: [room] as never, userId: mgr.id },
@@ -995,20 +1054,26 @@ const manageProbe = async (a: Arena, m: Member) => {
     if (out.transfer) {
       // The new owner gives the previous one the keys of every encrypted file, then hands the room back.
       for (const folder of [room, a.subPriv]) {
-        const files = ((
-          await mgr.api.folders.getFolderByFolderId({ folderId: folder })
-        ).data.response?.files ?? []) as { id?: number }[];
+        const files = (okBody(
+          await mgr.api.folders.getFolderByFolderId({ folderId: folder }),
+          `getFolderByFolderId(${folder}) by the new owner`,
+        ).files ?? []) as { id?: number }[];
         for (const f of files)
-          await mgr.api.files.setEncryptionInfo({
-            fileId: f.id!,
-            accessRequestKeyDto: [
-              {
-                userId: a.adminId,
-                publicKeyId: ZERO_GUID,
-                privateKeyEnc: `back-${f.id}`,
-              },
-            ],
-          });
+          expect(
+            (
+              await mgr.api.files.setEncryptionInfo({
+                fileId: f.id!,
+                accessRequestKeyDto: [
+                  {
+                    userId: a.adminId,
+                    publicKeyId: ZERO_GUID,
+                    privateKeyEnc: `back-${f.id}`,
+                  },
+                ],
+              })
+            ).status,
+            `setup: the new owner grants the keys of file ${f.id} back`,
+          ).toBe(200);
       }
       const back = await mgr.api.sharing.changeFileOwner({
         changeOwnerRequestDto: {
@@ -1025,17 +1090,22 @@ const manageProbe = async (a: Arena, m: Member) => {
     }
   }
 
-  const fileId = (await putFile(a.admin, "priv", room))!;
+  const fileId = await putFile(a.admin, "priv", room);
   const marker = `po-fk-${m.key}-${fileId}`;
-  await m.api.files.setEncryptionInfo({
-    fileId,
-    accessRequestKeyDto: [
-      { userId: target.id, publicKeyId: ZERO_GUID, privateKeyEnc: marker },
-    ],
-  });
+  tried(
+    await m.api.files.setEncryptionInfo({
+      fileId,
+      accessRequestKeyDto: [
+        { userId: target.id, publicKeyId: ZERO_GUID, privateKeyEnc: marker },
+      ],
+    }),
+    "probe: setEncryptionInfo",
+  );
   out.issueKeys = (
-    (await target.api.files.getEncryptionInfo({ fileId })).data.response
-      ?.fileKeys ?? []
+    okBody(
+      await target.api.files.getEncryptionInfo({ fileId }),
+      "getEncryptionInfo by the target",
+    ).fileKeys ?? []
   ).some((k) => k.privateKeyEnc === marker);
   return out;
 };

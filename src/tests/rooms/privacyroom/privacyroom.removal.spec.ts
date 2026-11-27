@@ -5,12 +5,14 @@ import { archiveRoomAndWait } from "@/src/helpers/archive-room";
 import {
   ZERO_GUID,
   createOwnerPrivateRoom,
+  getOwnerId,
   inviteToRoom,
+  okBody,
 } from "@/src/helpers/private-rooms";
 import {
   Account,
   addAccounts,
-  downloadVia,
+  expectDownloads,
   markedBytes,
   uploadEncrypted,
 } from "@/src/helpers/private-room-download";
@@ -65,6 +67,8 @@ test.describe("Changing the role of an existing member", () => {
 
     // A member with no file keys at all: the role changes and no entry appears.
     expect(await keysOf(noEntries.api, scene.rootFile.id)).toBe("[]");
+    // The control: members who were issued keys hold them (so "[]" above is a real absence).
+    expect(await keysOf(m1.api, scene.rootFile.id)).not.toBe("[]");
     expect(
       (await invite(owner, roomId, noEntries.id, FileShare.ContentCreator))
         .status,
@@ -76,6 +80,7 @@ test.describe("Changing the role of an existing member", () => {
 
     // The account key is replaced: the role changes and the entries stay as they are.
     const replacedKeys = await keysOf(replaced.api, scene.rootFile.id);
+    expect(replacedKeys, "setup: entries to keep").not.toBe("[]");
     expect(
       (
         await replaced.api.privacyroom.replaceKey({
@@ -131,6 +136,7 @@ test.describe("Changing the role of an existing member", () => {
 
     // A role the room does not describe: recorded, the member stays a member and keeps the entries.
     const keysM3 = await keysOf(m3.api, scene.rootFile.id);
+    expect(keysM3, "setup: entries to keep").not.toBe("[]");
     for (const role of [
       FileShare.Review,
       FileShare.Comment,
@@ -166,7 +172,7 @@ test.describe("Removing a member", () => {
       apiSdk,
       "Life removal",
     );
-    const ownerId = (await owner.profiles.getSelfProfile()).data.response!.id!;
+    const ownerId = await getOwnerId(owner);
     const empty = await createOwnerPrivateRoom(apiSdk, "Life removal empty");
     const [a, author, replaced, partial, f, g, mgr, mgr2] = await addAccounts(
       apiSdk,
@@ -221,8 +227,13 @@ test.describe("Removing a member", () => {
       members: undefined,
       nested: JSON.stringify(
         (
-          await owner.folders.getFolderByFolderId({ folderId: scene.innerId })
-        ).data.response?.files?.map((x) => [
+          okBody(
+            await owner.folders.getFolderByFolderId({
+              folderId: scene.innerId,
+            }),
+            "getFolderByFolderId(inner)",
+          ).files ?? []
+        ).map((x) => [
           (x as unknown as { id: number }).id,
           x.title,
           (x as unknown as { createdBy?: { id?: string } }).createdBy?.id,
@@ -235,12 +246,12 @@ test.describe("Removing a member", () => {
         baseline,
       );
       for (const file of [scene.rootFile, scene.deepFile, nested])
-        expect(
-          (await downloadVia(owner, ownerToken, file.id)).bytes!.equals(
-            file.bytes,
-          ),
+        await expectDownloads(
+          owner,
+          ownerToken,
+          file,
           `${label}: bytes of ${file.id}`,
-        ).toBe(true);
+        );
       expect(await ownerOf(owner, roomId), `${label}: owner`).toBe(ownerId);
     };
     const entriesOf = async (who: Account[]) =>
@@ -253,6 +264,15 @@ test.describe("Removing a member", () => {
     // Removing a member: gone from the list, others' entries untouched, content intact.
     const others = [author, replaced, partial, f, g, mgr, mgr2];
     let entriesBefore = await entriesOf(others);
+    // The premise of every "entries untouched" comparison below: the members really hold entries.
+    expectHeld(entriesBefore, "setup");
+    expect(await keysOf(a.api, files[0]), "setup: a holds file keys").not.toBe(
+      "[]",
+    );
+    expect(
+      (await accessOf(owner, roomId)).has(a.id),
+      "setup: a is a member",
+    ).toBe(true);
     expect((await invite(owner, roomId, a.id, FileShare.None)).status).toBe(
       200,
     );
@@ -272,8 +292,10 @@ test.describe("Removing a member", () => {
     expect((await accessOf(owner, roomId)).has(author.id)).toBe(false);
     await intact("remove the author");
     expect(
-      (await owner.files.getFileInfo({ fileId: nested.id })).data.response
-        ?.createdBy?.id,
+      okBody(
+        await owner.files.getFileInfo({ fileId: nested.id }),
+        "getFileInfo(nested)",
+      ).createdBy?.id,
     ).toBe(author.id);
 
     // A member who replaced the account key and one with only some file keys: removed by a manager.
@@ -289,6 +311,7 @@ test.describe("Removing a member", () => {
     ).toBe(200);
     const stay = [f, g, mgr, mgr2];
     entriesBefore = await entriesOf(stay);
+    expectHeld(entriesBefore, "setup (members who stay)");
     for (const [who, label] of [
       [replaced, "replaced key"],
       [partial, "only some file keys"],
@@ -380,11 +403,12 @@ const stage = async (
   const roomId =
     kind === "private"
       ? await createOwnerPrivateRoom(apiSdk, title)
-      : (
+      : okBody(
           await owner.rooms.createRoom({
             createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
-          })
-        ).data.response!.id!;
+          }),
+          "createRoom (ordinary)",
+        ).id!;
   const bytes = markedBytes(`LEAVE-${title}`);
   // Preparing the data is part of the test: an upload that fails fails the test.
   const file =
@@ -408,6 +432,16 @@ const entriesOf = async (who: Account[], fileId: number) =>
     ),
   );
 
+/** Every listed member holds at least one wrapped key: the premise of a "the others' keys stay" comparison. */
+const expectHeld = (entries: Record<string, string>, label: string) => {
+  expect(
+    Object.keys(entries).length,
+    `${label}: nobody listed`,
+  ).toBeGreaterThan(0);
+  for (const [id, keys] of Object.entries(entries))
+    expect(keys, `${label}: ${id} holds no file keys`).not.toBe("[]");
+};
+
 const sorted = (ids: string[]) => [...ids].sort();
 
 test.describe("Leaving a room, and what removeSecurityInfo does", () => {
@@ -416,7 +450,7 @@ test.describe("Leaving a room, and what removeSecurityInfo does", () => {
   }) => {
     test.setTimeout(400_000);
     const owner = apiSdk.forRole("owner");
-    const ownerId = (await owner.profiles.getSelfProfile()).data.response!.id!;
+    const ownerId = await getOwnerId(owner);
     const [reader, author, editor, mgr] = await addAccounts(apiSdk, [
       { type: "User", key: true },
       { type: "User", key: true },
@@ -444,6 +478,13 @@ test.describe("Leaving a room, and what removeSecurityInfo does", () => {
         ]),
       );
       const keysBefore = s.file ? await entriesOf(stay, s.file.id) : {};
+      if (s.file) {
+        expectHeld(keysBefore, `${label}: setup`);
+        expect(
+          await keysOf(reader.api, s.file.id),
+          `${label}: setup, the leaver holds file keys`,
+        ).not.toBe("[]");
+      }
       // The positive control: the member reads the room until they leave.
       expect(
         (await reader.api.rooms.getRoomInfo({ id: s.roomId })).status,
@@ -474,12 +515,12 @@ test.describe("Leaving a room, and what removeSecurityInfo does", () => {
           (await owner.files.getFileInfo({ fileId: s.file.id })).status,
           `${label}: the file`,
         ).toBe(200);
-        expect(
-          (await downloadVia(owner, s.ownerToken, s.file.id)).bytes!.equals(
-            s.bytes,
-          ),
+        await expectDownloads(
+          owner,
+          s.ownerToken,
+          { ...s.file, bytes: s.bytes },
           `${label}: the content`,
-        ).toBe(true);
+        );
         // The leaver's wrapped key went with them: invited again they hold none.
         expect(
           (await inviteToRoom(owner, s.roomId, reader.id, FileShare.Read))
@@ -498,7 +539,7 @@ test.describe("Leaving a room, and what removeSecurityInfo does", () => {
   }) => {
     test.setTimeout(500_000);
     const owner = apiSdk.forRole("owner");
-    const ownerId = (await owner.profiles.getSelfProfile()).data.response!.id!;
+    const ownerId = await getOwnerId(owner);
     const [reader, author, editor, mgr] = await addAccounts(apiSdk, [
       { type: "User", key: true },
       { type: "User", key: true },
@@ -523,6 +564,14 @@ test.describe("Leaving a room, and what removeSecurityInfo does", () => {
       const before = await memberIds(owner, s.roomId);
       expect(before, `${label}: setup`).toHaveLength(5);
       const ownerKeys = s.file ? await keysOf(owner, s.file.id) : "";
+      if (s.file)
+        expectHeld(
+          await entriesOf(
+            people.map(([m]) => m),
+            s.file.id,
+          ),
+          `${label}: setup`,
+        );
       expect(
         (await mgr.api.rooms.getRoomInfo({ id: s.roomId })).status,
         `${label}: the manager reads the room before`,
@@ -555,12 +604,12 @@ test.describe("Leaving a room, and what removeSecurityInfo does", () => {
           (await owner.files.getFileInfo({ fileId: s.file.id })).status,
           `${label}: the file`,
         ).toBe(200);
-        expect(
-          (await downloadVia(owner, s.ownerToken, s.file.id)).bytes!.equals(
-            s.bytes,
-          ),
+        await expectDownloads(
+          owner,
+          s.ownerToken,
+          { ...s.file, bytes: s.bytes },
           `${label}: the content`,
-        ).toBe(true);
+        );
       }
       // Safe to repeat (JSDoc): the owner calls it again, nothing changes.
       if (who === "owner") {
@@ -588,7 +637,7 @@ test.describe("Leaving a room, and what removeSecurityInfo does", () => {
   }) => {
     test.setTimeout(500_000);
     const owner = apiSdk.forRole("owner");
-    const ownerId = (await owner.profiles.getSelfProfile()).data.response!.id!;
+    const ownerId = await getOwnerId(owner);
     const [reader, author, mgr, mgr2] = await addAccounts(apiSdk, [
       { type: "User", key: true },
       { type: "User", key: true },
@@ -613,6 +662,13 @@ test.describe("Leaving a room, and what removeSecurityInfo does", () => {
       const stay = people.map(([m]) => m).filter((m) => m !== gone);
       const before = await memberIds(owner, s.roomId);
       const keysBefore = s.file ? await entriesOf(stay, s.file.id) : {};
+      if (s.file) {
+        expectHeld(keysBefore, `${label}: setup`);
+        expect(
+          await keysOf(gone.api, s.file.id),
+          `${label}: setup, the removed member holds file keys`,
+        ).not.toBe("[]");
+      }
       expect(
         (await mgr.api.rooms.getRoomInfo({ id: s.roomId })).status,
         `${label}: the manager reads the room before`,
@@ -644,12 +700,12 @@ test.describe("Leaving a room, and what removeSecurityInfo does", () => {
           await entriesOf(stay, s.file.id),
           `${label}: the others' keys`,
         ).toEqual(keysBefore);
-        expect(
-          (await downloadVia(owner, s.ownerToken, s.file.id)).bytes!.equals(
-            s.bytes,
-          ),
+        await expectDownloads(
+          owner,
+          s.ownerToken,
+          { ...s.file, bytes: s.bytes },
           `${label}: the content`,
-        ).toBe(true);
+        );
         expect(
           (await inviteToRoom(owner, s.roomId, gone.id, FileShare.Read)).status,
         ).toBe(200);
@@ -668,7 +724,7 @@ test.describe("A member whose account key was deleted", () => {
   }) => {
     test.setTimeout(600_000);
     const { owner, scene, roomId } = await newScene(apiSdk, "Keyless member");
-    const ownerId = (await owner.profiles.getSelfProfile()).data.response!.id!;
+    const ownerId = await getOwnerId(owner);
     const [mgr, k1, k2, k3, k4, k5, c1, c2, c3, c4] = await addAccounts(
       apiSdk,
       [
@@ -812,7 +868,7 @@ test.describe("A member whose account key was deleted", () => {
       ).toBe(true);
       expect(await ownerOf(owner, roomId), `${r.name}: owner`).toBe(ownerId);
       // The answer and the state must agree: success changes the state, a refusal leaves it as it was.
-      if (res.status === 200 && r.removes)
+      if (res.status < 400 && r.removes)
         expect(still, `${r.name}: 200 but the member is still there`).toBe(
           false,
         );
@@ -825,7 +881,7 @@ test.describe("A member whose account key was deleted", () => {
           keysBefore,
         );
       }
-      if (res.status === 200 && !r.removes)
+      if (res.status < 400 && !r.removes)
         expect(
           after.get(r.subject.id),
           `${r.name}: 200 but the role is not applied`,
@@ -920,6 +976,9 @@ test.describe("Inviting again after removal or leaving", () => {
       await issue(owner, files, m.id, "re");
     }
     const bystanderKeys = await keysOf(bystander.api, files[0]);
+    expect(bystanderKeys, "setup: the bystander holds file keys").not.toBe(
+      "[]",
+    );
     const comesBack = async (who: Account, role: FileShare, label: string) => {
       const res = await invite(owner, roomId, who.id, role);
       expect(res.status, label).toBe(200);
@@ -934,10 +993,10 @@ test.describe("Inviting again after removal or leaving", () => {
       const got = await reach(who.api, scene);
       expect
         .soft(
-          got.room && got.content && got.nested && got.file,
-          `${label}: reaches the room`,
+          [got.room, got.content, got.nested, got.file],
+          `${label}: reaches the room (room, content, nested folder, file)`,
         )
-        .toBe(true);
+        .toEqual([200, 200, 200, 200]);
       // The old entries are not restored; the member has to be given new ones.
       expect(
         await keysOf(who.api, files[0]),
@@ -1001,10 +1060,8 @@ test.describe("Inviting again after removal or leaving", () => {
       200,
     );
     await comesBack(r4, FileShare.ContentCreator, "removed, another role");
-    expect(
-      await putFile(r4.api, "priv", roomId),
-      "the new role works",
-    ).toBeDefined();
+    // putFile fails unless the upload is stored.
+    await putFile(r4.api, "priv", roomId);
   });
 });
 
@@ -1019,14 +1076,15 @@ test.describe("Membership of an archived room", () => {
       { type: "User", key: true },
     ]);
     const priv = await createOwnerPrivateRoom(apiSdk, "Life archived private");
-    const plain = (
+    const plain = okBody(
       await owner.rooms.createRoom({
         createRoomRequestDto: {
           title: "Life archived plain",
           roomType: RoomType.CustomRoom,
         },
-      })
-    ).data.response!.id!;
+      }),
+      "createRoom (ordinary)",
+    ).id!;
     for (const room of [priv, plain]) {
       expect(
         (await inviteToRoom(owner, room, m1.id, FileShare.Read)).status,
@@ -1046,6 +1104,14 @@ test.describe("Membership of an archived room", () => {
       ["ordinary", plain],
     ] as const) {
       const before = [...(await accessOf(owner, room)).entries()];
+      expect(
+        before.map(([id]) => id),
+        `${name}: setup, m1 is a member`,
+      ).toContain(m1.id);
+      expect(
+        before.map(([id]) => id),
+        `${name}: setup, m2 is not a member`,
+      ).not.toContain(m2.id);
       // The archive is read-only: a change is refused (4xx, the exact status is not fixed), the ordinary room does the same.
       expectRefused(
         (await invite(owner, room, m2.id, FileShare.Read)).status,
@@ -1126,8 +1192,6 @@ test.describe("Repeated membership requests", () => {
       await count(d.id),
       "another member is untouched by the repeated leave",
     ).toBe(1);
-    expect(await ownerOf(owner, roomId)).toBe(
-      (await owner.profiles.getSelfProfile()).data.response!.id,
-    );
+    expect(await ownerOf(owner, roomId)).toBe(await getOwnerId(owner));
   });
 });

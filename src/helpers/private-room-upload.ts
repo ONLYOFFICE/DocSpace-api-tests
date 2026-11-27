@@ -135,8 +135,12 @@ export const idsOf = (files: RoomFile[]) => files.map((f) => f.id).sort();
 
 /** The caller's file operations that have not finished yet. */
 export async function unfinishedOperations(api: Api) {
-  const { data } = await api.operations.getOperationStatuses();
-  return (data.response ?? []).filter((o) => !o.finished);
+  const { data, status } = await api.operations.getOperationStatuses();
+  expect(status, "getOperationStatuses: HTTP status").toBe(200);
+  expect(Array.isArray(data.response), "getOperationStatuses: no list").toBe(
+    true,
+  );
+  return data.response!.filter((o) => !o.finished);
 }
 
 /**

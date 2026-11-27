@@ -1,12 +1,16 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { FileShare, RoomType, SearchArea } from "@onlyoffice/docspace-api-sdk";
-import { expectNoServerError } from "@/src/helpers/private-room-lifecycle";
+import {
+  expectNoServerError,
+  expectRefused,
+} from "@/src/helpers/private-room-lifecycle";
 import { ApiSDK, UserType } from "@/src/services/api-sdk";
 import {
   Api,
   createOwnerPrivateRoom,
   getFilePublicKeys,
+  getOwnerId,
   inviteToRoom,
   roomMemberAccess,
 } from "@/src/helpers/private-rooms";
@@ -241,7 +245,7 @@ test.describe("General APIs - a private room is invisible to callers who are not
     // The premise: the portal owner is not in the room.
     expect([
       ...(await roomMemberAccess(admin.api, scene.roomId)).keys(),
-    ]).not.toContain((await owner.profiles.getSelfProfile()).data.response!.id);
+    ]).not.toContain(await getOwnerId(owner));
     const before = await snapshot(admin.api, scene);
 
     await checkReaders(admin.api, owner, scene);
@@ -342,9 +346,11 @@ test.describe("General APIs - a private room is invisible to callers who are not
       theirs.status,
       "protectusers for a file the caller cannot open",
     );
-    expectNoServerError(unknown.status, "protectusers for an unknown id");
+    // JSDoc: a file id that resolves to nothing is refused.
+    expectRefused(unknown.status, "protectusers for an unknown id");
     expect(JSON.stringify(theirs.data)).not.toContain(member.id);
-    expect(theirs.data.response ?? []).toEqual([]);
+    // An error answer has no body (nothing is handed out); a success answer must be an empty list.
+    expect(theirs.status === 200 ? theirs.data.response : []).toEqual([]);
     expect(leaks(scene, theirs.data)).toEqual([]);
     expect(
       (await outsider.api.files.getFileInfo({ fileId: scene.rootFile.id }))
@@ -377,6 +383,7 @@ type Listing = { status: number; data: { response?: unknown; total?: number } };
 /** Every page of a listing, as one text, read with a page size of 1. */
 const allPages = async (page: (startIndex: number) => Promise<Listing>) => {
   let text = "";
+  let finished = false;
   for (let start = 0; start < 50; start++) {
     const res = await page(start);
     expect(res.status, "listing page").toBe(200);
@@ -394,8 +401,13 @@ const allPages = async (page: (startIndex: number) => Promise<Listing>) => {
       (res.data.response as { total?: number } | undefined)?.total ??
       res.data.total ??
       0;
-    if (items === 0 || start + 1 >= total) break;
+    if (items === 0 || start + 1 >= total) {
+      finished = true;
+      break;
+    }
   }
+  // A listing cut short would read as "the object is not there".
+  expect(finished, "the listing was not read to its end").toBe(true);
   return text;
 };
 
@@ -418,19 +430,32 @@ test.describe("General APIs - lists and search never show a private room to a no
         { type: "RoomAdmin", key: true },
         { type: type as UserType, key },
       ]);
-      await inviteToRoom(
-        owner,
-        scene.roomId,
-        manager.id,
-        FileShare.RoomManager,
-      );
+      expect(
+        (
+          await inviteToRoom(
+            owner,
+            scene.roomId,
+            manager.id,
+            FileShare.RoomManager,
+          )
+        ).status,
+        "inviting the manager",
+      ).toBe(200);
       // A second private room for each, so a page size of 1 really pages.
       for (const who of key ? [manager, subject] : [manager]) {
         const own = await createOwnerPrivateRoom(apiSdk);
-        await inviteToRoom(owner, own, who.id, FileShare.ContentCreator);
+        expect(
+          (await inviteToRoom(owner, own, who.id, FileShare.ContentCreator))
+            .status,
+          "inviting into the second room",
+        ).toBe(200);
       }
       if (setup === "removed") {
-        await inviteToRoom(owner, scene.roomId, subject.id, FileShare.Read);
+        expect(
+          (await inviteToRoom(owner, scene.roomId, subject.id, FileShare.Read))
+            .status,
+          "inviting the subject",
+        ).toBe(200);
         const seen = await allPages((s) =>
           subject.api.rooms.getRoomsFolder({
             searchArea: SearchArea.PrivateRooms,
@@ -513,46 +538,46 @@ test.describe("General APIs - lists and search never show a private room to a no
             }),
           ),
         ]);
+      // Every read must succeed: an error answer would read as "nothing listed".
+      const body = (
+        res: { status: number; data: { response?: unknown } },
+        name: string,
+      ) => {
+        expect(res.status, `${name}: HTTP status`).toBe(200);
+        return JSON.stringify(res.data.response);
+      };
       seen.push([
         "getRootFolders",
-        JSON.stringify(
-          (await subject.api.folders.getRootFolders({})).data.response,
-        ),
+        body(await subject.api.folders.getRootFolders({}), "getRootFolders"),
       ]);
       seen.push([
         "getRecentFolder",
-        JSON.stringify(
-          (await subject.api.folders.getRecentFolder({})).data.response,
-        ),
+        body(await subject.api.folders.getRecentFolder({}), "getRecentFolder"),
       ]);
       seen.push([
         "getFavoritesFolder",
-        JSON.stringify(
-          (await subject.api.folders.getFavoritesFolder({})).data.response,
+        body(
+          await subject.api.folders.getFavoritesFolder({}),
+          "getFavoritesFolder",
         ),
       ]);
       seen.push([
         "getTrashFolder",
-        JSON.stringify(
-          (await subject.api.folders.getTrashFolder({})).data.response,
-        ),
+        body(await subject.api.folders.getTrashFolder({}), "getTrashFolder"),
       ]);
       seen.push([
         "searchRooms",
-        JSON.stringify(
-          (
-            await subject.api.rooms.searchRooms({
-              roomsMetadataSearchRequestDto: {},
-            })
-          ).data.response,
+        body(
+          await subject.api.rooms.searchRooms({
+            roomsMetadataSearchRequestDto: {},
+          }),
+          "searchRooms",
         ),
       ]);
       if (type !== "Guest")
         seen.push([
           "getMyFolder",
-          JSON.stringify(
-            (await subject.api.folders.getMyFolder({})).data.response,
-          ),
+          body(await subject.api.folders.getMyFolder({}), "getMyFolder"),
         ]);
 
       for (const [name, text] of seen) {
@@ -630,7 +655,8 @@ test.describe("General APIs - lists and search never show a private room to a no
 
     // JSDoc: an encrypted file of a private room is answered normally but never recorded as recent.
     expect(added.status, "addFileToRecent").toBe(200);
-    expectNoServerError(toggled.status, "toggleFileFavorite");
+    // JSDoc: read access is enough and the answer only echoes the value; the outcome is read from the list.
+    expect(toggled.status, "toggleFileFavorite").toBe(200);
     expect(favorites.status).toBe(200);
     expect(recent.status).toBe(200);
     expect(mentionsId(favorites.data.response, scene.rootFile.id)).toBe(false);
@@ -648,8 +674,12 @@ test.describe("General APIs - file keys stay with their owners", () => {
       { type: "User", key: true },
       { type: "User", key: true },
     ]);
-    await inviteToRoom(owner, scene.roomId, a.id, FileShare.Read);
-    await inviteToRoom(owner, scene.roomId, b.id, FileShare.Read);
+    for (const who of [a, b])
+      expect(
+        (await inviteToRoom(owner, scene.roomId, who.id, FileShare.Read))
+          .status,
+        "inviting a member",
+      ).toBe(200);
     await issueMarkedKeys(owner, scene, a.id);
     await issueMarkedKeys(owner, scene, b.id);
 

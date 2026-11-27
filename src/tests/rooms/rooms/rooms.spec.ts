@@ -21757,10 +21757,15 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
         },
       });
 
-      const { data, status } = await ownerApi.rooms.getRoomsFolder({
-        type: [RoomType.PublicRoom],
-        filterValue: "Combo",
-      });
+      // filterValue reads a search index that picks new rooms up on a background sweep.
+      const { data, status } = await waitForRoomsSearch(
+        () =>
+          ownerApi.rooms.getRoomsFolder({
+            type: [RoomType.PublicRoom],
+            filterValue: "Combo",
+          }),
+        ({ data: found }) => expect(found.response!.folders!.length).toBe(1),
+      );
 
       expect(status).toBe(200);
       expect(data.response!.folders!.length).toBe(1);
@@ -21786,10 +21791,18 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
       });
       await waitForOperation(ownerApi.operations);
 
-      const { data, status } = await ownerApi.rooms.getRoomsFolder({
-        searchArea: SearchArea.Archive,
-        filterValue: "Archived Searchable",
-      });
+      // filterValue reads a search index that picks new rooms up on a background sweep.
+      const { data, status } = await waitForRoomsSearch(
+        () =>
+          ownerApi.rooms.getRoomsFolder({
+            searchArea: SearchArea.Archive,
+            filterValue: "Archived Searchable",
+          }),
+        ({ data: found }) =>
+          expect((found.response!.folders as any[]).map((f) => f.id)).toContain(
+            roomId,
+          ),
+      );
 
       expect(status).toBe(200);
       const ids = (data.response!.folders as any[]).map((f) => f.id);

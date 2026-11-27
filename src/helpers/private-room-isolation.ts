@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { expect } from "@playwright/test";
 import { ApiSDK } from "../services/api-sdk";
-import { Api, ZERO_GUID } from "./private-rooms";
+import { Api, ZERO_GUID, okBody, okList } from "./private-rooms";
 import {
   UploadedFile,
   markedBytes,
@@ -262,15 +262,24 @@ const idsOfEntries = (entries?: unknown[] | null) =>
 
 /** The state of a scene as the owner of the room sees it. */
 export async function snapshot(reader: Api, s: Scene) {
-  const room = await reader.folders.getFolderByFolderId({ folderId: s.roomId });
-  const inner = await reader.folders.getFolderByFolderId({
-    folderId: s.innerId,
-  });
-  const members = await reader.rooms.getRoomSecurityInfo({ id: s.roomId });
+  const room = okBody(
+    await reader.folders.getFolderByFolderId({ folderId: s.roomId }),
+    "getFolderByFolderId(room)",
+  );
+  const inner = okBody(
+    await reader.folders.getFolderByFolderId({ folderId: s.innerId }),
+    "getFolderByFolderId(inner)",
+  );
+  const members = okList(
+    await reader.rooms.getRoomSecurityInfo({ id: s.roomId }),
+    "getRoomSecurityInfo",
+  );
   const infos = [];
   for (const file of [s.rootFile, s.deepFile]) {
-    const info = await reader.files.getFileInfo({ fileId: file.id });
-    const f = info.data.response!;
+    const f = okBody(
+      await reader.files.getFileInfo({ fileId: file.id }),
+      `getFileInfo(${file.id})`,
+    );
     infos.push([
       f.id,
       f.title,
@@ -281,16 +290,12 @@ export async function snapshot(reader: Api, s: Scene) {
       f.pureContentLength,
     ]);
   }
-  expect([room.status, inner.status, members.status]).toEqual([200, 200, 200]);
   return {
-    roomFolders: idsOfEntries(room.data.response?.folders),
-    roomFiles: idsOfEntries(room.data.response?.files),
-    innerFiles: idsOfEntries(inner.data.response?.files),
-    innerFolders: idsOfEntries(inner.data.response?.folders),
-    members: (members.data.response ?? []).map((m) => [
-      (m.sharedTo as { id?: string }).id,
-      m.access,
-    ]),
+    roomFolders: idsOfEntries(room.folders),
+    roomFiles: idsOfEntries(room.files),
+    innerFiles: idsOfEntries(inner.files),
+    innerFolders: idsOfEntries(inner.folders),
+    members: members.map((m) => [(m.sharedTo as { id?: string }).id, m.access]),
     files: infos,
   };
 }
