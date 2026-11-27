@@ -40,14 +40,12 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
  * unknown id is "not found", an anonymous caller is rejected; bulkDownload
  * fails the whole call with 403 for an item the caller may not read.
  *
- * What neither the JSDoc nor the HTML guide fixes is recorded as an
- * `observation` annotation instead of an assertion: downloading as a member who
- * holds no file key or no account key, the reach of an already issued address,
- * and the answer for a malformed id. Those rows stay SPEC GAP in the audit.
+ * What neither the JSDoc nor the HTML guide fixes is NOT asserted and not
+ * recorded: downloading as a member who holds no file key or no account key
+ * (only "never anything but the uploaded bytes, never a 5xx" is asserted), and
+ * the reach of an already issued address after removal (SPEC-018, see
+ * fileEncryption.presigned.spec.ts). Those rows stay SPEC GAP in the audit.
  */
-
-const observe = (what: string) =>
-  test.info().annotations.push({ type: "observation", description: what });
 
 const issueFileKey = async (
   owner: Api,
@@ -426,13 +424,10 @@ test.describe("GET /files/file/:fileId/presigneduri - private room isolation", (
       file,
       "member before removal",
     );
-    const knownUrl = (
-      await member.api.files.getPresignedUri({ fileId: file.id })
-    ).data.response as unknown as string;
-
     expect(
       (await inviteToRoom(owner, roomId, member.id, FileShare.None)).status,
     ).toBe(200);
+    expect((await roomMemberAccess(owner, roomId)).has(member.id)).toBe(false);
 
     await expectRefused(
       apiSdk,
@@ -447,13 +442,8 @@ test.describe("GET /files/file/:fileId/presigneduri - private room isolation", (
     expect(
       (await member.api.files.getEncryptionInfo({ fileId: file.id })).status,
     ).toBe(403);
-    // The address issued before the removal: what it still serves is not fixed by the
-    // contract (SPEC-018), so it is recorded, not asserted.
-    const asMember = await fetchAs(knownUrl, member.token);
-    const withoutLogin = await fetchAs(knownUrl, null);
-    observe(
-      `address issued before removal: with the removed member's token -> ${asMember.status}; without credentials -> ${withoutLogin.status} (${withoutLogin.bytes.length} bytes)`,
-    );
+    // The address issued before the removal is not asserted: what it still serves is not
+    // fixed by the contract (SPEC-018, covered as a SPEC GAP in fileEncryption.presigned.spec.ts).
   });
 });
 
@@ -461,20 +451,24 @@ test.describe("GET /files/file/:fileId/presigneduri - membership is independent 
   // Room membership, an account key, a file key and the ability to decrypt are
   // four separate things. The REST layer only ever serves the stored bytes, so
   // these tests pin the facts that ARE defined (membership, which keys are stored)
-  // and record what the download does, asserting only that it never serves
-  // anything but the uploaded bytes.
-  const downloadObservation = async (
+  // and assert about the download only that it is never a server error and never
+  // serves anything but the uploaded bytes.
+  const expectOnlyUploadedBytes = async (
     who: Account,
     file: UploadedFile,
     situation: string,
   ) => {
     const got = await downloadVia(who.api, who.token, file.id);
-    observe(
-      `${situation}: presigneduri ${got.issued}` +
-        (got.issued === 200 ? `, address fetch ${got.fetched}` : ""),
-    );
-    if (got.issued === 200 && got.fetched === 200) {
-      expect(got.bytes!.equals(file.bytes), `${situation}: bytes`).toBe(true);
+    expect(got.issued, `${situation}: presigneduri`).toBeLessThan(500);
+    if (got.issued === 200) {
+      expect(got.fetched, `${situation}: address fetch`).toBeLessThan(500);
+      if (got.fetched === 200)
+        expect(got.bytes!.equals(file.bytes), `${situation}: bytes`).toBe(true);
+    } else {
+      expect(
+        got.bytes,
+        `${situation}: no bytes without an address`,
+      ).toBeUndefined();
     }
     return got;
   };
@@ -498,7 +492,11 @@ test.describe("GET /files/file/:fileId/presigneduri - membership is independent 
     expect(info.data.response?.fileKeys ?? []).toEqual([]);
     expect(info.data.response?.userKeys?.length).toBe(1);
 
-    await downloadObservation(member, file, "member with no file key entry");
+    await expectOnlyUploadedBytes(
+      member,
+      file,
+      "member with no file key entry",
+    );
   });
 
   test("GET /files/file/:fileId/presigneduri - A member without an active account key: membership stays, no key pair comes back", async ({
@@ -527,14 +525,12 @@ test.describe("GET /files/file/:fileId/presigneduri - membership is independent 
     expect((await roomMemberAccess(owner, roomId)).get(member.id)).toBe(
       FileShare.Read,
     );
-    const info = await member.api.files.getEncryptionInfo({ fileId: file.id });
-    observe(`getEncryptionInfo without an account key: ${info.status}`);
-    // The file key entry stored for the member is not removed with their account key.
+    // The owner is unaffected by the member's key deletion.
     const ownerView = await owner.files.getEncryptionInfo({ fileId: file.id });
     expect(ownerView.status).toBe(200);
     await expectDownloads(owner, ownerToken, file, "owner (control)");
 
-    await downloadObservation(
+    await expectOnlyUploadedBytes(
       member,
       file,
       "member who deleted their account key",
@@ -577,7 +573,7 @@ test.describe("GET /files/file/:fileId/presigneduri - membership is independent 
     expect(stale.data.response?.fileKeys?.map((k) => k.privateKeyEnc)).toEqual([
       "fk-for-old-key",
     ]);
-    await downloadObservation(
+    await expectOnlyUploadedBytes(
       member,
       file,
       "after key replacement, before re-issue",
@@ -589,7 +585,7 @@ test.describe("GET /files/file/:fileId/presigneduri - membership is independent 
     expect(fresh.data.response?.fileKeys?.map((k) => k.privateKeyEnc)).toEqual([
       "fk-for-new-key",
     ]);
-    const after = await downloadObservation(member, file, "after re-issue");
+    const after = await expectOnlyUploadedBytes(member, file, "after re-issue");
     // Once the file key is re-issued nothing blocks the member any more.
     expect(after.issued).toBe(200);
     expect(after.bytes!.equals(file.bytes)).toBe(true);
@@ -740,12 +736,12 @@ test.describe("PUT /files/fileops/bulkdownload - private room archives", () => {
     });
 
     // The status is not asserted here (see the BUG XXXXX test below); the unreadable
-    // file must be absent whatever it is.
-    observe(`mixed request in private rooms: bulkdownload ${mixed.status}`);
+    // file must be absent whatever it is, and the call must not be a server error.
+    expect(mixed.status, "bulkdownload of a mixed request").toBeLessThan(500);
     expect(
-      mixed.bytes === undefined ||
-        !containsMarker(mixed.bytes, "DL-MIX-SECRET"),
-    ).toBe(true);
+      mixed.bytes ? containsMarker(mixed.bytes, "DL-MIX-SECRET") : false,
+      "the unreadable file's bytes",
+    ).toBe(false);
     expect(mixed.entries?.map((e) => e.name) ?? []).not.toContain(
       secret.serverName,
     );
@@ -806,11 +802,9 @@ test.describe("PUT /files/fileops/bulkdownload - private room archives", () => {
     expect(bulk.status).toBe(200);
     expect(bulk.downloadStatus).toBe(200);
     // Observed: a one-file request is not wrapped in a ZIP.
+    if (bulk.isZip) expect(bulk.entries).toHaveLength(1);
     const bytes = bulk.isZip ? bulk.entries![0].bytes : bulk.bytes!;
     expect(bytes.equals(file.bytes)).toBe(true);
-    observe(
-      `one file requested: answer is ${bulk.isZip ? "a ZIP" : "the bare file"}`,
-    );
   });
 });
 
@@ -852,7 +846,10 @@ test.describe("GET /files/file/:fileId/presigneduri - missing and malformed file
       (await owner.files.getPresignedUri({ fileId: file.id })).status,
     ).toBe(404);
     const stale = await fetchAs(knownUrl, ownerToken);
-    expect(stale.status).not.toBe(200);
+    // No contract fixes the refusal status of an address for a deleted file; it must be a
+    // refusal (4xx), never a server error, and carry none of the content.
+    expect(stale.status).toBeGreaterThanOrEqual(400);
+    expect(stale.status).toBeLessThan(500);
     expect(containsMarker(stale.bytes, "DL-DELETED")).toBe(false);
   });
 
@@ -869,9 +866,10 @@ test.describe("GET /files/file/:fileId/presigneduri - missing and malformed file
       fileId: "not-a-file-id",
     });
 
-    // No contract fixes the status for a value that is no id; the one thing that
-    // must hold is that nothing is served for it.
-    observe(`presigneduri for the id "not-a-file-id": ${status}`);
-    expect(status).not.toBe(200);
+    // No contract fixes the status for a value that is no id; it must be a client
+    // refusal (never a 5xx) and must not disturb the existing file.
+    expect(status).toBeGreaterThanOrEqual(400);
+    expect(status).toBeLessThan(500);
+    await expectDownloads(owner, ownerToken, file, "existing file (after)");
   });
 });
