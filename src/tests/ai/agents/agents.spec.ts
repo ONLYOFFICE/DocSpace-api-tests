@@ -425,10 +425,10 @@ test.describe("DELETE /files/rooms/:id - delete an agent", () => {
 });
 
 test.describe("POST /files/owner - change the owner of an agent", () => {
-  // BUG XXXXX: 403 "The role is not available for this user type" - the former
+  // BUG 85475: 403 "The role is not available for this user type" - the former
   // owner gets RoomManager, which an AI project no longer offers (c17aaf7877).
 
-  test("BUG XXXXX: POST /files/owner - Owner changes the owner of an agent to a Room Admin", async ({
+  test("BUG 85475: POST /files/owner - Owner changes the owner of an agent to a Room Admin", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -474,7 +474,7 @@ test.describe("POST /files/owner - change the owner of an agent", () => {
     expect(after.status, "the new owner manages the agent").toBe(200);
   });
 
-  test("BUG XXXXX: POST /files/owner - DocSpace Admin changes the owner of a Room Admin's agent to themselves", async ({
+  test("BUG 85475: POST /files/owner - DocSpace Admin changes the owner of a Room Admin's agent to themselves", async ({
     apiSdk,
     paymentsApi,
   }) => {
